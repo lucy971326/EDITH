@@ -3,8 +3,10 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github-agent/agent/backend"
 	"github-agent/agent/tools"
@@ -27,11 +29,18 @@ type EventContext struct {
 	Comment        string // 评论内容（如有）
 	User           string // 触发者
 	InstallationID int64  // App 安装 ID，操作 API 时需要
+	HeadBranch     string // PR head 分支（仅 PR 事件）
+	BaseBranch     string // PR base 分支（仅 PR 事件）
+	EventType      string // 事件类型：issue / issue_comment / pr / pr_review / pr_comment
+	File           string // 行级评论所在文件（仅 PR review comment）
+	Line           int    // 行级评论所在行号（仅 PR review comment）
+	DiffHunk       string // 行级评论的 diff 上下文（仅 PR review comment）
 }
 
 var (
-	r    runner.Runner
-	once sync.Once
+	r       runner.Runner
+	once    sync.Once
+	lastRun = make(map[string]time.Time) // sessionID → 上次触发时间
 )
 
 func workspaceDir() string {
@@ -64,7 +73,8 @@ func ensureRunner() {
 					"你有文件操作工具可用，当前 workspace 目录："+dir+"\n"+
 					"所有文件路径均以 workspace 为根，使用相对路径。执行命令时 work_dir 默认传 \".\" 即可。\n"+
 					"clone 仓库时目标目录只写仓库名，不要写 workspace 前缀（例如 gh repo clone owner/repo myrepo，不要写 workspace/myrepo）。\n"+
-					"回复 Issue 评论时请使用 comment_on_issue 工具，不要用 exec_command 调 gh issue comment。\n"+
+					"回复 Issue 评论时请使用 comment_on_issue 工具，回复 PR 评论时请使用 comment_on_pr 工具。\n"+
+					"审 PR 时：先 clone 仓库，再用 get_pr_diff 拿 diff，结合代码全貌分析，最后用 comment_on_pr 回复。\n"+
 					"仔细阅读 Issue/PR，需要时读代码、搜代码、执行命令来辅助分析。",
 			),
 			llmagent.WithToolSets([]tool.ToolSet{ft, gh}),
@@ -78,15 +88,37 @@ func ensureRunner() {
 func Analyze(info EventContext) {
 	ensureRunner()
 
+	// 防抖：同一 session + 同一事件类型 5秒内不重复触发
+	sessionID := fmt.Sprintf("%s#%d", info.Repo, info.Number)
+	debounceKey := sessionID + ":" + info.EventType
+	if time.Since(lastRun[debounceKey]) < 5*time.Second {
+		log.Printf("防抖: %s 在 5s 内已触发，跳过", debounceKey)
+		return
+	}
+	lastRun[debounceKey] = time.Now()
+
 	// 设置 GITHUB_TOKEN，gh / git 可直接操作仓库
 	if token, err := auth.GetInstallationToken(context.Background(), info.InstallationID); err == nil {
 		os.Setenv("GITHUB_TOKEN", token)
 	}
 
+	// 根据事件类型构造 prompt
+	isPR := info.HeadBranch != ""
+	eventType := "Issue"
+	if isPR {
+		eventType = "PR"
+	}
 	prompt := fmt.Sprintf(
-		"[#%d] %s\n仓库: %s\n描述: %s\n评论: %s\n评论者: %s\n\n分析:",
-		info.Number, info.Title, info.Repo, info.Body, info.Comment, info.User,
+		"[%s #%d] %s\n仓库: %s\n描述: %s\n评论: %s\n评论者: %s\n",
+		eventType, info.Number, info.Title, info.Repo, info.Body, info.Comment, info.User,
 	)
+	if isPR {
+		prompt += fmt.Sprintf("分支: %s → %s\n", info.HeadBranch, info.BaseBranch)
+	}
+	if info.File != "" {
+		prompt += fmt.Sprintf("文件: %s  行号: %d\nDiff 上下文:\n%s\n", info.File, info.Line, info.DiffHunk)
+	}
+	prompt += "\n分析:"
 
 	eventChan, err := r.Run(
 		context.Background(),
