@@ -1,17 +1,22 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github-agent/agent"
 	"github-agent/github/auth"
 
 	"github.com/google/go-github/v69/github"
 )
+
+// PR Review 延迟：等行级评论取消，避免重复触发
+var pendingReview = make(map[string]*time.Timer)
 
 func loadEnv(path string) {
 	data, err := os.ReadFile(path)
@@ -70,6 +75,7 @@ func main() {
 					Body:            e.GetIssue().GetBody(),
 					User:            e.GetSender().GetLogin(),
 					InstallationID:  e.GetInstallation().GetID(),
+					EventType:       "issue",
 				})
 			}
 
@@ -89,6 +95,7 @@ func main() {
 					Comment:         e.GetComment().GetBody(),
 					User:            e.GetComment().GetUser().GetLogin(),
 					InstallationID:  e.GetInstallation().GetID(),
+					EventType:       "issue_comment",
 				})
 			}
 
@@ -102,13 +109,17 @@ func main() {
 					Body:            e.GetPullRequest().GetBody(),
 					User:            e.GetSender().GetLogin(),
 					InstallationID:  e.GetInstallation().GetID(),
+					HeadBranch:      e.GetPullRequest().GetHead().GetRef(),
+					BaseBranch:      e.GetPullRequest().GetBase().GetRef(),
+					EventType:       "pr",
 				})
 			}
 
 		case *github.PullRequestReviewEvent:
 			if e.GetAction() == "submitted" {
-				log.Printf("📋 PR Review: %s #%d", e.GetRepo().GetFullName(), e.GetPullRequest().GetNumber())
-				agent.Analyze(agent.EventContext{
+				sessionID := fmt.Sprintf("%s#%d", e.GetRepo().GetFullName(), e.GetPullRequest().GetNumber())
+				log.Printf("📋 PR Review: %s (等待 3s 看有没有行级评论)", sessionID)
+				pending := agent.EventContext{
 					Repo:            e.GetRepo().GetFullName(),
 					Number:          e.GetPullRequest().GetNumber(),
 					Title:           e.GetPullRequest().GetTitle(),
@@ -116,12 +127,24 @@ func main() {
 					Comment:         e.GetReview().GetBody(),
 					User:            e.GetSender().GetLogin(),
 					InstallationID:  e.GetInstallation().GetID(),
+					HeadBranch:      e.GetPullRequest().GetHead().GetRef(),
+					BaseBranch:      e.GetPullRequest().GetBase().GetRef(),
+					EventType:       "pr_review",
+				}
+				pendingReview[sessionID] = time.AfterFunc(3*time.Second, func() {
+					log.Printf("📋 3s 到期，没有行级评论，处理 PR Review")
+					agent.Analyze(pending)
 				})
 			}
 
 		case *github.PullRequestReviewCommentEvent:
 			if e.GetAction() == "created" {
-				log.Printf("📋 PR 行级评论: %s #%d", e.GetRepo().GetFullName(), e.GetPullRequest().GetNumber())
+				sessionID := fmt.Sprintf("%s#%d", e.GetRepo().GetFullName(), e.GetPullRequest().GetNumber())
+				if t, ok := pendingReview[sessionID]; ok {
+					t.Stop()
+					delete(pendingReview, sessionID)
+					log.Printf("📋 取消 PR Review，改控行级评论: %s", sessionID)
+				}
 				agent.Analyze(agent.EventContext{
 					Repo:            e.GetRepo().GetFullName(),
 					Number:          e.GetPullRequest().GetNumber(),
@@ -130,6 +153,12 @@ func main() {
 					Comment:         e.GetComment().GetBody(),
 					User:            e.GetSender().GetLogin(),
 					InstallationID:  e.GetInstallation().GetID(),
+					HeadBranch:      e.GetPullRequest().GetHead().GetRef(),
+					BaseBranch:      e.GetPullRequest().GetBase().GetRef(),
+					EventType:       "pr_comment",
+					File:            e.GetComment().GetPath(),
+					Line:            e.GetComment().GetLine(),
+					DiffHunk:        e.GetComment().GetDiffHunk(),
 				})
 			}
 		}

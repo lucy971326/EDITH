@@ -23,6 +23,8 @@ func NewGitHubToolSet() *GitHubToolSet {
 	s := &GitHubToolSet{name: "github"}
 	s.tools = []tool.Tool{
 		s.makeCommentOnIssue(),
+		s.makeCommentOnPR(),
+		s.makeGetPRDiff(),
 	}
 	return s
 }
@@ -86,6 +88,79 @@ func (s *GitHubToolSet) makeCommentOnIssue() tool.Tool {
 		},
 		function.WithName("comment_on_issue"),
 		function.WithDescription("在 Issue 上发布评论，内容支持 Markdown。发布后返回评论 URL。"),
+	)
+}
+
+// ── comment_on_pr ──
+
+type commentOnPRArgs struct {
+	Repo     string `json:"repo" jsonschema:"description=仓库全名，如 owner/repo"`
+	PRNumber int    `json:"pr_number" jsonschema:"description=PR 编号"`
+	Body     string `json:"body" jsonschema:"description=评论内容，支持 Markdown"`
+}
+
+type commentOnPRResult struct {
+	URL string `json:"url"`
+}
+
+func (s *GitHubToolSet) makeCommentOnPR() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args commentOnPRArgs) (commentOnPRResult, error) {
+			tmp, err := os.CreateTemp("", "gh-pr-comment-*.md")
+			if err != nil {
+				return commentOnPRResult{}, fmt.Errorf("创建临时文件失败: %w", err)
+			}
+			defer os.Remove(tmp.Name())
+
+			if _, err := tmp.WriteString(args.Body); err != nil {
+				return commentOnPRResult{}, fmt.Errorf("写入评论失败: %w", err)
+			}
+			tmp.Close()
+
+			cmd := exec.CommandContext(ctx, ghBinary(),
+				"pr", "comment", strconv.Itoa(args.PRNumber),
+				"--repo", args.Repo,
+				"--body-file", tmp.Name(),
+			)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				return commentOnPRResult{}, fmt.Errorf("gh 执行失败: %w\n%s", err, string(out))
+			}
+
+			return commentOnPRResult{URL: trimNewline(string(out))}, nil
+		},
+		function.WithName("comment_on_pr"),
+		function.WithDescription("在 PR 上发布评论，内容支持 Markdown。发布后返回评论 URL。"),
+	)
+}
+
+// ── get_pr_diff ──
+
+type getPRDiffArgs struct {
+	Repo     string `json:"repo" jsonschema:"description=仓库全名，如 owner/repo"`
+	PRNumber int    `json:"pr_number" jsonschema:"description=PR 编号"`
+}
+
+type getPRDiffResult struct {
+	Diff string `json:"diff"`
+}
+
+func (s *GitHubToolSet) makeGetPRDiff() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args getPRDiffArgs) (getPRDiffResult, error) {
+			cmd := exec.CommandContext(ctx, ghBinary(),
+				"pr", "diff", strconv.Itoa(args.PRNumber),
+				"--repo", args.Repo,
+			)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				return getPRDiffResult{}, fmt.Errorf("gh 执行失败: %w\n%s", err, string(out))
+			}
+
+			return getPRDiffResult{Diff: string(out)}, nil
+		},
+		function.WithName("get_pr_diff"),
+		function.WithDescription("获取 PR 的代码 diff，用于审查代码变更。"),
 	)
 }
 
