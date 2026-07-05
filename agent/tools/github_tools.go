@@ -25,6 +25,7 @@ func NewGitHubToolSet() *GitHubToolSet {
 		s.makeCommentOnIssue(),
 		s.makeCommentOnPR(),
 		s.makeGetPRDiff(),
+		s.makeCreatePR(),
 	}
 	return s
 }
@@ -169,4 +170,59 @@ func trimNewline(s string) string {
 		s = s[:len(s)-1]
 	}
 	return s
+}
+
+// ── create_pr ──
+
+type createPRArgs struct {
+	Repo       string `json:"repo" jsonschema:"description=仓库全名，如 owner/repo"`
+	Title      string `json:"title" jsonschema:"description=PR 标题"`
+	Body       string `json:"body" jsonschema:"description=PR 描述，支持 Markdown，可用 Closes #N 关联 Issue"`
+	HeadBranch string `json:"head_branch" jsonschema:"description=源分支名"`
+	BaseBranch string `json:"base_branch" jsonschema:"description=目标分支名，默认 main"`
+}
+
+type createPRResult struct {
+	URL  string `json:"url"`
+	PRID int    `json:"pr_id"`
+}
+
+func (s *GitHubToolSet) makeCreatePR() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args createPRArgs) (createPRResult, error) {
+			tmp, err := os.CreateTemp("", "gh-pr-body-*.md")
+			if err != nil {
+				return createPRResult{}, fmt.Errorf("创建临时文件失败: %w", err)
+			}
+			defer os.Remove(tmp.Name())
+
+			if _, err := tmp.WriteString(args.Body); err != nil {
+				return createPRResult{}, fmt.Errorf("写入 PR 描述失败: %w", err)
+			}
+			tmp.Close()
+
+			base := args.BaseBranch
+			if base == "" {
+				base = "main"
+			}
+
+			cmd := exec.CommandContext(ctx, ghBinary(),
+				"pr", "create",
+				"--repo", args.Repo,
+				"--title", args.Title,
+				"--body-file", tmp.Name(),
+				"--head", args.HeadBranch,
+				"--base", base,
+			)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				return createPRResult{}, fmt.Errorf("gh 执行失败: %w\n%s", err, string(out))
+			}
+
+			url := trimNewline(string(out))
+			return createPRResult{URL: url}, nil
+		},
+		function.WithName("create_pr"),
+		function.WithDescription("创建 Pull Request。描述中写 Closes #N 可自动关联 Issue。返回 PR URL。"),
+	)
 }
