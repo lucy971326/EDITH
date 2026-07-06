@@ -5,10 +5,14 @@ go 1.25.3
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-github/v69 v69.2.0
-	trpc.group/trpc-go/trpc-agent-go v0.0.0
+	github.com/mattn/go-sqlite3 v1.14.32
+	trpc.group/trpc-go/trpc-agent-go v1.6.1-0.20260311094958-7b74ee59e339
+	trpc.group/trpc-go/trpc-agent-go/server/agui v1.10.0
+	trpc.group/trpc-go/trpc-agent-go/session/sqlite v1.10.0
 )
 
 require (
+	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260305114736-115a967b66a9 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/creack/pty v1.1.24 // indirect
@@ -19,6 +23,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0 // indirect
 	github.com/openai/openai-go v1.12.0 // indirect
 	github.com/panjf2000/ants/v2 v2.10.0 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect

@@ -8,3 +8,8 @@ workspace/
 docs/
 .venv/
 test/
+**/node_modules/
+*.db
+**.db-shm
+**.db-wal
+**.kilo
