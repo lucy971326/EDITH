@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -13,6 +15,10 @@ import (
 	"github-agent/github/auth"
 
 	"github.com/google/go-github/v69/github"
+	"trpc.group/trpc-go/trpc-agent-go/server/agui"
+	"trpc.group/trpc-go/trpc-agent-go/server/agui/adapter"
+	aguirunner "trpc.group/trpc-go/trpc-agent-go/server/agui/runner"
+	"trpc.group/trpc-go/trpc-agent-go/session"
 )
 
 // PR Review 延迟：等行级评论取消，避免重复触发
@@ -49,7 +55,10 @@ func main() {
 	auth.Init(os.Getenv("GITHUB_APP_ID"), "private_key.pem")
 	webhookSecret := []byte(os.Getenv("GITHUB_WEBHOOK_SECRET"))
 
-	http.HandleFunc("/webhook/github", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+
+	// ── Webhook（GitHub 事件入口） ──
+	mux.HandleFunc("/webhook/github", func(w http.ResponseWriter, r *http.Request) {
 		payload, err := getPayload(r, webhookSecret)
 		if err != nil {
 			log.Printf("签名验证失败: %v", err)
@@ -167,6 +176,91 @@ func main() {
 		w.Write([]byte("ok"))
 	})
 
-	log.Printf("🚀 启动在 :2026")
-	log.Fatal(http.ListenAndServe(":2026", nil))
+	// ── AG-UI（网页对话，共享 :2026 端口） ──
+	// 更具体的路由优先匹配：/webhook/github 和 /api/sessions 先抢到，其他走到 AG-UI
+	aguiServer, err := agui.New(
+		agent.GetRunner(),
+		agui.WithPath("/chat"),
+		agui.WithSessionService(agent.SessionService),
+		agui.WithAppName("github-edith"),
+		agui.WithMessagesSnapshotEnabled(true),
+		agui.WithCancelEnabled(true),
+		agui.WithAGUIRunnerOptions(
+			aguirunner.WithUserIDResolver(func(_ context.Context, _ *adapter.RunAgentInput) (string, error) {
+				return "default", nil
+			}),
+		),
+	)
+	if err != nil {
+		log.Fatalf("AG-UI 启动失败: %v", err)
+	}
+	mux.Handle("/", aguiServer.Handler())
+
+	// ── 会话列表 API ──
+	mux.HandleFunc("/api/sessions", func(w http.ResponseWriter, r *http.Request) {
+		sessions, err := agent.SessionService.ListSessions(r.Context(), session.UserKey{
+			AppName: "github-edith",
+			UserID:  "default",
+		})
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(sessions)
+	})
+
+	// ── 会话历史 API（直接从 Events 读，绕过 tracker） ──
+	mux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
+		sessionID := r.URL.Query().Get("session_id")
+		if sessionID == "" {
+			http.Error(w, "missing session_id", 400)
+			return
+		}
+		// 先查 github-edith，再查 github-agent（兼容旧数据）
+		var sess *session.Session
+		for _, app := range []string{"github-edith", "github-agent"} {
+			s, _ := agent.SessionService.GetSession(r.Context(), session.Key{
+				AppName:   app,
+				UserID:    "default",
+				SessionID: sessionID,
+			})
+			if s != nil {
+				sess = s
+				break
+			}
+		}
+		if sess == nil {
+			http.Error(w, "session not found", 404)
+			return
+		}
+		type msg struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		}
+		var messages []msg
+		for _, e := range sess.Events {
+			if e.Response == nil || len(e.Response.Choices) == 0 {
+				continue
+			}
+			c := e.Response.Choices[0]
+			role := string(c.Message.Role)
+			if role != "user" && role != "assistant" {
+				continue
+			}
+			content := c.Message.Content
+			if content == "" {
+				continue
+			}
+			messages = append(messages, msg{Role: role, Content: content})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(messages)
+	})
+
+	log.Printf("🚀 EDITH 启动  :2026\n"+
+		"  GitHub Webhook → /webhook/github\n"+
+		"  AG-UI 对话    → POST /\n"+
+		"  会话 API      → GET /api/sessions")
+	log.Fatal(http.ListenAndServe(":2026", mux))
 }

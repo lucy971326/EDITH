@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -12,11 +13,13 @@ import (
 	"github-agent/agent/tools"
 	"github-agent/github/auth"
 
+	_ "github.com/mattn/go-sqlite3"
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/model/openai"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
-	"trpc.group/trpc-go/trpc-agent-go/session/inmemory"
+	"trpc.group/trpc-go/trpc-agent-go/session"
+	sessionsqlite "trpc.group/trpc-go/trpc-agent-go/session/sqlite"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 )
 
@@ -38,10 +41,17 @@ type EventContext struct {
 }
 
 var (
-	r       runner.Runner
-	once    sync.Once
-	lastRun = make(map[string]time.Time) // sessionID → 上次触发时间
+	r              runner.Runner
+	once           sync.Once
+	lastRun        = make(map[string]time.Time) // sessionID → 上次触发时间
+	SessionService session.Service              // 导出给 AG-UI + API 用
 )
+
+// GetRunner 返回 Runner（延迟初始化）
+func GetRunner() runner.Runner {
+	ensureRunner()
+	return r
+}
 
 func workspaceDir() string {
 	w := os.Getenv("WORKSPACE_DIR")
@@ -67,6 +77,9 @@ func ensureRunner() {
 		ag := llmagent.New(
 			"github-edith",
 			llmagent.WithModel(m),
+			llmagent.WithGenerationConfig(model.GenerationConfig{
+				Stream: true,
+			}),
 			llmagent.WithInstruction(
 				"你是 @EDITH，一个 GitHub 代码助手。\n"+
 					"第一要务：如果 Issue/评论中没有 @EDITH 字样，说明不是喊你的，直接忽略不要处理。\n"+
@@ -93,9 +106,38 @@ func ensureRunner() {
 			llmagent.WithToolSets([]tool.ToolSet{ft, gh}),
 		)
 
-		sessionService := inmemory.NewSessionService()
-		r = runner.NewRunner("github-agent", ag, runner.WithSessionService(sessionService))
+		db, err := sql.Open("sqlite3", "file:edith.db?_journal_mode=WAL&_busy_timeout=5000")
+		if err != nil {
+			log.Fatalf("SQLite 打开失败: %v", err)
+		}
+		SessionService, err = sessionsqlite.NewService(db,
+			sessionsqlite.WithSessionEventLimit(1000),
+			sessionsqlite.WithSoftDelete(true),
+		)
+		if err != nil {
+			log.Fatalf("SessionService 创建失败: %v", err)
+		}
+
+		r = runner.NewRunner("github-edith", ag, runner.WithSessionService(SessionService))
+
+		// 启动时获取 GITHUB_TOKEN，Web 聊天也能用
+		refreshGitHubToken()
+		go func() {
+			for range time.Tick(30 * time.Minute) {
+				refreshGitHubToken()
+			}
+		}()
 	})
+}
+
+func refreshGitHubToken() {
+	const installationID = 144161965
+	token, err := auth.GetInstallationToken(context.Background(), installationID)
+	if err != nil {
+		log.Printf("刷新 GITHUB_TOKEN 失败: %v", err)
+		return
+	}
+	os.Setenv("GITHUB_TOKEN", token)
 }
 
 func Analyze(info EventContext) {
@@ -111,9 +153,7 @@ func Analyze(info EventContext) {
 	lastRun[debounceKey] = time.Now()
 
 	// 设置 GITHUB_TOKEN，gh / git 可直接操作仓库
-	if token, err := auth.GetInstallationToken(context.Background(), info.InstallationID); err == nil {
-		os.Setenv("GITHUB_TOKEN", token)
-	}
+	refreshGitHubToken()
 
 	// 根据事件类型构造 prompt
 	isPR := info.HeadBranch != ""
@@ -135,7 +175,7 @@ func Analyze(info EventContext) {
 
 	eventChan, err := r.Run(
 		context.Background(),
-		info.User,
+		"default",
 		fmt.Sprintf("%s#%d", info.Repo, info.Number),
 		model.NewUserMessage(prompt),
 	)
