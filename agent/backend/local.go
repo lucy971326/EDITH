@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // LocalBackend 基于本地文件系统 + shell 实现 Backend 接口。
@@ -140,4 +142,113 @@ func (b *LocalBackend) ExecCommand(ctx context.Context, command, workDir string)
 		return stderr.String(), fmt.Errorf("command failed: %w\n%s", err, stderr.String())
 	}
 	return stdout.String(), nil
+}
+
+func (b *LocalBackend) MakeDir(_ context.Context, path string) error {
+	p, err := b.resolve(path)
+	if err != nil {
+		return err
+	}
+	return os.MkdirAll(p, 0755)
+}
+
+func (b *LocalBackend) Exists(_ context.Context, path string) (bool, error) {
+	p, err := b.resolve(path)
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(p)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func (b *LocalBackend) IsDir(_ context.Context, path string) (bool, error) {
+	p, err := b.resolve(path)
+	if err != nil {
+		return false, err
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		return false, err
+	}
+	return info.IsDir(), nil
+}
+
+func (b *LocalBackend) Stat(_ context.Context, path string) (*FileInfo, error) {
+	p, err := b.resolve(path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		return nil, err
+	}
+	return &FileInfo{
+		Name:         info.Name(),
+		Path:         path,
+		Size:         info.Size(),
+		IsDir:        info.IsDir(),
+		Mode:         info.Mode(),
+		ModifiedTime: info.ModTime(),
+	}, nil
+}
+
+func (b *LocalBackend) Remove(_ context.Context, path string) error {
+	p, err := b.resolve(path)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(p)
+}
+
+func (b *LocalBackend) Move(_ context.Context, from, to string) error {
+	src, err := b.resolve(from)
+	if err != nil {
+		return err
+	}
+	dst, err := b.resolve(to)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	return os.Rename(src, dst)
+}
+
+func (b *LocalBackend) SearchFile(_ context.Context, path, pattern string) ([]string, error) {
+	p, err := b.resolve(path)
+	if err != nil {
+		return nil, err
+	}
+	var results []string
+	err = filepath.WalkDir(p, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if ok, _ := doublestar.Match(pattern, d.Name()); ok {
+			rel, _ := filepath.Rel(b.baseDir, path)
+			results = append(results, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	return results, err
+}
+
+func (b *LocalBackend) ReplaceContent(_ context.Context, path, old, new string) error {
+	p, err := b.resolve(path)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return err
+	}
+	updated := strings.ReplaceAll(string(data), old, new)
+	return os.WriteFile(p, []byte(updated), 0644)
 }

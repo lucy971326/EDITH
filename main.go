@@ -78,13 +78,13 @@ func main() {
 			if e.GetAction() == "opened" {
 				log.Printf("📌 Issue 创建: %s #%d", e.GetRepo().GetFullName(), e.GetIssue().GetNumber())
 				agent.Analyze(agent.EventContext{
-					Repo:            e.GetRepo().GetFullName(),
-					Number:          e.GetIssue().GetNumber(),
-					Title:           e.GetIssue().GetTitle(),
-					Body:            e.GetIssue().GetBody(),
-					User:            e.GetSender().GetLogin(),
-					InstallationID:  e.GetInstallation().GetID(),
-					EventType:       "issue",
+					Repo:           e.GetRepo().GetFullName(),
+					Number:         e.GetIssue().GetNumber(),
+					Title:          e.GetIssue().GetTitle(),
+					Body:           e.GetIssue().GetBody(),
+					User:           e.GetSender().GetLogin(),
+					InstallationID: e.GetInstallation().GetID(),
+					EventType:      "issue",
 				})
 			}
 
@@ -97,30 +97,35 @@ func main() {
 				}
 				log.Printf("💬 Issue 评论: %s #%d", e.GetRepo().GetFullName(), e.GetIssue().GetNumber())
 				agent.Analyze(agent.EventContext{
-					Repo:            e.GetRepo().GetFullName(),
-					Number:          e.GetIssue().GetNumber(),
-					Title:           e.GetIssue().GetTitle(),
-					Body:            e.GetIssue().GetBody(),
-					Comment:         e.GetComment().GetBody(),
-					User:            e.GetComment().GetUser().GetLogin(),
-					InstallationID:  e.GetInstallation().GetID(),
-					EventType:       "issue_comment",
+					Repo:           e.GetRepo().GetFullName(),
+					Number:         e.GetIssue().GetNumber(),
+					Title:          e.GetIssue().GetTitle(),
+					Body:           e.GetIssue().GetBody(),
+					Comment:        e.GetComment().GetBody(),
+					User:           e.GetComment().GetUser().GetLogin(),
+					InstallationID: e.GetInstallation().GetID(),
+					EventType:      "issue_comment",
 				})
 			}
 
 		case *github.PullRequestEvent:
+			user := e.GetSender().GetLogin()
+			if strings.HasSuffix(user, "[bot]") {
+				log.Printf("忽略 bot PR 事件: %s", user)
+				break
+			}
 			log.Printf("📋 PR %s: %s #%d", e.GetAction(), e.GetRepo().GetFullName(), e.GetPullRequest().GetNumber())
 			if e.GetAction() == "opened" || e.GetAction() == "synchronize" {
 				agent.Analyze(agent.EventContext{
-					Repo:            e.GetRepo().GetFullName(),
-					Number:          e.GetPullRequest().GetNumber(),
-					Title:           e.GetPullRequest().GetTitle(),
-					Body:            e.GetPullRequest().GetBody(),
-					User:            e.GetSender().GetLogin(),
-					InstallationID:  e.GetInstallation().GetID(),
-					HeadBranch:      e.GetPullRequest().GetHead().GetRef(),
-					BaseBranch:      e.GetPullRequest().GetBase().GetRef(),
-					EventType:       "pr",
+					Repo:           e.GetRepo().GetFullName(),
+					Number:         e.GetPullRequest().GetNumber(),
+					Title:          e.GetPullRequest().GetTitle(),
+					Body:           e.GetPullRequest().GetBody(),
+					User:           e.GetSender().GetLogin(),
+					InstallationID: e.GetInstallation().GetID(),
+					HeadBranch:     e.GetPullRequest().GetHead().GetRef(),
+					BaseBranch:     e.GetPullRequest().GetBase().GetRef(),
+					EventType:      "pr",
 				})
 			}
 
@@ -129,16 +134,16 @@ func main() {
 				sessionID := fmt.Sprintf("%s#%d", e.GetRepo().GetFullName(), e.GetPullRequest().GetNumber())
 				log.Printf("📋 PR Review: %s (等待 3s 看有没有行级评论)", sessionID)
 				pending := agent.EventContext{
-					Repo:            e.GetRepo().GetFullName(),
-					Number:          e.GetPullRequest().GetNumber(),
-					Title:           e.GetPullRequest().GetTitle(),
-					Body:            e.GetPullRequest().GetBody(),
-					Comment:         e.GetReview().GetBody(),
-					User:            e.GetSender().GetLogin(),
-					InstallationID:  e.GetInstallation().GetID(),
-					HeadBranch:      e.GetPullRequest().GetHead().GetRef(),
-					BaseBranch:      e.GetPullRequest().GetBase().GetRef(),
-					EventType:       "pr_review",
+					Repo:           e.GetRepo().GetFullName(),
+					Number:         e.GetPullRequest().GetNumber(),
+					Title:          e.GetPullRequest().GetTitle(),
+					Body:           e.GetPullRequest().GetBody(),
+					Comment:        e.GetReview().GetBody(),
+					User:           e.GetSender().GetLogin(),
+					InstallationID: e.GetInstallation().GetID(),
+					HeadBranch:     e.GetPullRequest().GetHead().GetRef(),
+					BaseBranch:     e.GetPullRequest().GetBase().GetRef(),
+					EventType:      "pr_review",
 				}
 				pendingReview[sessionID] = time.AfterFunc(3*time.Second, func() {
 					log.Printf("📋 3s 到期，没有行级评论，处理 PR Review")
@@ -155,19 +160,19 @@ func main() {
 					log.Printf("📋 取消 PR Review，改控行级评论: %s", sessionID)
 				}
 				agent.Analyze(agent.EventContext{
-					Repo:            e.GetRepo().GetFullName(),
-					Number:          e.GetPullRequest().GetNumber(),
-					Title:           e.GetPullRequest().GetTitle(),
-					Body:            e.GetPullRequest().GetBody(),
-					Comment:         e.GetComment().GetBody(),
-					User:            e.GetSender().GetLogin(),
-					InstallationID:  e.GetInstallation().GetID(),
-					HeadBranch:      e.GetPullRequest().GetHead().GetRef(),
-					BaseBranch:      e.GetPullRequest().GetBase().GetRef(),
-					EventType:       "pr_comment",
-					File:            e.GetComment().GetPath(),
-					Line:            e.GetComment().GetLine(),
-					DiffHunk:        e.GetComment().GetDiffHunk(),
+					Repo:           e.GetRepo().GetFullName(),
+					Number:         e.GetPullRequest().GetNumber(),
+					Title:          e.GetPullRequest().GetTitle(),
+					Body:           e.GetPullRequest().GetBody(),
+					Comment:        e.GetComment().GetBody(),
+					User:           e.GetSender().GetLogin(),
+					InstallationID: e.GetInstallation().GetID(),
+					HeadBranch:     e.GetPullRequest().GetHead().GetRef(),
+					BaseBranch:     e.GetPullRequest().GetBase().GetRef(),
+					EventType:      "pr_comment",
+					File:           e.GetComment().GetPath(),
+					Line:           e.GetComment().GetLine(),
+					DiffHunk:       e.GetComment().GetDiffHunk(),
 				})
 			}
 		}
@@ -217,18 +222,16 @@ func main() {
 			http.Error(w, "missing session_id", 400)
 			return
 		}
-		// 先查 github-edith，再查 github-agent（兼容旧数据）
 		var sess *session.Session
-		for _, app := range []string{"github-edith", "github-agent"} {
-			s, _ := agent.SessionService.GetSession(r.Context(), session.Key{
-				AppName:   app,
+		s, _ := agent.SessionService.GetSession(
+			r.Context(),
+			session.Key{
+				AppName:   "github-edith",
 				UserID:    "default",
 				SessionID: sessionID,
 			})
-			if s != nil {
-				sess = s
-				break
-			}
+		if s != nil {
+			sess = s
 		}
 		if sess == nil {
 			http.Error(w, "session not found", 404)
@@ -258,9 +261,9 @@ func main() {
 		json.NewEncoder(w).Encode(messages)
 	})
 
-	log.Printf("🚀 EDITH 启动  :2026\n"+
-		"  GitHub Webhook → /webhook/github\n"+
-		"  AG-UI 对话    → POST /\n"+
+	log.Printf("🚀 EDITH 启动  :2026\n" +
+		"  GitHub Webhook → /webhook/github\n" +
+		"  AG-UI 对话    → POST /\n" +
 		"  会话 API      → GET /api/sessions")
 	log.Fatal(http.ListenAndServe(":2026", mux))
 }

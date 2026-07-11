@@ -62,6 +62,35 @@ func workspaceDir() string {
 	return w
 }
 
+func newBackend() backend.Backend {
+	dir := workspaceDir()
+
+	switch os.Getenv("BACKEND") {
+	case "e2b":
+		b, err := backend.NewCloudSandboxBackend("")
+		if err != nil {
+			log.Fatalf("E2B 初始化失败: %v", err)
+		}
+		tpl := os.Getenv("E2B_TEMPLATE_ID")
+		if tpl == "" {
+			tpl = "base"
+		}
+		ctx := context.Background()
+		envs := map[string]string{}
+		if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+			envs["GITHUB_TOKEN"] = token
+		}
+		if err := b.CreateSandboxWithEnv(ctx, tpl, 10*time.Minute, envs); err != nil {
+			log.Fatalf("创建 E2B 沙箱失败: %v", err)
+		}
+		log.Println("☁️  使用 E2B 云沙箱（10 分钟后自动销毁）")
+		return b
+	default:
+		log.Println("💻 使用本地 Backend")
+		return backend.NewLocalBackend(dir)
+	}
+}
+
 func ensureRunner() {
 	once.Do(func() {
 		m := openai.New(os.Getenv("LLM_MODEL"),
@@ -70,7 +99,9 @@ func ensureRunner() {
 		)
 
 		dir := workspaceDir()
-		b := backend.NewLocalBackend(dir)
+		// 先拿 token，沙箱需要它
+		refreshGitHubToken()
+		b := newBackend()
 		ft := tools.NewFileToolSet(b)
 		gh := tools.NewGitHubToolSet()
 
