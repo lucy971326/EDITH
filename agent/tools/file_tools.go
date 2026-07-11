@@ -39,6 +39,13 @@ func NewFileToolSet(b backend.Backend, opts ...FileToolOption) *FileToolSet {
 		s.makeListDir(),
 		s.makeSearchContent(),
 		s.makeExecCommand(),
+		s.makeExists(),
+		s.makeIsDir(),
+		s.makeMakeDir(),
+		s.makeRemove(),
+		s.makeSearchFile(),
+		s.makeReplaceContent(),
+		s.makeMove(),
 	}
 	return s
 }
@@ -169,5 +176,173 @@ func (s *FileToolSet) makeExecCommand() tool.Tool {
 		function.WithName("exec_command"),
 		function.WithDescription("在 workspace 中执行 shell 命令"),
 		function.WithLongRunning(true),
+	)
+}
+
+// ── 工具：exists ──
+
+type existsArgs struct {
+	Path string `json:"path" jsonschema:"description=文件或目录路径"`
+}
+
+type existsResult struct {
+	Exists bool `json:"exists"`
+}
+
+func (s *FileToolSet) makeExists() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args existsArgs) (existsResult, error) {
+			ok, err := s.backend.Exists(ctx, args.Path)
+			if err != nil {
+				return existsResult{}, fmt.Errorf("exists: %w", err)
+			}
+			return existsResult{Exists: ok}, nil
+		},
+		function.WithName("exists"),
+		function.WithDescription("判断文件或目录是否存在"),
+	)
+}
+
+// ── 工具：is_dir ──
+
+type isDirArgs struct {
+	Path string `json:"path" jsonschema:"description=路径"`
+}
+
+type isDirResult struct {
+	IsDir bool `json:"is_dir"`
+}
+
+func (s *FileToolSet) makeIsDir() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args isDirArgs) (isDirResult, error) {
+			ok, err := s.backend.IsDir(ctx, args.Path)
+			if err != nil {
+				return isDirResult{}, fmt.Errorf("is_dir: %w", err)
+			}
+			return isDirResult{IsDir: ok}, nil
+		},
+		function.WithName("is_dir"),
+		function.WithDescription("判断路径是否是目录"),
+	)
+}
+
+// ── 工具：make_dir ──
+
+type makeDirArgs struct {
+	Path string `json:"path" jsonschema:"description=要创建的目录路径"`
+}
+
+type makeDirResult struct {
+	Message string `json:"message"`
+}
+
+func (s *FileToolSet) makeMakeDir() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args makeDirArgs) (makeDirResult, error) {
+			if err := s.backend.MakeDir(ctx, args.Path); err != nil {
+				return makeDirResult{}, fmt.Errorf("make_dir: %w", err)
+			}
+			return makeDirResult{Message: "created"}, nil
+		},
+		function.WithName("make_dir"),
+		function.WithDescription("创建目录（含中间目录）"),
+	)
+}
+
+// ── 工具：remove ──
+
+type removeArgs struct {
+	Path string `json:"path" jsonschema:"description=要删除的文件或目录路径"`
+}
+
+type removeResult struct {
+	Message string `json:"message"`
+}
+
+func (s *FileToolSet) makeRemove() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args removeArgs) (removeResult, error) {
+			if err := s.backend.Remove(ctx, args.Path); err != nil {
+				return removeResult{}, fmt.Errorf("remove: %w", err)
+			}
+			return removeResult{Message: "removed"}, nil
+		},
+		function.WithName("remove"),
+		function.WithDescription("删除文件或目录"),
+	)
+}
+
+// ── 工具：search_file ──
+
+type searchFileArgs struct {
+	Path    string `json:"path" jsonschema:"description=搜索的起始目录"`
+	Pattern string `json:"pattern" jsonschema:"description=glob 通配符，如 *.go 或 **/*.ts"`
+}
+
+type searchFileResult struct {
+	Files []string `json:"files"`
+}
+
+func (s *FileToolSet) makeSearchFile() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args searchFileArgs) (searchFileResult, error) {
+			files, err := s.backend.SearchFile(ctx, args.Path, args.Pattern)
+			if err != nil {
+				return searchFileResult{}, fmt.Errorf("search_file: %w", err)
+			}
+			return searchFileResult{Files: files}, nil
+		},
+		function.WithName("search_file"),
+		function.WithDescription("按 glob 通配符搜索文件名"),
+	)
+}
+
+// ── 工具：replace_content ──
+
+type replaceContentArgs struct {
+	Path string `json:"path" jsonschema:"description=文件路径"`
+	Old  string `json:"old" jsonschema:"description=要被替换的文本"`
+	New  string `json:"new" jsonschema:"description=替换后的文本"`
+}
+
+type replaceContentResult struct {
+	Message string `json:"message"`
+}
+
+func (s *FileToolSet) makeReplaceContent() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args replaceContentArgs) (replaceContentResult, error) {
+			if err := s.backend.ReplaceContent(ctx, args.Path, args.Old, args.New); err != nil {
+				return replaceContentResult{}, fmt.Errorf("replace_content: %w", err)
+			}
+			return replaceContentResult{Message: "replaced"}, nil
+		},
+		function.WithName("replace_content"),
+		function.WithDescription("替换文件中的指定文本（全部替换）"),
+	)
+}
+
+// ── 工具：move ──
+
+type moveArgs struct {
+	From string `json:"from" jsonschema:"description=源路径"`
+	To   string `json:"to" jsonschema:"description=目标路径"`
+}
+
+type moveResult struct {
+	Message string `json:"message"`
+}
+
+func (s *FileToolSet) makeMove() tool.Tool {
+	return function.NewFunctionTool(
+		func(ctx context.Context, args moveArgs) (moveResult, error) {
+			if err := s.backend.Move(ctx, args.From, args.To); err != nil {
+				return moveResult{}, fmt.Errorf("move: %w", err)
+			}
+			return moveResult{Message: "moved"}, nil
+		},
+		function.WithName("move"),
+		function.WithDescription("移动或重命名文件/目录"),
 	)
 }

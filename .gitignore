@@ -13,3 +13,9 @@ test/
 **.db-shm
 **.db-wal
 **.kilo
+**.mcp.json
+
+
+.kilo/
+.codex/
+.claude/
