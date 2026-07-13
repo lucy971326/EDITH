@@ -19,3 +19,5 @@ test/
 .kilo/
 .codex/
 .claude/
+forward/
+.agent/
