@@ -21,3 +21,9 @@ test/
 .claude/
 forward/
 .agent/
+
+# EDITH 后端本地数据（不提交）
+edith/data/
+edith/.env
+edith/.env.*
+edith/*.ps1
