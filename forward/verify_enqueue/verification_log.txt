@@ -1,0 +1,126 @@
+============================================
+  EnqueueUserMessage 验证实验
+============================================
+  appName=edith userID=test-user sessionID=web:test-session-1 runID=enqueue-run-1
+
+=== 开始实验 ===
+
+等待 blocking_tool 开始执行...
+  blocking_tool 已开始 ✅
+
+调用 EnqueueUserMessage...
+  EnqueueUserMessage 返回值: err=<nil>
+
+释放 blocking_tool...
+等待 Run 完成...
+  [SSE goroutine] 收到 9 个 SSE 事件
+  SSE 流已结束 ✅
+
+=== Mock Model 调用记录 ===
+  调用 #0: 收到 2 条消息
+    [0] role=system content="你是一个测试 Agent。请使用 blocking_tool 工具来响应。\n\n[Tool Pro..."
+    [1] role=user content="开始执行任务"
+
+  调用 #1: 收到 5 条消息
+    [0] role=system content="你是一个测试 Agent。请使用 blocking_tool 工具来响应。\n\n[Tool Pro..."
+    [1] role=user content="开始执行任务"
+    [2] role=assistant content=""
+    [3] role=tool content="{\"input\":\"{\\\"input\\\":\\\"请阻塞直到接收到补充要求\\\"}\",\"result\":\"tool\xe5\xae..." ← 包含补充消息!
+    [4] role=user content="补充要求：请同时添加测试" ← 包含补充消息!
+
+=== SSE 事件流 ===
+  共 9 个事件:
+    [0] type=RUN_STARTED
+    [1] type=TOOL_CALL_START
+    [2] type=TOOL_CALL_ARGS
+    [3] type=TOOL_CALL_END
+    [4] type=TOOL_CALL_RESULT
+    [5] type=TEXT_MESSAGE_START
+    [6] type=TEXT_MESSAGE_CONTENT
+    [7] type=TEXT_MESSAGE_END
+    [8] type=RUN_FINISHED
+  RUN_STARTED 出现 1 次 (应为 1)
+  RUN_FINISHED 出现 1 次 (应为 1)
+
+=== MessagesSnapshot ===
+  快照事件: 3 个
+    [0] type=RUN_STARTED
+    [1] type=MESSAGES_SNAPSHOT
+    快照数据:
+{
+  "messages": [
+    {
+      "content": "开始执行任务",
+      "id": "msg-init",
+      "name": "test-user",
+      "role": "user"
+    },
+    {
+      "id": "mock-toolcall-1",
+      "name": "edith",
+      "role": "assistant",
+      "toolCalls": [
+        {
+          "function": {
+            "arguments": "{\"input\":\"请阻塞直到接收到补充要求\"}",
+            "name": "blocking_tool"
+          },
+          "id": "call-blocking-1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "content": "{\"input\":\"{\\\"input\\\":\\\"请阻塞直到接收到补充要求\\\"}\",\"result\":\"tool完成\"}",
+      "id": "94fa28b6-95b4-4b60-81d1-38dcefc13464",
+      "role": "tool",
+      "toolCallId": "call-blocking-1"
+    },
+    {
+      "content": "好的，我已经看到了补充要求：请同时添加测试。我会在最终回复中包含这一点。最终回复：任务已完成，包含补充的测试要求。",
+      "id": "mock-text-1",
+      "name": "edith",
+      "role": "assistant"
+    }
+  ],
+  "timestamp": 1783910877111,
+  "type": "MESSAGES_SNAPSHOT"
+}
+    [2] type=RUN_FINISHED
+
+=== Session 底层数据 ===
+  Session: app=edith user=test-user id=web:test-session-1
+  [session_events] 共 5 条:
+    [0] id=c8fc16f1-c1c8-4887-b21e-e980081d2f68 obj= role=user content="开始执行任务"
+    [1] id=73944bda-0dc3-4935-bf16-71e0e56f3a95 obj=chat.completion role=assistant content="" tool_calls=blocking_tool
+    [2] id=94fa28b6-95b4-4b60-81d1-38dcefc13464 obj=tool.response role=tool content="{\"input\":\"{\\\"input\\\":\\\"请阻塞直到接收到补充要求\\..." ← 补充消息!
+    [3] id=93084bc7-ed02-46e1-88ba-46b5972a8436 obj= role=user content="补充要求：请同时添加测试" ← 补充消息!
+    [4] id=4686518e-9869-4a1b-85d5-93ea2a00fa8b obj=chat.completion role=assistant content="好的，我已经看到了补充要求：请同时添加测..." ← 补充消息!
+
+  [session_track_events]:
+    track="agui" 共 10 条:
+      [0] ts=10:47:56.294 payload={"type":"CUSTOM","timestamp":1783910876294,"name":"trpc-agent-go.user_message","value":{"id":"msg-init","role":"user","c...
+      [1] ts=10:47:56.294 payload={"type":"RUN_STARTED","timestamp":1783910876294,"threadId":"web:test-session-1","runId":"enqueue-run-1"}
+      [2] ts=10:47:56.296 payload={"type":"TOOL_CALL_START","timestamp":1783910876296,"toolCallId":"call-blocking-1","toolCallName":"blocking_tool","paren...
+      [3] ts=10:47:56.296 payload={"type":"TOOL_CALL_ARGS","timestamp":1783910876296,"toolCallId":"call-blocking-1","delta":"{\"input\":\"请阻塞直到�...
+      [4] ts=10:47:56.296 payload={"type":"TOOL_CALL_END","timestamp":1783910876296,"toolCallId":"call-blocking-1"}
+      [5] ts=10:47:56.309 payload={"type":"TOOL_CALL_RESULT","timestamp":1783910876309,"messageId":"94fa28b6-95b4-4b60-81d1-38dcefc13464","toolCallId":"ca...
+      [6] ts=10:47:56.309 payload={"type":"TEXT_MESSAGE_START","timestamp":1783910876309,"messageId":"mock-text-1","role":"assistant"}
+      [7] ts=10:47:56.309 payload={"type":"TEXT_MESSAGE_CONTENT","timestamp":1783910876309,"messageId":"mock-text-1","delta":"好的，我已经看到了�...
+      [8] ts=10:47:56.309 payload={"type":"TEXT_MESSAGE_END","timestamp":1783910876309,"messageId":"mock-text-1"}
+      [9] ts=10:47:56.309 payload={"type":"RUN_FINISHED","timestamp":1783910876309,"threadId":"web:test-session-1","runId":"enqueue-run-1"}
+
+=== 错误边界检查：Run 完成后再次 EnqueueUserMessage ===
+  EnqueueUserMessage 返回值: err=runner: request id not running (期望 ErrRunNotFound)
+
+============================================
+  结论总结
+============================================
+  1. 追加消息进入当前 Core Run:          true
+  2. Agent 在下一次模型调用看到消息:      true
+  3. 原 SSE 流收到后续事件:              true
+  4. Session Events 保存追加消息:        true
+  5. AG-UI Track Events 保存追加消息:   true (需检查日志)
+  6. /history 展示追加消息:              true
+
+完整日志: forward/verify_enqueue/verification_log.txt

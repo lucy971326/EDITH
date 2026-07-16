@@ -1,11 +1,6 @@
-webhook_logs/
-存储.md
-private_key.pem
-.env
 test_*.py
 test_*.go
 workspace/
-docs/
 .venv/
 test/
 **/node_modules/
@@ -13,17 +8,8 @@ test/
 **.db-shm
 **.db-wal
 **.kilo
-**.mcp.json
 
 
 .kilo/
-.codex/
-.claude/
-forward/
 .agent/
 
-# EDITH 后端本地数据（不提交）
-edith/data/
-edith/.env
-edith/.env.*
-edith/*.ps1

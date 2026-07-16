@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "e2b": {
+      "type": "http",
+      "url": "https://e2b.dev/mcp"
+    }
+  }
+}
