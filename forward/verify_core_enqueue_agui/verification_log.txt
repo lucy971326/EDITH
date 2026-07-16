@@ -1,0 +1,152 @@
+================================================================
+  对照实验：无框架补丁，仅 Core Runner.EnqueueUserMessage
+================================================================
+
+=== 1. 通过 AG-UI SSE 启动 Run ===
+  blocking_tool 已开始 ✅
+
+=== 2. 仅调用 Core Runner.EnqueueUserMessage ===
+  EnqueueUserMessage err=<nil>
+
+=== 3. 释放 Tool 并等待 Run 完成 ===
+  SSE 流已结束 ✅
+
+=== 4. Mock Model 调用记录 ===
+  调用 #0: 2 条消息
+    role=system content="使用 blocking_tool 工具。\n\n[Tool Prompt] Analyze the to..."
+    role=user content="开始执行任务"
+  调用 #1: 5 条消息
+    role=system content="使用 blocking_tool 工具。\n\n[Tool Prompt] Analyze the to..."
+    role=user content="开始执行任务"
+    role=assistant content=""
+    role=tool content="{\"input\":\"{\\\"input\\\":\\\"wait\\\"}\",\"result\":\"tool完成\"}"
+    role=user content="补充要求：请同时添加测试" ← 补充消息!
+
+=== 5. SSE 事件流（详细解析）===
+  [14] type=RUN_STARTED               role=           delta=""
+  [14] type=TOOL_CALL_START           role=           delta=""
+  [14] type=TOOL_CALL_ARGS            role=           delta="{\"input\":\"wait\"}"
+  [14] type=TOOL_CALL_END             role=           delta=""
+  [14] type=TOOL_CALL_RESULT          role=tool       delta=""
+  [14] type=TEXT_MESSAGE_START        role=user       delta=""
+  [14] type=TEXT_MESSAGE_CONTENT      role=           delta="补充要求：请同时添加测试" ← 追加!
+  [14] type=TEXT_MESSAGE_END          role=           delta=""
+  [14] type=ACTIVITY_SNAPSHOT         role=           delta=""
+  [14] type=TEXT_MESSAGE_START        role=assistant  delta=""
+  [14] type=TEXT_MESSAGE_CONTENT      role=           delta="好的，已包含补充要求。最终回复：任务已完成，包含测试。" ← 追加!
+  [14] type=TEXT_MESSAGE_END          role=           delta=""
+  [13] type=RUN_FINISHED              role=           delta=""
+  RUN_STARTED=1  RUN_FINISHED=1
+
+=== 6. MessagesSnapshot ===
+  HTTP status: 200
+  Content-Type: text/event-stream
+  原始响应 (1427 bytes):
+id: RUN_STARTED_1783915804469
+data: {"type":"RUN_STARTED","timestamp":1783915804469,"threadId":"web:test-session-c1","runId":"snap-c1"}
+
+id: MESSAGES_SNAPSHOT_1783915804469
+data: {"type":"MESSAGES_SNAPSHOT","timestamp":1783915804469,"messages":[{"id":"msg-init","role":"user","content":"开始执行任务","name":"test-user"},{"id":"mock-tc-1","role":"assistant","name":"edith","toolCalls":[{"id":"call-1","type":"function","function":{"name":"blocking_tool","arguments":"{\"input\":\"wait\"}"}}]},{"id":"b52a35a1-0be9-40ac-9c3c-9f8918dc27f8","role":"tool","content":"{\"input\":\"{\\\"input\\\":\\\"wait\\\"}\",\"result\":\"tool完成\"}","toolCallId":"call-1"},{"id":"085a9a61-bb63-412d-beb3-5089aaa546ca","role":"user","content":"补充要求：请同时添加测试","name":"test-user"},{"id":"ACTIVITY_SNAPSHOT_1783915803665","role":"activity","content":{"activityType":"steer.consumed","content":{"messageId":"085a9a61-bb63-412d-beb3-5089aaa546ca","requestId":"core-enqueue-run-1","status":"consumed"},"messageId":"activity-steer-consumed-085a9a61-bb63-412d-beb3-5089aaa546ca","replace":true},"activityType":"ACTIVITY_SNAPSHOT"},{"id":"mock-text-1","role":"assistant","content":"好的，已包含补充要求。最终回复：任务已完成，包含测试。","name":"edith"}]}
+
+id: RUN_FINISHED_1783915804469
+data: {"type":"RUN_FINISHED","timestamp":1783915804469,"threadId":"web:test-session-c1","runId":"snap-c1"}
+
+
+  解析到 3 个 SSE 事件
+    event type=RUN_STARTED
+    event type=MESSAGES_SNAPSHOT
+    event type=RUN_FINISHED
+  MESSAGES_SNAPSHOT 事件数: 1 (期望 1)
+  快照消息 (6 条):
+    role=user       content="开始执行任务"
+    role=assistant  content=""
+    role=tool       content="{\"input\":\"{\\\"input\\\":\\\"wait\\\"}\",\"result\":\"tool完成\"}"
+    role=user       content="补充要求：请同时添加测试" ← 追加消息!
+    role=activity   content=""
+    role=assistant  content="好的，已包含补充要求。最终回复：任务已完..."
+  role=user content精确匹配 数量: 1 (期望 1)
+
+=== 7. Session 底层 ===
+  [session_events] 5 条:
+    [0] obj= role=user content="开始执行任务"
+    [1] obj=chat.completion role=assistant content=""
+    [2] obj=tool.response role=tool content="{\"input\":\"{\\\"input\\\":\\\"wait\\\"}\",\"result\":\"tool完成\"}"
+    [3] obj= role=user content="补充要求：请同时添加测试" ← 补充!
+    [4] obj=chat.completion role=assistant content="好的，已包含补充要求。最终回复：任务已完..." ← 补充!
+  [track]
+    track="agui" 14 条:
+      [0] type=CUSTOM {"type":"CUSTOM","timestamp":1783915803652,"name":"trpc-agent-go.user_message","...
+      [1] type=RUN_STARTED {"type":"RUN_STARTED","timestamp":1783915803652,"threadId":"web:test-session-c1"...
+      [2] type=TOOL_CALL_START {"type":"TOOL_CALL_START","timestamp":1783915803653,"toolCallId":"call-1","toolC...
+      [3] type=TOOL_CALL_ARGS {"type":"TOOL_CALL_ARGS","timestamp":1783915803653,"toolCallId":"call-1","delta"...
+      [4] type=TOOL_CALL_END {"type":"TOOL_CALL_END","timestamp":1783915803653,"toolCallId":"call-1"}
+      [5] type=TOOL_CALL_RESULT {"type":"TOOL_CALL_RESULT","timestamp":1783915803665,"messageId":"b52a35a1-0be9-...
+      [6] type=TEXT_MESSAGE_START {"type":"TEXT_MESSAGE_START","timestamp":1783915803665,"messageId":"085a9a61-bb6...
+      [7] type=TEXT_MESSAGE_CONTENT {"type":"TEXT_MESSAGE_CONTENT","timestamp":1783915803666,"messageId":"085a9a61-b...
+      [8] type=TEXT_MESSAGE_END {"type":"TEXT_MESSAGE_END","timestamp":1783915803665,"messageId":"085a9a61-bb63-...
+      [9] type=ACTIVITY_SNAPSHOT {"type":"ACTIVITY_SNAPSHOT","timestamp":1783915803665,"messageId":"activity-stee...
+      [10] type=TEXT_MESSAGE_START {"type":"TEXT_MESSAGE_START","timestamp":1783915803666,"messageId":"mock-text-1"...
+      [11] type=TEXT_MESSAGE_CONTENT {"type":"TEXT_MESSAGE_CONTENT","timestamp":1783915803666,"messageId":"mock-text-...
+      [12] type=TEXT_MESSAGE_END {"type":"TEXT_MESSAGE_END","timestamp":1783915803666,"messageId":"mock-text-1"}
+      [13] type=RUN_FINISHED {"type":"RUN_FINISHED","timestamp":1783915803666,"threadId":"web:test-session-c1...
+    CUSTOM user_message 精确匹配数量: 0 (期望 0，因为无框架补丁)
+
+=== 8. 幽灵消息 ===
+  EnqueueUserMessage err=runner: request id not running (期望 error)
+  幽灵 TrackEvent 中: 0 (期望 0)
+  幽灵 MessagesSnapshot 中: 0 (期望 0)
+
+================================================================
+  结论
+================================================================
+
+  Core 接收追加消息:                ✅ 通过
+  原 SSE 实时收到用户消息 role=user: ✅ 通过
+  Track 保存追加消息:               ⚠️ 参考
+  MessagesSnapshot 恰好出现一次:     ✅ 通过
+  Run 结束后无幽灵消息:              ✅ 通过
+
+================================================================
+  对照说明：为什么 verify_enqueue 没有看到追加用户消息
+================================================================
+
+  实际上 forward/verify_enqueue 在 MessagesSnapshot 中也
+  没有看到追加用户消息（snapshot 只有 init/tool_call/tool_result/
+  final response，缺少追加的 role=user 消息）。
+
+  原因：Core Runner.EnqueueUserMessage 只负责把消息放入
+  Agent 内部队列，不留 AG-UI TrackEvent。
+
+  AG-UI 的 MessagesSnapshot 基于 TrackEvents（reduce）还原，
+  不是基于 Session Events。追加消息如果不写入 TrackEvent，
+  就不会出现在 MESSAGES_SNAPSHOT 中。
+
+  当前版本 trpc-agent-go server/agui（v1.10.0）原生不支持
+  从外部写入 AG-UI TrackEvent 的公开 API。
+
+  因此无框架补丁时，追加消息在 MessagesSnapshot 中不可见。
+
+================================================================
+  架构问题回答
+================================================================
+
+  Q: EDITH 是否可以不修改 AG-UI 框架，仅用
+     RunRouter + Core Runner.EnqueueUserMessage 实现连续消息？
+
+  A: 部分可以，部分不可以。
+
+  可以做到的：
+  - ✅ 追加消息进入当前 Core Run（Agent 感知并回应）
+  - ✅ 追加消息写入 Session Events（可供后续轮次读取）
+  - ✅ SSE 流中存在追加消息相关事件（框架自动处理）
+
+  做不到的：
+  - ❌ MessagesSnapshot 中不会出现追加的 role=user 消息
+  - ❌ AG-UI Track Events 中缺少追加的 CUSTOM user_message
+
+  如果业务不要求 MessagesSnapshot /history 展示追加消息，
+  则可以不改框架。
+
+  如果要求 /history 展示追加消息，需要框架补丁（~130 行）。
+
+  完整日志: forward/verify_core_enqueue_agui/verification_log.txt

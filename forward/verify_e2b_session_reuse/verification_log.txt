@@ -1,0 +1,65 @@
+================================================================
+  E2B Auto-resume 验证实验
+================================================================
+
+  E2B Client 创建成功 ✅
+
+================================================================
+  实验 A：同一 SDK 对象 auto-resume（不调用 Connect）
+================================================================
+
+  1. Sandbox 创建成功: ID=ignain8f6qktboayb2fxq
+  2. 测试文件写入成功
+  3. 写入后立即读取: Auto-resume test file
+  4. Pause 结果: success=true
+  5. Pause 后状态: paused
+
+  --- 第一条触发 auto-resume 的操作: Files.Read ---
+    操作: sbx.Files.Read(ctx, path, FsOptions{})
+    不调用 Connect / Resume
+    操作结果: success=true
+    读取内容: Auto-resume test file
+    文件内容一致: ✅ YES
+  Read 后状态: running
+
+  --- 第二条触发 auto-resume 的操作: Commands.Run ---
+  再次 Pause 结果: success=true
+  Pause 后状态: paused
+    操作: sbx.Commands.Run(ctx, "echo auto-resume-ok", RunOptions{})
+    不调用 Connect / Resume
+    操作结果: success=true
+    命令输出: auto-resume-ok
+  Run 后状态: running
+
+================================================================
+  实验 B：根据 sandbox_id 重新 Connect
+================================================================
+
+  Sandbox 已暂停，状态: paused
+  Connect 成功: ID=ignain8f6qktboayb2fxq
+  Sandbox ID 一致 ✅
+
+  清理: 保持 Sandbox 为 Paused 状态，不 Kill
+  Sandbox ID: ignain8f6qktboayb2fxq
+  可通过 client.Connect(ctx, "ignain8f6qktboayb2fxq", ConnectOptions{Timeout: 5min}) 恢复
+
+================================================================
+  结论
+================================================================
+
+  实验 A：同一 SDK 对象 auto-resume
+  ─────────────────────────────────────
+  Pause 后状态:                    paused
+  Files.Read 触发恢复:             true
+  恢复后文件内容一致:              true
+  Read 后状态 (期望 running):      running
+  再次 Pause 后状态:               paused
+  Commands.Run 触发恢复:           true
+  命令输出 = auto-resume-ok:       true
+  Run 后状态 (期望 running):       running
+
+  实验 B：根据 sandbox_id Connect
+  ─────────────────────────────────────
+  Connect 成功:                    true
+
+  完整日志: forward/verify_e2b_session_reuse/verification_log.txt
