@@ -14,8 +14,15 @@
 # bash / Git Bash
 export OPENAI_API_KEY="sk-12e81c9adab34fcb9fd9a7a6a699738a"
 export OPENAI_BASE_URL="https://api.deepseek.com/v1"
-export MODEL_NAME="deepseek-chat"   # 默认就是这个，可不设
+export MODEL_NAME="deepseek-v4-flash" 
 ```
+
+```bash
+export OPENAI_API_KEY="sk-cp-8Bnw6tM8ZV3JZH74o-c2j-UOoYk3ktO_FDFQGAzNn76Qk4ZLX1NNI492sWI0YwIRqf_NC7kyHel8CrJe7k_hZI2sboFaEp_gAEl8WEgoCHsUbwGJoWC1h8o"
+export OPENAI_BASE_URL="https://api.minimaxi.com/v1"
+export MODEL_NAME="MiniMax-M3" 
+```
+
 
 ```powershell
 # PowerShell

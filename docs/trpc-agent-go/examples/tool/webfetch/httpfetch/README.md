@@ -1,92 +1,92 @@
-# HTTP Web Fetch Tool Example
+# HTTP 网页抓取工具示例
 
-This example demonstrates how to use the HTTP web fetch tool with an AI agent for interactive conversations. The tool enables fetching and extracting content from web pages, converting HTML to markdown for better readability, and supporting various text formats.
+本示例演示如何在 AI 智能体的交互式对话中使用 HTTP 网页抓取工具。该工具可以抓取并提取网页内容，将 HTML 转换为更易读的 Markdown，并支持多种文本格式。
 
-## Running the Example
+## 运行示例
 
-### Using environment variables:
+### 使用环境变量
 
 ```bash
 export OPENAI_API_KEY="your-api-key-here"
-export OPENAI_BASE_URL="https://api.openai.com/v1"  # Optional
+export OPENAI_BASE_URL="https://api.openai.com/v1"  # 可选
 go run main.go
 ```
 
-### Using custom model:
+### 使用自定义模型
 
 ```bash
 export OPENAI_API_KEY="your-api-key-here"
 go run main.go -model gpt-4o-mini
 ```
 
-## Example Session
+## 会话示例
 
 ```
 amdahliu@AMDAHLIU-MC2 trpc-agent-go % ./dpskv3.sh
-🚀 HTTP Web Fetch Chat Demo
-Model: deepseek-v3-local-II
-Type 'exit' to end the conversation
-Available tools: web_fetch
+🚀 HTTP 网页抓取对话演示
+模型：deepseek-v3-local-II
+输入 'exit' 结束对话
+可用工具：web_fetch
 ==================================================
-✅ Web fetch chat ready! Session: web-fetch-session-1763989894
+✅ 网页抓取对话已就绪！会话：web-fetch-session-1763989894
 
-💡 Try asking questions like:
-   - Summarize the content from https://example.com
-   - Fetch and compare https://site1.com and https://site2.com
-   - What's on the homepage of https://news.ycombinator.com
-   - Extract the main points from https://blog.example.com/article
-   - Get the API documentation from https://api.example.com/docs
+💡 可以尝试提出以下问题：
+   - 总结 https://example.com 的内容
+   - 抓取并比较 https://site1.com 和 https://site2.com
+   - https://news.ycombinator.com 的首页有什么内容
+   - 提取 https://blog.example.com/article 的要点
+   - 获取 https://api.example.com/docs 的 API 文档
 
-ℹ️  Note: The tool supports HTML, JSON, XML, and plain text formats
+ℹ️  注意：该工具支持 HTML、JSON、XML 和纯文本格式
 
-👤 You: Summarize the content from https://ai.google.dev/gemini-api/docs/text-generation
-🤖 Assistant: 🌐 Web fetch initiated:
+👤 用户：总结 https://ai.google.dev/gemini-api/docs/text-generation 的内容
+🤖 助手：🌐 已开始网页抓取：
    • web_fetch (ID: chatcmpl-tool-2f80eb6504fc43b0adb62f36f21ee339)
-     Args: {"urls":["https://ai.google.dev/gemini-api/docs/text-generation"]}
+     参数：{"urls":["https://ai.google.dev/gemini-api/docs/text-generation"]}
 
-🔄 Fetching web content...
-✅ Fetch result (ID: chatcmpl-tool-2f80eb6504fc43b0adb62f36f21ee339): {"results":[{"retrieved_url":"https://ai.google.dev/gemini-api/docs/text-generation","status_code":200,"content_type":"text/html","content":"[Skip to main content](#main-content)\n\n[![Gemini API](htt...
+🔄 正在抓取网页内容……
+✅ 抓取结果（ID：chatcmpl-tool-2f80eb6504fc43b0adb62f36f21ee339）：{"results":[{"retrieved_url":"https://ai.google.dev/gemini-api/docs/text-generation","status_code":200,"content_type":"text/html","content":"[跳到主要内容](#main-content)\n\n[![Gemini API](htt...
 
-🤖 Assistant: The page provides a comprehensive guide on using the Gemini API for text generation. Here's a summary of the key points:
+🤖 助手：该页面提供了使用 Gemini API 生成文本的完整指南。以下是要点摘要：
 
-### **Text Generation with Gemini API**
-1. **Basic Text Generation**:
-   - The API can generate text from various inputs (text, images, video, audio).
-   - Example code snippets are provided for Python, JavaScript, Go, Java, REST, and Apps Script.
+### **使用 Gemini API 生成文本**
+1. **基本文本生成**：
+   - 该 API 可以根据多种输入（文本、图像、视频和音频）生成文本。
+   - 文档提供了 Python、JavaScript、Go、Java、REST 和 Apps Script 的示例代码片段。
 
-2. **Thinking with Gemini 2.5**:
-   - Models like Gemini 2.5 Flash and Pro have "thinking" enabled by default for enhanced quality.
-   - Thinking can be disabled by setting the `thinking_budget` to zero.
+2. **Gemini 2.5 的思考功能**：
+   - Gemini 2.5 Flash 和 Pro 等模型默认启用“思考”功能，以提升输出质量。
+   - 将 `thinking_budget` 设置为零即可禁用思考功能。
 
-3. **System Instructions**:
-   - You can guide the model's behavior using system instructions (e.g., "You are a cat. Your name is Neko.").
-   - Examples are provided for multiple programming languages.
+3. **系统指令**：
+   - 可以使用系统指令引导模型的行为（例如：“你是一只猫，名字叫 Neko。”）。
+   - 文档提供了多种编程语言的示例。
 
-4. **Multimodal Inputs**:
-   - The API supports combining text with media files (e.g., images).
-   - Code examples demonstrate how to process multimodal inputs.
+4. **多模态输入**：
+   - 该 API 支持将文本与媒体文件（例如图像）结合使用。
+   - 代码示例演示了如何处理多模态输入。
 
-5. **Streaming Responses**:
-   - For real-time interactions, streaming allows incremental responses.
-   - Examples are provided for streaming in Python, JavaScript, Go, Java, REST, and Apps Script.
+5. **流式响应**：
+   - 在实时交互中，流式传输可以逐步返回响应。
+   - 文档提供了 Python、JavaScript、Go、Java、REST 和 Apps Script 的流式传输示例。
 
-6. **Multi-Turn Conversations (Chat)**:
-   - The SDKs support chat functionality to maintain conversation history.
-   - Examples show how to implement multi-turn conversations and streaming chats.
+6. **多轮对话（聊天）**：
+   - SDK 支持聊天功能，可以保留对话历史记录。
+   - 示例展示了如何实现多轮对话和流式聊天。
 
-7. **Supported Models**:
-   - All Gemini models support text generation. Details about models and their capabilities are available on the [Models](https://ai.google.dev/gemini-api/docs/models) page.
+7. **支持的模型**：
+   - 所有 Gemini 模型都支持文本生成。有关模型及其能力的详细信息，请参阅[模型](https://ai.google.dev/gemini-api/docs/models)页面。
 
-8. **Best Practices**:
-   - **Prompting Tips**: Use zero-shot or few-shot prompts for tailored outputs.
-   - **Structured Output**: The API can generate structured outputs like JSON.
+8. **最佳实践**：
+   - **提示技巧**：使用零样本或少样本提示来获得符合需求的输出。
+   - **结构化输出**：该 API 可以生成 JSON 等结构化输出。
 
-### **Next Steps**
-- Try the [Gemini API getting started Colab](https://colab.research.google.com/github/google-gemini/cookbook/blob/main/quickstarts/Get_started.ipynb).
-- Explore multimodal capabilities (image, video, audio, document understanding).
+### **后续步骤**
+- 尝试使用 [Gemini API 入门 Colab](https://colab.research.google.com/github/google-gemini/cookbook/blob/main/quickstarts/Get_started.ipynb)。
+- 探索多模态能力（图像、视频、音频和文档理解）。
 
-For more details, refer to the [official documentation](https://ai.google.dev/gemini-api/docs/text-generation).
+更多详细信息请参阅[官方文档](https://ai.google.dev/gemini-api/docs/text-generation)。
 
-👤 You: exit
-👋 Goodbye!
+👤 用户：exit
+👋 再见！
 ```
