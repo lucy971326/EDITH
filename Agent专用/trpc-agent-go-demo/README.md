@@ -11,6 +11,12 @@
 任意 OpenAI 兼容服务都行。下面以 DeepSeek 为例：
 
 ```bash
+export GITHUB_TOKEN="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"
+
+```
+
+
+```bash
 # bash / Git Bash
 export OPENAI_API_KEY="sk-12e81c9adab34fcb9fd9a7a6a699738a"
 export OPENAI_BASE_URL="https://api.deepseek.com/v1"
@@ -22,7 +28,6 @@ export OPENAI_API_KEY="sk-cp-8Bnw6tM8ZV3JZH74o-c2j-UOoYk3ktO_FDFQGAzNn76Qk4ZLX1N
 export OPENAI_BASE_URL="https://api.minimaxi.com/v1"
 export MODEL_NAME="MiniMax-M3" 
 ```
-
 
 ```powershell
 # PowerShell
@@ -43,7 +48,18 @@ $env:OPENAI_API_KEY = "sk-xxx"
 $env:MODEL_NAME = "gpt-4o-mini"
 ```
 
-### 2. 跑
+### 2. 准备 GitHub MCP 凭证
+
+创建只授权测试仓库的 Fine-grained PAT，然后通过环境变量注入：
+
+```bash
+export GITHUB_TOKEN="github_pat_xxx"
+```
+
+Demo 默认只启用 GitHub `repos`、`issues`、`pull_requests`、`actions`
+工具集，并通过 `X-MCP-Readonly: true` 限制为只读操作。
+
+### 3. 跑
 
 ```bash
 cd Agent专用/trpc-agent-go-demo
