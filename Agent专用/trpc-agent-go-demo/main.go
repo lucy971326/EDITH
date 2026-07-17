@@ -1,26 +1,3 @@
-// trpc-agent-go 最小可运行 Demo
-//
-// 展示：Runner + LLMAgent + OpenAI 兼容 Model + SQLite Session + Agentic Memory + Mock 工具
-//
-// 运行：
-//
-//	export OPENAI_API_KEY="sk-xxx"
-//	export OPENAI_BASE_URL="https://api.minimaxi.com/v1"   # MiniMax M3 OpenAI 兼容端点
-//	export MODEL_NAME="MiniMax-M3"
-//	go run .
-//
-// ════════════════════════════════════════════════════════════════════
-// ❶# NOTO 【M3 reasoning_split 坑】
-// ────────────────────────────────────────────────────────────────────
-// MiniMax-M3 默认走 OpenAI "原生格式"：把 thinking 嵌进 content 字段
-// 用  ̶t̶h̶i̶n̶k̶ ... ̶/̶t̶h̶i̶n̶k̶  包裹（污染正文）。
-// 必须显式加 `reasoning_split: true`，M3 才会把 thinking 单独放到
-// reasoning_details 字段，框架的 messageCollector 才能正确分离。
-// 不加 → 流式输出会看到一堆  ̶t̶h̶i̶n̶k̶  标签被当作文本打印。
-//
-// 调试方法：开打  https://api.minimaxi.com/v1/chat/completions 看
-// 第一轮响应里 reasoning_details 字段有没有单独出现。
-// ════════════════════════════════════════════════════════════════════
 package main
 
 import (
@@ -43,9 +20,7 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 	sessionsqlite "trpc.group/trpc-go/trpc-agent-go/session/sqlite"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
-	agenttool "trpc.group/trpc-go/trpc-agent-go/tool/agent"
 	"trpc.group/trpc-go/trpc-agent-go/tool/claudecode"
-	"trpc.group/trpc-go/trpc-agent-go/tool/file"
 	"trpc.group/trpc-go/trpc-agent-go/tool/function"
 	"trpc.group/trpc-go/trpc-agent-go/tool/mcp"
 )
@@ -142,24 +117,30 @@ func main() {
 		log.Fatalf("init tavily toolset: %v", err)
 	}
 
-	// AgentTool:包一个"作家专家"子 Agent,工具用 tool/file 包(对相对路径友好)。
-	writerFileToolSet, err := file.NewToolSet(
-		file.WithBaseDir("/Users/lucy/Documents/EDITH/workspace"),
-	)
-	if err != nil {
-		log.Fatalf("new file toolset: %v", err)
+	// GitHub 官方远程 MCP ToolSet：读取仓库、Issue、PR 和 Actions。
+	// Token 使用 Fine-grained PAT，并通过环境变量注入，禁止把真实 Token 写进代码或 README。
+	githubToken := os.Getenv("GITHUB_TOKEN")
+	if githubToken == "" {
+		log.Fatal("GITHUB_TOKEN is required (use a fine-grained GitHub PAT)")
 	}
-	defer writerFileToolSet.Close()
-
-	writerAgent := newWriterAgent(writerFileToolSet, llm)
-	writerTool := agenttool.NewTool(
-		writerAgent,
-		agenttool.WithSkipSummarization(false),
-		agenttool.WithStreamInner(false),
-		agenttool.WithInnerTextMode(agenttool.InnerTextModeExclude),
-		agenttool.WithResponseMode(agenttool.ResponseModeFinalOnly),
+	githubToolSet := mcp.NewMCPToolSet(
+		mcp.ConnectionConfig{
+			Transport: "streamable_http",
+			ServerURL: "https://api.githubcopilot.com/mcp/",
+			Timeout:   30 * time.Second,
+			Headers: map[string]string{
+				"Authorization":  "Bearer " + githubToken,
+				"X-MCP-Toolsets": "default",
+				// 第一阶段只开放查询能力；确认流程稳定后再移除该 Header。
+				// "X-MCP-Readonly": "true",
+			},
+		},
+		mcp.WithName("github"),
 	)
-	tools = append(tools, writerTool)
+	defer githubToolSet.Close()
+	if err := githubToolSet.Init(ctx); err != nil {
+		log.Fatalf("init GitHub MCP toolset: %v", err)
+	}
 
 	policy := &tool.RetryPolicy{
 		MaxAttempts:     3,                      // 包括第一次,共试 3 次
@@ -177,13 +158,18 @@ func main() {
 				"按需调用工具解决用户问题。\n"+
 				"规则：\n"+
 				"1. 文件操作严格限制在 workspace 目录内，超出要先问。\n"+
-				"2. 简洁回复，不要啰嗦。",
+				"2. 查询 GitHub 前先从用户输入确认 owner/repo，不要猜测目标仓库。\n"+
+				"3. 简洁回复，不要啰嗦。",
 		),
 		llmagent.WithGenerationConfig(model.GenerationConfig{
 			Stream: true,
 		}),
 		llmagent.WithTools(tools), // 天气工具 + memory_add/update/search/load
-		llmagent.WithToolSets([]tool.ToolSet{claudeToolSet, tavilyToolSet}), // claudecode + tavily_search / tavily_extract
+		llmagent.WithToolSets([]tool.ToolSet{
+			claudeToolSet,
+			tavilyToolSet,
+			githubToolSet,
+		}),
 		llmagent.WithPreloadMemory(10),
 		llmagent.WithToolCallRetryPolicy(policy),
 	)
@@ -199,7 +185,7 @@ func main() {
 
 	// ============ 8. 交互式多轮对话 ============
 	const userID = "u-alice"
-	const sessionID = "009"
+	const sessionID = "010"
 
 	fmt.Println("小天已上线，输入内容开始对话（exit / quit / q 退出）")
 
@@ -221,6 +207,10 @@ func main() {
 		if err := chat(ctx, r, userID, sessionID, q); err != nil {
 			fmt.Printf("  ❌ %v\n", err)
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Printf("\n⚠️ 输入读取异常: %v\n", err)
 	}
 
 	fmt.Println("\n✅ 再见。Session 已持久化到 demo.db，下次用相同 sessionID 可继续。")
@@ -280,22 +270,6 @@ func chat(ctx context.Context, r runner.Runner, userID, sessionID, text string) 
 }
 
 // ============ 工具实现（文件顶级，跟官方示例一致）============
-
-// newWriterAgent 包一个"作家专家"子 Agent,工具交给 tool/file 包的文件 ToolSet。
-// 对比 claudecode:tool/file 默认把相对路径 join 到 baseDir,LLM 不用硬记绝对路径。
-func newWriterAgent(fileSet tool.ToolSet, llm model.Model) agent.Agent {
-	return llmagent.New(
-		"writer-specialist",
-		llmagent.WithModel(llm),
-		llmagent.WithDescription("把写作任务外包给写作专家。它能读/写 workspace 下的文件,没有 Bash/Grep 这些副作用强的工具。"),
-		llmagent.WithInstruction(
-			"你是写作专家子 Agent。父 Agent 会给 'task'(要写什么) 和 'file_path'(写到哪)。\n"+
-				"file_path 可以传相对路径(如 story.md),不需要写绝对路径。\n"+
-				"先用读工具看上下文(若有),再用写工具落盘。完成后只输出:'已完成:[一句话概括写进去什么]'。",
-		),
-		llmagent.WithToolSets([]tool.ToolSet{fileSet}),
-	)
-}
 
 func getWeather(ctx context.Context, args weatherArgs) (weatherResult, error) {
 	_ = ctx // 工具签名保留 ctx，方便日后加 ctx 传递的逻辑（如取消、超时、ToolCallID）
