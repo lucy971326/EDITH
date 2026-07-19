@@ -4,13 +4,16 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	_ "github.com/joho/godotenv/autoload" // 启动时自动加载 .env
 	_ "github.com/mattn/go-sqlite3"
 	"trpc.group/trpc-go/trpc-agent-go/agent"
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
@@ -18,6 +21,10 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/model/openai"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
+	"trpc.group/trpc-go/trpc-agent-go/server/agui"
+	aguiadapter "trpc.group/trpc-go/trpc-agent-go/server/agui/adapter"
+	aguirunner "trpc.group/trpc-go/trpc-agent-go/server/agui/runner"
+	"trpc.group/trpc-go/trpc-agent-go/session"
 	sessionsqlite "trpc.group/trpc-go/trpc-agent-go/session/sqlite"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 	"trpc.group/trpc-go/trpc-agent-go/tool/claudecode"
@@ -25,8 +32,14 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/tool/mcp"
 )
 
-// Tavily API key（硬编码演示；生产请走环境变量或 secret store）。
-const tavilyAPIKey = "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"
+// 全局 session 标识（命令行 / AG-UI Server 共用）
+var (
+	sessionUserID = envOr("AGUI_USER_ID", "u-alice")
+	sessionAppName = envOr("AGUI_APP_NAME", "demo-app")
+)
+
+// tavilyAPIKey 由 .env 注入（TAVILY_API_KEY）。若为空则跳过 Tavily 工具。
+func tavilyAPIKey() string { return os.Getenv("TAVILY_API_KEY") }
 
 // 天气工具的 Mock 数据（包级别变量，便于 weatherTool 闭包直接引用）。
 var (
@@ -106,7 +119,7 @@ func main() {
 	tavilyToolSet := mcp.NewMCPToolSet(
 		mcp.ConnectionConfig{
 			Transport: "streamable_http",
-			ServerURL: "https://mcp.tavily.com/mcp/?tavilyApiKey=" + tavilyAPIKey,
+			ServerURL: "https://mcp.tavily.com/mcp/?tavilyApiKey=" + tavilyAPIKey(),
 			Timeout:   30 * time.Second,
 		},
 		mcp.WithToolFilterFunc(tool.NewIncludeToolNamesFilter("tavily_search", "tavily_extract")),
@@ -183,9 +196,37 @@ func main() {
 	)
 	defer r.Close()
 
+	// ============ 8. AG-UI HTTP Server（与命令行并列运行）============
+	aguiAddr := envOr("AGUI_ADDR", "127.0.0.1:8080")
+	aguiServer, err := agui.New(r,
+		agui.WithPath("/agui"),
+		agui.WithAppName(sessionAppName),
+		agui.WithSessionService(sessionService),          // 让 AG-UI 写 track_events
+		agui.WithMessagesSnapshotEnabled(true),           // 注册 /history 端点供 HttpAgent 拉历史
+		agui.WithAGUIRunnerOptions(
+			aguirunner.WithUserIDResolver(func(ctx context.Context, input *aguiadapter.RunAgentInput) (string, error) {
+				return sessionUserID, nil
+			}),
+		),
+	)
+	if err != nil {
+		log.Fatalf("create agui server: %v", err)
+	}
+	// 用 mux 聚合: /agui (聊天) + /api/sessions (列表)
+	mux := http.NewServeMux()
+	mux.Handle("/agui", aguiServer.Handler())
+	mux.HandleFunc("/api/sessions", listSessionsHandler(sessionService))
+
+	go func() {
+		log.Printf("AG-UI server  : http://%s/agui", aguiAddr)
+		log.Printf("Sessions API  : http://%s/api/sessions", aguiAddr)
+		if err := http.ListenAndServe(aguiAddr, mux); err != nil {
+			log.Printf("server stopped: %v", err)
+		}
+	}()
+
 	// ============ 8. 交互式多轮对话 ============
-	const userID = "u-alice"
-	const sessionID = "010"
+	const sessionID = "011" // 命令行的固定会话ID; AG-UI Server 用 threadId (每次新生成)
 
 	fmt.Println("小天已上线，输入内容开始对话（exit / quit / q 退出）")
 
@@ -204,7 +245,7 @@ func main() {
 			break
 		}
 
-		if err := chat(ctx, r, userID, sessionID, q); err != nil {
+		if err := chat(ctx, r, sessionUserID, sessionID, q); err != nil {
 			fmt.Printf("  ❌ %v\n", err)
 		}
 	}
@@ -334,4 +375,40 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// ============ /api/sessions: 列出当前用户的所有会话 ============
+type sessionItem struct {
+	ID         string    `json:"id"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	EventCount int       `json:"event_count"`
+	Title      string    `json:"title"`
+}
+
+func listSessionsHandler(svc session.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		sessions, err := svc.ListSessions(r.Context(), session.UserKey{
+			AppName: sessionAppName,
+			UserID:  sessionUserID,
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		items := make([]sessionItem, 0, len(sessions))
+		for _, s := range sessions {
+			items = append(items, sessionItem{
+				ID:         s.ID,
+				UpdatedAt:  s.UpdatedAt,
+				EventCount: len(s.Events),
+				Title:      s.ID, // 用 ID 当标题（最简单，可读性还行）
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"sessions": items})
+	}
 }
