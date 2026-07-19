@@ -9,9 +9,20 @@
 
 "use client";
 
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import ReactMarkdown from "react-markdown";
-import type { InputProps, MessagesProps, RenderMessageProps } from "@copilotkit/react-ui";
+import type {
+  InputProps,
+  MessagesProps,
+  RenderMessageProps,
+} from "@copilotkit/react-ui";
 import {
   AssistantMessage as DefaultAssistantMessage,
   CopilotChat,
@@ -22,7 +33,8 @@ import {
 import { useCopilotChatInternal as useCopilotChat } from "@copilotkit/react-core";
 import type { Message } from "@copilotkit/shared";
 
-const DEFAULT_PROMPT = "Calculate 2*(10+11), first explain the idea, then calculate, and finally give the conclusion.";
+const DEFAULT_PROMPT =
+  "Calculate 2*(10+11), first explain the idea, then calculate, and finally give the conclusion.";
 
 const PromptInput = ({
   inProgress,
@@ -202,15 +214,17 @@ const ToolAwareRenderMessage = ({
   const messageType = (message as any)?.type;
   const customEventPayload =
     messageType === "AguiCustomEventMessage" || (message as any)?.customEvent
-      ? (message as any)?.customEvent ?? {
+      ? ((message as any)?.customEvent ?? {
           name: (message as any)?.name,
           value: (message as any)?.content,
-        }
+        })
       : undefined;
 
   if (customEventPayload) {
     const identifier = String(message.id ?? `${index}-custom-event`);
-    const label = customEventPayload.name ? String(customEventPayload.name) : "Custom event";
+    const label = customEventPayload.name
+      ? String(customEventPayload.name)
+      : "Custom event";
     return renderToolBlock({
       id: identifier,
       name: label,
@@ -235,10 +249,16 @@ const ToolAwareRenderMessage = ({
   }
 
   if (messageType === "ResultMessage" || message.role === "tool") {
-    const actionName = (message as any)?.actionName ?? (message as any)?.name ?? "Tool result";
+    const actionName =
+      (message as any)?.actionName ?? (message as any)?.name ?? "Tool result";
     const body =
-      (message as any)?.result !== undefined ? (message as any)?.result : (message as any)?.content;
-    const maybeId = (message as any)?.id ?? (message as any)?.toolCallId ?? (message as any)?.parentId;
+      (message as any)?.result !== undefined
+        ? (message as any)?.result
+        : (message as any)?.content;
+    const maybeId =
+      (message as any)?.id ??
+      (message as any)?.toolCallId ??
+      (message as any)?.parentId;
     const kind = isCustomIdentifier(maybeId) ? "custom" : "tool-result";
     return renderToolBlock({
       id: String((message as any)?.id ?? `${index}-tool-result`),
@@ -265,7 +285,9 @@ const ToolAwareRenderMessage = ({
           isLoading={inProgress && isCurrentMessage && !message.content}
           isGenerating={inProgress && isCurrentMessage && !!message.content}
           isCurrentMessage={isCurrentMessage}
-          onRegenerate={message.id ? () => onRegenerate?.(String(message.id)) : undefined}
+          onRegenerate={
+            message.id ? () => onRegenerate?.(String(message.id)) : undefined
+          }
           onCopy={onCopy}
           onThumbsUp={onThumbsUp}
           onThumbsDown={onThumbsDown}
@@ -273,10 +295,14 @@ const ToolAwareRenderMessage = ({
           ImageRenderer={ImageRenderer}
         />
         {toolCalls.map((call, callIndex) => {
-          const identifier = String(call?.id ?? `${messageId}-call-${callIndex}`);
+          const identifier = String(
+            call?.id ?? `${messageId}-call-${callIndex}`,
+          );
           const callName = call?.function?.name ?? call?.name ?? "Tool call";
           const callArgs = call?.function?.arguments ?? call?.arguments ?? {};
-          const callKind = isCustomIdentifier(call?.id) ? "custom" : "tool-call";
+          const callKind = isCustomIdentifier(call?.id)
+            ? "custom"
+            : "tool-call";
           return renderToolBlock({
             id: identifier,
             name: callName,
@@ -344,14 +370,23 @@ const DocumentAwareMessages = ({
   void _messages;
   const { labels } = useChatContext();
   const { messages: visibleMessages, interrupt } = useCopilotChat();
-  const initialMessages = useMemo(() => makeInitialMessages(labels.initial), [labels.initial]);
+  const initialMessages = useMemo(
+    () => makeInitialMessages(labels.initial),
+    [labels.initial],
+  );
   const combinedMessages = useMemo<Message[]>(
     () => [...initialMessages, ...visibleMessages],
     [initialMessages, visibleMessages],
   );
-  const { instances, hiddenMessages } = useMemo(() => deriveDocumentState(visibleMessages), [visibleMessages]);
-  const { messagesContainerRef, messagesEndRef } = useScrollToBottom(combinedMessages);
-  const [expandedDocumentId, setExpandedDocumentId] = useState<string | null>(null);
+  const { instances, hiddenMessages } = useMemo(
+    () => deriveDocumentState(visibleMessages),
+    [visibleMessages],
+  );
+  const { messagesContainerRef, messagesEndRef } =
+    useScrollToBottom(combinedMessages);
+  const [expandedDocumentId, setExpandedDocumentId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (instances.length === 0) {
@@ -359,7 +394,9 @@ const DocumentAwareMessages = ({
       return;
     }
     if (expandedDocumentId) {
-      const stillPresent = instances.some((inst) => inst.session.documentId === expandedDocumentId);
+      const stillPresent = instances.some(
+        (inst) => inst.session.documentId === expandedDocumentId,
+      );
       if (!stillPresent) {
         setExpandedDocumentId(null);
       }
@@ -375,7 +412,9 @@ const DocumentAwareMessages = ({
   const MessageRenderer = RenderMessage;
 
   const panelInstance = expandedDocumentId
-    ? instances.find((inst) => inst.session.documentId === expandedDocumentId) ?? null
+    ? (instances.find(
+        (inst) => inst.session.documentId === expandedDocumentId,
+      ) ?? null)
     : null;
   const panelSession = panelInstance?.session ?? null;
   const panelOpen = !!panelSession;
@@ -386,12 +425,14 @@ const DocumentAwareMessages = ({
         <div className="copilotKitMessages">
           <div className="copilotKitMessagesContainer">
             {combinedMessages.map((message, index) => {
-            if (hiddenMessages.has(message)) {
-              return null;
-            }
-            const messageKey = message.id ?? index;
-            const isCurrentMessage = index === combinedMessages.length - 1;
-            const instanceForAnchor = instances.find((inst) => inst.anchor === message);
+              if (hiddenMessages.has(message)) {
+                return null;
+              }
+              const messageKey = message.id ?? index;
+              const isCurrentMessage = index === combinedMessages.length - 1;
+              const instanceForAnchor = instances.find(
+                (inst) => inst.anchor === message,
+              );
 
               return (
                 <Fragment key={messageKey}>
@@ -410,38 +451,48 @@ const DocumentAwareMessages = ({
                     onThumbsDown={onThumbsDown}
                     markdownTagRenderers={markdownTagRenderers}
                   />
-              {instanceForAnchor ? (
-                <DocumentAttachment
-                  session={instanceForAnchor.session}
-                  isOpen={
-                    panelOpen && panelSession?.documentId === instanceForAnchor.session.documentId
-                  }
-                  onToggle={() =>
-                    setExpandedDocumentId((current) =>
-                      current === instanceForAnchor.session.documentId
-                        ? null
-                        : instanceForAnchor.session.documentId,
-                    )
-                  }
-                />
-              ) : null}
+                  {instanceForAnchor ? (
+                    <DocumentAttachment
+                      session={instanceForAnchor.session}
+                      isOpen={
+                        panelOpen &&
+                        panelSession?.documentId ===
+                          instanceForAnchor.session.documentId
+                      }
+                      onToggle={() =>
+                        setExpandedDocumentId((current) =>
+                          current === instanceForAnchor.session.documentId
+                            ? null
+                            : instanceForAnchor.session.documentId,
+                        )
+                      }
+                    />
+                  ) : null}
                 </Fragment>
               );
             })}
             {interrupt}
-            {chatError && ErrorMessage && <ErrorMessage error={chatError} isCurrentMessage />}
+            {chatError && ErrorMessage && (
+              <ErrorMessage error={chatError} isCurrentMessage />
+            )}
           </div>
           <footer className="copilotKitMessagesFooter" ref={messagesEndRef}>
             {children}
           </footer>
         </div>
       </div>
-      <DocumentSidePanel session={panelSession} isOpen={panelOpen} onClose={() => setExpandedDocumentId(null)} />
+      <DocumentSidePanel
+        session={panelSession}
+        isOpen={panelOpen}
+        onClose={() => setExpandedDocumentId(null)}
+      />
     </div>
   );
 };
 
-function makeInitialMessages(initial: string | string[] | undefined): Message[] {
+function makeInitialMessages(
+  initial: string | string[] | undefined,
+): Message[] {
   if (!initial) return [];
 
   if (Array.isArray(initial)) {
@@ -472,7 +523,8 @@ function useScrollToBottom(messages: Message[]) {
   const scrollToBottom = () => {
     if (messagesContainerRef.current && messagesEndRef.current) {
       isProgrammaticScrollRef.current = true;
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
     }
   };
 
@@ -483,7 +535,8 @@ function useScrollToBottom(messages: Message[]) {
     }
 
     if (messagesContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const { scrollTop, scrollHeight, clientHeight } =
+        messagesContainerRef.current;
       isUserScrollUpRef.current = scrollTop + clientHeight < scrollHeight;
     }
   };
@@ -568,12 +621,18 @@ function deriveDocumentState(messages: Message[]): DocumentComputation {
           }
         }
       });
-      if (activeInstance && activeInstance.session.status === "open" && toolCalls.length === 0) {
+      if (
+        activeInstance &&
+        activeInstance.session.status === "open" &&
+        toolCalls.length === 0
+      ) {
         const text = extractTextFromMessage(message);
         if (text && text.trim().length > 0) {
           hiddenMessages.add(message);
           const current = activeInstance.session;
-          current.content = current.content ? `${current.content}\n${text}` : text;
+          current.content = current.content
+            ? `${current.content}\n${text}`
+            : text;
         }
       }
       continue;
@@ -594,7 +653,8 @@ function deriveDocumentState(messages: Message[]): DocumentComputation {
           status: "open",
           title: payload.title || "Report",
           documentId: payload.documentId || callId,
-          createdAt: payload.createdAt || payload.openedAt || new Date().toISOString(),
+          createdAt:
+            payload.createdAt || payload.openedAt || new Date().toISOString(),
           content: "",
         };
         activeInstance = { session, anchor: message };
@@ -603,7 +663,8 @@ function deriveDocumentState(messages: Message[]): DocumentComputation {
         const payload = parseReportPayload((message as any)?.content);
         const target = activeInstance ?? instances[instances.length - 1];
         target.session.status = "closed";
-        target.session.closedAt = payload.closedAt || payload.timestamp || new Date().toISOString();
+        target.session.closedAt =
+          payload.closedAt || payload.timestamp || new Date().toISOString();
         if (payload.message || payload.reason) {
           target.session.reason = payload.message || payload.reason;
         }
@@ -634,19 +695,27 @@ const DocumentAttachment = ({
     : "report-document-attachment__state report-document-attachment__state--ready";
   return (
     <section className="report-document-attachment">
-      <button className="report-document-attachment__button" type="button" onClick={onToggle}>
+      <button
+        className="report-document-attachment__button"
+        type="button"
+        onClick={onToggle}
+      >
         <span className="report-document-attachment__icon" aria-hidden>
           📄
         </span>
         <div className="report-document-attachment__details">
-          <p className="report-document-attachment__label">Generated document</p>
+          <p className="report-document-attachment__label">
+            Generated document
+          </p>
           <p className="report-document-attachment__title">{session.title}</p>
           <p className="report-document-attachment__meta">
             {timestampValue} · {session.documentId}
           </p>
           <span className={stateClass}>{stateLabel}</span>
         </div>
-        <span className="report-document-attachment__action">{isOpen ? "Hide" : "Open"}</span>
+        <span className="report-document-attachment__action">
+          {isOpen ? "Hide" : "Open"}
+        </span>
       </button>
       {isOpen ? <span className="sr-only">Document preview open</span> : null}
     </section>
@@ -663,7 +732,9 @@ const DocumentSidePanel = ({
   onClose: () => void;
 }) => {
   return (
-    <aside className={`document-side-panel${isOpen ? " document-side-panel--open" : ""}`}>
+    <aside
+      className={`document-side-panel${isOpen ? " document-side-panel--open" : ""}`}
+    >
       {session && isOpen ? (
         <div className="document-side-panel__content">
           <DocumentBox session={session} onClose={onClose} />
@@ -673,14 +744,22 @@ const DocumentSidePanel = ({
   );
 };
 
-const DocumentBox = ({ session, onClose }: { session: ReportSession; onClose?: () => void }) => {
+const DocumentBox = ({
+  session,
+  onClose,
+}: {
+  session: ReportSession;
+  onClose?: () => void;
+}) => {
   if (!session) {
     return null;
   }
   const isOpen = session.status === "open";
   const statusLabel = isOpen ? "Live" : "Finished";
   const timestampLabel = isOpen ? "Opened" : "Finished";
-  const timestampValue = isOpen ? session.createdAt : session.closedAt ?? session.createdAt;
+  const timestampValue = isOpen
+    ? session.createdAt
+    : (session.closedAt ?? session.createdAt);
   const content =
     session.content && session.content.trim().length > 0
       ? session.content
@@ -696,7 +775,11 @@ const DocumentBox = ({ session, onClose }: { session: ReportSession; onClose?: (
           <h2 className="report-document__title">{session.title}</h2>
         </div>
         {onClose ? (
-          <button className="report-document__close" type="button" onClick={onClose}>
+          <button
+            className="report-document__close"
+            type="button"
+            onClick={onClose}
+          >
             ×
           </button>
         ) : null}
@@ -706,7 +789,11 @@ const DocumentBox = ({ session, onClose }: { session: ReportSession; onClose?: (
       </header>
       <div className="report-document__meta">
         <span>Doc ID: {session.documentId}</span>
-        {timestampValue && <span>{timestampLabel}: {formatTimestamp(timestampValue)}</span>}
+        {timestampValue && (
+          <span>
+            {timestampLabel}: {formatTimestamp(timestampValue)}
+          </span>
+        )}
         {!isOpen && session.reason && <span>Reason: {session.reason}</span>}
       </div>
       <div className="report-document__content">
@@ -777,7 +864,11 @@ function extractTextFromMessage(message: Message): string {
       })
       .join("");
   }
-  if (rawContent && typeof rawContent === "object" && typeof rawContent.text === "string") {
+  if (
+    rawContent &&
+    typeof rawContent === "object" &&
+    typeof rawContent.text === "string"
+  ) {
     return rawContent.text;
   }
   return "";

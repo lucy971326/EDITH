@@ -27,10 +27,13 @@ class CustomEventMirroringAgent extends HttpAgent {
           if (event && event.type === "CUSTOM") {
             try {
               const name = event.name || "custom";
-              const baseId = event.timestamp ? `${name}-${event.timestamp}` : `${name}-${Date.now()}`;
+              const baseId = event.timestamp
+                ? `${name}-${event.timestamp}`
+                : `${name}-${Date.now()}`;
               const toolCallId = `custom-${baseId}`;
-              const parentMessageId = (event.value && (event.value as any).messageId) || undefined;
-              const args = JSON.stringify((event.value ?? {}), null, 0);
+              const parentMessageId =
+                (event.value && (event.value as any).messageId) || undefined;
+              const args = JSON.stringify(event.value ?? {}, null, 0);
               const now = Date.now();
               const startEvt: any = {
                 type: "TOOL_CALL_START",
@@ -70,7 +73,9 @@ const aguiAgent = new CustomEventMirroringAgent({
   description: "AG-UI agent hosted by the Go evaluation server",
   threadId: "demo-thread",
   url: process.env.AG_UI_ENDPOINT ?? "http://127.0.0.1:8080/agui",
-  headers: process.env.AG_UI_TOKEN ? { Authorization: `Bearer ${process.env.AG_UI_TOKEN}` } : undefined,
+  headers: process.env.AG_UI_TOKEN
+    ? { Authorization: `Bearer ${process.env.AG_UI_TOKEN}` }
+    : undefined,
 });
 
 const runtime = new CopilotRuntime({

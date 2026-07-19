@@ -15,10 +15,15 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "AG-UI CopilotKit Demo",
-  description: "Minimal CopilotKit front-end that streams AG-UI events from a Go agent server.",
+  description:
+    "Minimal CopilotKit front-end that streams AG-UI events from a Go agent server.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
