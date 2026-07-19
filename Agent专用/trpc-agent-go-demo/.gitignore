@@ -1,0 +1,16 @@
+.env
+.env.local
+.env.*.local
+
+# SQLite runtime files
+demo.db-shm
+demo.db-wal
+
+# Go binary
+demo
+*.exe
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
