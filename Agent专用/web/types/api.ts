@@ -4,11 +4,26 @@
 // 对应 Go 端的 FrontendEvent / StreamInput / Usage
 // ============================================================================
 
+/** 图片输入 */
+export interface ImageInput {
+  data: string   // base64 编码（不含 data:xxx;base64, 前缀）
+  format: string // "png" | "jpeg" | "webp" | "gif"
+}
+
 // POST /stream 请求体
 export interface StreamRequest {
   user_id: string
   session_id: string
   message: string
+  model?: string    // 可选：指定模型名，空则用服务端默认
+  images?: ImageInput[] // 可选：图片列表
+}
+
+/** /models 返回的模型信息 */
+export interface ModelInfo {
+  id: string
+  label: string
+  vision: boolean  // 是否支持图片/视觉输入
 }
 
 // SSE 事件联合类型
