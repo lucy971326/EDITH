@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
+
+	"demo/sandbox"
 
 	"github.com/google/uuid"
 	_ "github.com/joho/godotenv/autoload"
@@ -20,9 +23,9 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/model/openai"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 	sessionsqlite "trpc.group/trpc-go/trpc-agent-go/session/sqlite"
+
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 	"trpc.group/trpc-go/trpc-agent-go/tool/function"
-	filetool "trpc.group/trpc-go/trpc-agent-go/tool/file"
 	"trpc.group/trpc-go/trpc-agent-go/tool/mcp"
 )
 
@@ -47,6 +50,23 @@ type Usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+}
+
+// ============================================================================
+// 模型列表
+// ============================================================================
+
+type ModelInfo struct {
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	Vision bool   `json:"vision"`
+}
+
+// 模型能力（视觉支持等）
+var modelCaps = map[string]bool{
+	"deepseek-v4-flash": false,
+	"deepseek-v4-pro":   false,
+	"MiniMax-M3":        true,
 }
 
 // ============================================================================
@@ -94,6 +114,27 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
+// newExecBackend creates the execution backend: local or E2B.
+func newExecBackend(db *sql.DB) sandbox.ExecBackend {
+	if os.Getenv("SANDBOX_MODE") == "e2b" {
+		mgr, err := sandbox.NewSandboxManager(db, sandbox.SandboxManagerOptions{
+			APIKey:   envOr("E2B_API_KEY", ""),
+			Domain:   envOr("E2B_DOMAIN", ""),
+			Template: envOr("E2B_TEMPLATE", "base"),
+			Timeout:  10 * time.Minute,
+		})
+		if err != nil {
+			log.Fatalf("new sandbox manager: %v", err)
+		}
+		return sandbox.NewE2BBackend(mgr, "u-alice")
+	}
+	backend, err := sandbox.NewLocalBackend("./workspace")
+	if err != nil {
+		log.Fatalf("new local backend: %v", err)
+	}
+	return backend
+}
+
 // ============================================================================
 // main：组装一切
 // ============================================================================
@@ -101,10 +142,30 @@ func envOr(key, fallback string) string {
 func main() {
 	ctx := context.Background()
 
-	// ----- 1. Model -----
-	llm := openai.New(envOr("MODEL_NAME", "deepseek-v4-flash"),
-		openai.WithExtraFields(map[string]any{"reasoning_split": true}),
-	)
+	// ----- 1. Models（预注册多个，请求时按名称切换）-----
+	// 每个模型显式指定 API Key + Base URL，优先读专用环境变量
+	deepseekKey := envOr("DEEPSEEK_API_KEY", "sk-12e81c9adab34fcb9fd9a7a6a699738a")
+	deepseekURL := envOr("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
+	minimaxKey := envOr("MINIMAX_API_KEY", "sk-cp-8Bnw6tM8ZV3JZH74o-c2j-UOoYk3ktO_FDFQGAzNn76Qk4ZLX1NNI492sWI0YwIRqf_NC7kyHel8CrJe7k_hZI2sboFaEp_gAEl8WEgoCHsUbwGJoWC1h8o")
+	minimaxURL := envOr("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
+
+	models := map[string]model.Model{
+		// ---- DeepSeek ----
+		"deepseek-v4-flash": openai.New("deepseek-v4-flash",
+			openai.WithAPIKey(deepseekKey),
+			openai.WithBaseURL(deepseekURL),
+		),
+		"deepseek-v4-pro": openai.New("deepseek-v4-pro",
+			openai.WithAPIKey(deepseekKey),
+			openai.WithBaseURL(deepseekURL),
+		),
+		// ---- OpenAI ----
+		"MiniMax-M3": openai.New("MiniMax-M3",
+			openai.WithAPIKey(minimaxKey),
+			openai.WithBaseURL(minimaxURL),
+			openai.WithExtraFields(map[string]any{"reasoning_split": true}),
+		),
+	}
 
 	// ----- 2. Session -----
 	sessionDB, _ := sql.Open("sqlite3", "file:demo.db?_busy_timeout=5000&_journal_mode=WAL")
@@ -141,26 +202,22 @@ func main() {
 	defer githubToolSet.Close()
 	githubToolSet.Init(ctx)
 
-	// File operations ToolSet
-	fileToolSet, err := filetool.NewToolSet(
-		filetool.WithBaseDir("./workspace"),
-	)
-	if err != nil {
-		log.Fatalf("new file toolset: %v", err)
-	}
-	defer fileToolSet.Close()
+	// Sandbox ToolSet — local or E2B, same tools for Agent.
+	sandboxTS := sandbox.NewToolSet(newExecBackend(memoryDB))
+	defer sandboxTS.Close()
 
 	// ----- 6. Agent -----
 	llmAgent := llmagent.New(
 		"assistant",
-		llmagent.WithModel(llm),
+		llmagent.WithModels(models),
+		llmagent.WithModel(models["deepseek-v4-flash"]), // 默认模型
 		llmagent.WithInstruction(
-			"你叫小天，用户的时间助手。\n"+
+			"你叫小天，用户的助手。\n"+
 				"规则：查询 GitHub 前先确认 owner/repo，不要猜测。简洁回复。",
 		),
 		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
 		llmagent.WithTools(tools),
-		llmagent.WithToolSets([]tool.ToolSet{githubToolSet, fileToolSet}),
+		llmagent.WithToolSets([]tool.ToolSet{githubToolSet, sandboxTS}),
 		llmagent.WithPreloadMemory(10),
 		llmagent.WithToolCallRetryPolicy(&tool.RetryPolicy{
 			MaxAttempts: 3, InitialInterval: 200 * time.Millisecond, BackoffFactor: 2.0,
@@ -182,6 +239,15 @@ func main() {
 	// 原生 SSE handler — POST JSON body → SSE stream
 	mux.HandleFunc("POST /stream", sseHandler(r))
 
+	// 模型列表（从 models map 动态生成，单一真理来源）
+	mux.HandleFunc("GET /models", func(w http.ResponseWriter, _ *http.Request) {
+		list := make([]ModelInfo, 0, len(models))
+		for key, m := range models {
+			list = append(list, ModelInfo{ID: key, Label: m.Info().Name, Vision: modelCaps[key]})
+		}
+		writeJSON(w, list)
+	})
+
 	log.Printf("Agent API : http://%s/stream", envOr("ADDR", "127.0.0.1:8080"))
 	http.ListenAndServe(envOr("ADDR", "127.0.0.1:8080"), mux)
 }
@@ -191,10 +257,17 @@ func main() {
 // SSE Handler：POST JSON body → SSE stream
 // ============================================================================
 
+type ImageInput struct {
+	Data   string `json:"data"`   // base64 编码的图片数据（不含 data:xxx;base64, 前缀）
+	Format string `json:"format"` // "png" | "jpeg" | "webp" | "gif"
+}
+
 type StreamInput struct {
-	UserID    string `json:"user_id"`
-	SessionID string `json:"session_id"`
-	Message   string `json:"message"`
+	UserID    string       `json:"user_id"`
+	SessionID string       `json:"session_id"`
+	Message   string       `json:"message"`
+	Model     string       `json:"model,omitempty"`  // 可选：指定模型名，空则用默认
+	Images    []ImageInput `json:"images,omitempty"` // 可选：图片列表
 }
 
 func sseHandler(r runner.Runner) http.HandlerFunc {
@@ -218,9 +291,37 @@ func sseHandler(r runner.Runner) http.HandlerFunc {
 		}
 
 		requestID := uuid.NewString()
-		eventCh, err := r.Run(req.Context(), input.UserID, input.SessionID, model.NewUserMessage(input.Message),
+		runOpts := []agent.RunOption{
 			agent.WithRequestID(requestID),
 			agent.WithStream(true),
+		}
+		if input.Model != "" {
+			runOpts = append(runOpts, agent.WithModelName(input.Model))
+		}
+
+		// 构造用户消息：纯文本 or 多模态（文本+图片）
+		var userMsg model.Message
+		if len(input.Images) > 0 {
+			userMsg = model.Message{Role: model.RoleUser, Content: input.Message}
+			for _, img := range input.Images {
+				data, err := base64.StdEncoding.DecodeString(img.Data)
+				if err != nil {
+					writeSSE(w, "error", FrontendEvent{Type: "error", RequestID: requestID, Message: "invalid base64 image: " + err.Error()})
+					flusher.Flush()
+					return
+				}
+				userMsg.AddImageData(data, "", img.Format)
+			}
+		} else {
+			userMsg = model.NewUserMessage(input.Message)
+		}
+
+		eventCh, err := r.Run(
+			req.Context(),
+			input.UserID,
+			input.SessionID,
+			userMsg,
+			runOpts...,
 		)
 		if err != nil {
 			writeSSE(w, "error", FrontendEvent{Type: "error", RequestID: requestID, Message: err.Error()})
@@ -286,4 +387,9 @@ func sseHandler(r runner.Runner) http.HandlerFunc {
 func writeSSE(w http.ResponseWriter, event string, data any) {
 	b, _ := json.Marshal(data)
 	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, b)
+}
+
+func writeJSON(w http.ResponseWriter, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
 }
