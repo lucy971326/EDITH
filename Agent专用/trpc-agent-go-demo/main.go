@@ -34,7 +34,7 @@ import (
 
 // 全局 session 标识（命令行 / AG-UI Server 共用）
 var (
-	sessionUserID = envOr("AGUI_USER_ID", "u-alice")
+	sessionUserID  = envOr("AGUI_USER_ID", "u-alice")
 	sessionAppName = envOr("AGUI_APP_NAME", "demo-app")
 )
 
@@ -201,8 +201,8 @@ func main() {
 	aguiServer, err := agui.New(r,
 		agui.WithPath("/agui"),
 		agui.WithAppName(sessionAppName),
-		agui.WithSessionService(sessionService),          // 让 AG-UI 写 track_events
-		agui.WithMessagesSnapshotEnabled(true),           // 注册 /history 端点供 HttpAgent 拉历史
+		agui.WithSessionService(sessionService), // 让 AG-UI 写 track_events
+		agui.WithMessagesSnapshotEnabled(true),  // 注册 /history 端点供 HttpAgent 拉历史
 		agui.WithAGUIRunnerOptions(
 			aguirunner.WithUserIDResolver(func(ctx context.Context, input *aguiadapter.RunAgentInput) (string, error) {
 				return sessionUserID, nil
