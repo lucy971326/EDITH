@@ -24,6 +24,7 @@ export MODEL_NAME="deepseek-v4-flash"
 ```
 
 ```bash
+export GITHUB_TOKEN="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"
 export OPENAI_API_KEY="sk-cp-8Bnw6tM8ZV3JZH74o-c2j-UOoYk3ktO_FDFQGAzNn76Qk4ZLX1NNI492sWI0YwIRqf_NC7kyHel8CrJe7k_hZI2sboFaEp_gAEl8WEgoCHsUbwGJoWC1h8o"
 export OPENAI_BASE_URL="https://api.minimaxi.com/v1"
 export MODEL_NAME="MiniMax-M3" 
@@ -35,18 +36,14 @@ $env:OPENAI_API_KEY = "sk-12e81c9adab34fcb9fd9a7a6a699738a"
 $env:OPENAI_BASE_URL = "https://api.deepseek.com/v1"
 $env:MODEL_NAME = "deepseek-v4-flash"
 ```
-
-OpenAI 官方：
-```bash
-export OPENAI_API_KEY="sk-xxx"
-# OPENAI_BASE_URL 默认就是 OpenAI
-export MODEL_NAME="gpt-4o-mini"
-```
-
 ```powershell
-$env:OPENAI_API_KEY = "sk-xxx"
-$env:MODEL_NAME = "gpt-4o-mini"
+# PowerShell
+$env:GITHUB_TOKEN="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"
+$env:OPENAI_API_KEY = "sk-cp-8Bnw6tM8ZV3JZH74o-c2j-UOoYk3ktO_FDFQGAzNn76Qk4ZLX1NNI492sWI0YwIRqf_NC7kyHel8CrJe7k_hZI2sboFaEp_gAEl8WEgoCHsUbwGJoWC1h8o"
+$env:OPENAI_BASE_URL = "https://api.minimaxi.com/v1"
+$env:MODEL_NAME = "MiniMax-M3"
 ```
+
 
 ### 2. 准备 GitHub MCP 凭证
 
