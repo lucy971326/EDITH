@@ -9,21 +9,16 @@ import (
 )
 
 // ============================================================================
-// E2BBackend — execute in a cloud sandbox via e2b-go-sdk.
+// E2BBackend executes file and command operations in one E2B sandbox.
 // ============================================================================
 
-// NewE2BBackend creates an E2BBackend for the given user.
-func NewE2BBackend(mgr *SandboxManager, userID string) *E2BBackend {
-	return &E2BBackend{mgr: mgr, userID: userID}
+// NewE2BBackend creates a backend for one concrete E2B sandbox.
+func NewE2BBackend(sandbox *e2b.Sandbox) *E2BBackend {
+	return &E2BBackend{sandbox: sandbox}
 }
 
 type E2BBackend struct {
-	mgr    *SandboxManager
-	userID string
-}
-
-func (b *E2BBackend) sandbox(ctx context.Context) (*e2b.Sandbox, error) {
-	return b.mgr.GetSandbox(ctx, b.userID)
+	sandbox *e2b.Sandbox
 }
 
 // ---------------------------------------------------------------------------
@@ -31,28 +26,16 @@ func (b *E2BBackend) sandbox(ctx context.Context) (*e2b.Sandbox, error) {
 // ---------------------------------------------------------------------------
 
 func (b *E2BBackend) ReadFile(ctx context.Context, path string) ([]byte, error) {
-	sbx, err := b.sandbox(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return sbx.Files.Read(ctx, path, e2b.FsOptions{})
+	return b.sandbox.Files.Read(ctx, path, e2b.FsOptions{})
 }
 
 func (b *E2BBackend) WriteFile(ctx context.Context, path string, data []byte) error {
-	sbx, err := b.sandbox(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = sbx.Files.Write(ctx, path, bytes.NewReader(data), e2b.FsOptions{})
+	_, err := b.sandbox.Files.Write(ctx, path, bytes.NewReader(data), e2b.FsOptions{})
 	return err
 }
 
 func (b *E2BBackend) ListDir(ctx context.Context, path string, depth int) ([]FileEntry, error) {
-	sbx, err := b.sandbox(ctx)
-	if err != nil {
-		return nil, err
-	}
-	entries, err := sbx.Files.List(ctx, path, e2b.FsOptions{Depth: depth})
+	entries, err := b.sandbox.Files.List(ctx, path, e2b.FsOptions{Depth: depth})
 	if err != nil {
 		return nil, err
 	}
@@ -73,35 +56,19 @@ func (b *E2BBackend) ListDir(ctx context.Context, path string, depth int) ([]Fil
 }
 
 func (b *E2BBackend) MakeDir(ctx context.Context, path string) error {
-	sbx, err := b.sandbox(ctx)
-	if err != nil {
-		return err
-	}
-	return sbx.Files.MakeDir(ctx, path, e2b.FsOptions{})
+	return b.sandbox.Files.MakeDir(ctx, path, e2b.FsOptions{})
 }
 
 func (b *E2BBackend) Remove(ctx context.Context, path string) error {
-	sbx, err := b.sandbox(ctx)
-	if err != nil {
-		return err
-	}
-	return sbx.Files.Remove(ctx, path, e2b.FsOptions{})
+	return b.sandbox.Files.Remove(ctx, path, e2b.FsOptions{})
 }
 
 func (b *E2BBackend) Exists(ctx context.Context, path string) (bool, error) {
-	sbx, err := b.sandbox(ctx)
-	if err != nil {
-		return false, err
-	}
-	return sbx.Files.Exists(ctx, path, e2b.FsOptions{})
+	return b.sandbox.Files.Exists(ctx, path, e2b.FsOptions{})
 }
 
 func (b *E2BBackend) Move(ctx context.Context, from, to string) error {
-	sbx, err := b.sandbox(ctx)
-	if err != nil {
-		return err
-	}
-	return sbx.Files.Move(ctx, from, to, e2b.FsOptions{})
+	return b.sandbox.Files.Move(ctx, from, to, e2b.FsOptions{})
 }
 
 // ---------------------------------------------------------------------------
@@ -109,11 +76,7 @@ func (b *E2BBackend) Move(ctx context.Context, from, to string) error {
 // ---------------------------------------------------------------------------
 
 func (b *E2BBackend) RunCommand(ctx context.Context, cmd string, args []string, envs map[string]string) (*ExecResult, error) {
-	sbx, err := b.sandbox(ctx)
-	if err != nil {
-		return nil, err
-	}
-	handle, err := sbx.Commands.Run(ctx, cmd, e2b.RunOptions{
+	handle, err := b.sandbox.Commands.Run(ctx, cmd, e2b.RunOptions{
 		Args: args,
 		Envs: envs,
 	})

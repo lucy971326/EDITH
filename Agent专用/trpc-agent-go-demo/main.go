@@ -114,25 +114,25 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-// newExecBackend creates the execution backend: local or E2B.
-func newExecBackend(db *sql.DB) sandbox.ExecBackend {
+// newBackendProvider selects how session workspaces get their execution backend.
+func newBackendProvider(db *sql.DB) sandbox.BackendProvider {
 	if os.Getenv("SANDBOX_MODE") == "e2b" {
-		mgr, err := sandbox.NewSandboxManager(db, sandbox.SandboxManagerOptions{
+		provider, err := sandbox.NewE2BProvider(db, sandbox.E2BProviderOptions{
 			APIKey:   envOr("E2B_API_KEY", ""),
 			Domain:   envOr("E2B_DOMAIN", ""),
 			Template: envOr("E2B_TEMPLATE", "base"),
 			Timeout:  10 * time.Minute,
 		})
 		if err != nil {
-			log.Fatalf("new sandbox manager: %v", err)
+			log.Fatalf("new E2B backend provider: %v", err)
 		}
-		return sandbox.NewE2BBackend(mgr, "u-alice")
+		return provider
 	}
-	backend, err := sandbox.NewLocalBackend("./workspace")
+	provider, err := sandbox.NewLocalProvider("./workspace")
 	if err != nil {
-		log.Fatalf("new local backend: %v", err)
+		log.Fatalf("new local backend provider: %v", err)
 	}
-	return backend
+	return provider
 }
 
 // ============================================================================
@@ -202,8 +202,9 @@ func main() {
 	defer githubToolSet.Close()
 	githubToolSet.Init(ctx)
 
-	// Sandbox ToolSet — local or E2B, same tools for Agent.
-	sandboxTS := sandbox.NewToolSet(newExecBackend(memoryDB))
+	// Sandbox ToolSet — resolves an isolated backend from each Runner invocation.
+	backendProvider := newBackendProvider(memoryDB)
+	sandboxTS := sandbox.NewToolSet(backendProvider)
 	defer sandboxTS.Close()
 
 	// ----- 6. Agent -----
@@ -212,8 +213,7 @@ func main() {
 		llmagent.WithModels(models),
 		llmagent.WithModel(models["deepseek-v4-flash"]), // 默认模型
 		llmagent.WithInstruction(
-			"你叫小天，用户的助手。\n"+
-				"规则：查询 GitHub 前先确认 owner/repo，不要猜测。简洁回复。",
+			"你叫小天，用户的助手。",
 		),
 		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
 		llmagent.WithTools(tools),

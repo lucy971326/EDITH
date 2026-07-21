@@ -6,10 +6,10 @@ import "context"
 
 // FileEntry describes a filesystem entry.
 type FileEntry struct {
-	Name  string `json:"name"`
-	Path  string `json:"path"`
-	Type  string `json:"type"` // "file" | "directory"
-	Size  int64  `json:"size"`
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Type string `json:"type"` // "file" | "directory"
+	Size int64  `json:"size"`
 }
 
 // ExecResult is the output of a command execution.
