@@ -100,3 +100,24 @@ export interface SessionInfo {
   created_at: string
   updated_at: string
 }
+
+/** 会话历史消息（等同于页面内部的 Message 类型，增加了 tool_id） */
+export type ChatMessage =
+  | { id: string; kind: "user"; text: string }
+  | { id: string; kind: "assistant"; text: string; done: boolean }
+  | {
+      id: string
+      kind: "tool"
+      tool_id: string
+      name: string
+      arguments: string
+      result?: unknown
+    }
+  | { id: string; kind: "reasoning"; text: string }
+  | { id: string; kind: "error"; text: string }
+
+/** 会话历史 */
+export interface SessionHistory {
+  session_id: string
+  messages: ChatMessage[]
+}

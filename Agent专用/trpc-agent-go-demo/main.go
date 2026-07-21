@@ -22,7 +22,6 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/model/openai"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
-	"trpc.group/trpc-go/trpc-agent-go/session"
 	sessionsqlite "trpc.group/trpc-go/trpc-agent-go/session/sqlite"
 
 	"trpc.group/trpc-go/trpc-agent-go/tool"
@@ -45,12 +44,6 @@ type FrontendEvent struct {
 	Result    any    `json:"result,omitempty"`    // tool_result：工具返回（JSON）
 	Message   string `json:"message,omitempty"`   // error：错误文案
 	Usage     *Usage `json:"usage,omitempty"`     // done：token 用量
-}
-
-type SessionInfo struct {
-	ID        string `json:"id"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
 }
 
 type Usage struct {
@@ -258,6 +251,9 @@ func main() {
 	// 会话列表
 	mux.HandleFunc("GET /sessions", sessionsHandler(sessionService))
 
+	// 会话历史
+	mux.HandleFunc("GET /sessions/{sessionID}", sessionHistoryHandler(sessionService))
+
 	log.Printf("Agent API : http://%s/stream", envOr("ADDR", "127.0.0.1:8080"))
 	http.ListenAndServe(envOr("ADDR", "127.0.0.1:8080"), mux)
 }
@@ -402,30 +398,4 @@ func writeSSE(w http.ResponseWriter, event string, data any) {
 func writeJSON(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
-}
-func sessionsHandler(svc session.Service) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		userID := req.URL.Query().Get("user_id")
-		if userID == "" {
-			writeJSON(w, []SessionInfo{})
-			return
-		}
-		sessions, err := svc.ListSessions(req.Context(), session.UserKey{
-			AppName: "demo-app",
-			UserID:  userID,
-		})
-		if err != nil {
-			writeJSON(w, []SessionInfo{})
-			return
-		}
-		list := make([]SessionInfo, 0, len(sessions))
-		for _, s := range sessions {
-			list = append(list, SessionInfo{
-				ID:        s.ID,
-				CreatedAt: s.CreatedAt.Format("2006-01-02T15:04:05Z"),
-				UpdatedAt: s.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-			})
-		}
-		writeJSON(w, list)
-	}
 }
