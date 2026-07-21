@@ -9,6 +9,7 @@ import type {
   StreamRequest,
   ModelInfo,
   ImageInput,
+  SessionInfo,
 } from "@/types/api";
 
 // ---------------------------------------------------------------------------
@@ -52,6 +53,27 @@ export default function ChatPage() {
       })
       .catch(() => {});
   }, []);
+
+  // 会话列表
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
+
+  function fetchSessions() {
+    fetch("/api/sessions?user_id=u-alice")
+      .then((r) => r.json())
+      .then((list: SessionInfo[]) => setSessions(list))
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
+  function newSession() {
+    const id = crypto.randomUUID();
+    setSessionId(id);
+    setMessages([]);
+  }
 
   // 图片上传
   const [images, setImages] = useState<
@@ -107,7 +129,7 @@ export default function ChatPage() {
 
     const body: StreamRequest = {
       user_id: "u-alice",
-      session_id: "002",
+      session_id: sessionId,
       message: userText,
       model,
     };
@@ -131,6 +153,7 @@ export default function ChatPage() {
           if (data.type === "done") {
             ctrl.abort();
             setStreaming(false);
+            fetchSessions();
           }
         }
       },
@@ -149,7 +172,45 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-white">
+    <div className="flex h-screen bg-white">
+      {/* 会话侧边栏 */}
+      <aside className="flex w-56 shrink-0 flex-col border-r bg-gray-50">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <span className="text-sm font-medium text-gray-700">会话</span>
+          <button
+            onClick={newSession}
+            disabled={streaming}
+            className="text-lg leading-none text-gray-400 hover:text-blue-600 disabled:opacity-30"
+            title="新建会话"
+          >
+            +
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {sessions.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => { setSessionId(s.id); setMessages([]); }}
+              className={`w-full px-4 py-2.5 text-left text-sm transition ${
+                s.id === sessionId
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <div className="text-xs text-gray-400">
+                {relativeTime(s.updated_at)}
+              </div>
+            </button>
+          ))}
+          {sessions.length === 0 && (
+            <p className="px-4 py-8 text-center text-xs text-gray-400">
+              暂无会话
+            </p>
+          )}
+        </div>
+      </aside>
+
+      <div className="flex flex-1 flex-col">
       {/* 顶栏 */}
       <header className="flex items-center gap-3 border-b px-6 py-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white font-bold text-sm">
@@ -175,7 +236,7 @@ export default function ChatPage() {
               ))}
             </select>
           )}
-          <span className="text-xs text-gray-400">Session: 002</span>
+          <span className="text-xs text-gray-400">{sessionId.slice(0, 8)}</span>
         </div>
       </header>
 
@@ -280,8 +341,24 @@ export default function ChatPage() {
           </button>
         </div>
       </footer>
+      </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// 辅助
+// ---------------------------------------------------------------------------
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "刚刚";
+  if (mins < 60) return `${mins} 分钟前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  if (hours < 48) return "昨天";
+  return new Date(iso).toLocaleDateString("zh-CN");
 }
 
 // ---------------------------------------------------------------------------

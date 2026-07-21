@@ -93,3 +93,10 @@ export interface TokenUsage {
   completion_tokens: number
   total_tokens: number
 }
+
+/** 会话列表 */
+export interface SessionInfo {
+  id: string
+  created_at: string
+  updated_at: string
+}
