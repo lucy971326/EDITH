@@ -11,7 +11,7 @@ import (
 )
 
 // ============================================================================
-// LocalBackend — operate on the local filesystem (matches filetool patterns).
+// LocalBackend executes file and command operations in one local directory.
 // ============================================================================
 
 const (
@@ -213,7 +213,7 @@ func (b *LocalBackend) RunCommand(ctx context.Context, cmd string, args []string
 
 	output, err := c.CombinedOutput()
 	result := &ExecResult{
-		Stdout: string(output),
+		Stdout:   string(output),
 		ExitCode: 0,
 	}
 	if err != nil {
