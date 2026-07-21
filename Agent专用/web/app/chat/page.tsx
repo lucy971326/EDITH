@@ -8,7 +8,6 @@ import type {
   AgentEvent,
   StreamRequest,
   ModelInfo,
-  ImageInput,
   SessionInfo,
 } from "@/types/api";
 
@@ -38,6 +37,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // 模型选择
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -105,6 +105,16 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
+  function stopGenerating() {
+    abortRef.current?.abort();
+    setStreaming(false);
+    setMessages((m) => finishLastAssistant(m));
+  }
+
   async function send() {
     if (!input.trim() || streaming) return;
     const userText = input;
@@ -138,37 +148,48 @@ export default function ChatPage() {
     }
 
     const ctrl = new AbortController();
-    await fetchEventSource("/api/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
+    abortRef.current = ctrl;
 
-      onmessage(event) {
-        const data = JSON.parse(event.data) as AgentEvent;
-        setMessages((m) => updateMessages(m, data));
-        if (data.type === "done" || data.type === "error") {
-          // 停止光标闪烁
-          setMessages((m) => finishLastAssistant(m));
+    try {
+      await fetchEventSource("/api/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+
+        onmessage(event) {
+          const data = JSON.parse(event.data) as AgentEvent;
+          setMessages((m) => updateMessages(m, data));
+
           if (data.type === "done") {
-            ctrl.abort();
-            setStreaming(false);
             fetchSessions();
+            ctrl.abort();
+          } else if (data.type === "error") {
+            ctrl.abort();
           }
-        }
-      },
+        },
 
-      onerror(err) {
-        setMessages((m) =>
-          finishLastAssistant([
-            ...m,
-            { id: crypto.randomUUID(), kind: "error", text: String(err) },
-          ]),
-        );
+        onerror(err) {
+          // 抛出错误以停止 fetch-event-source 自动重试。
+          throw err;
+        },
+      });
+    } catch (err) {
+      // 用户主动停止是正常操作，不显示为错误。
+      if (!ctrl.signal.aborted) {
+        setMessages((m) => [
+          ...finishLastAssistant(m),
+          { id: crypto.randomUUID(), kind: "error", text: String(err) },
+        ]);
+      }
+    } finally {
+      // 只清理自己，不影响用户立刻发起的下一个请求。
+      if (abortRef.current === ctrl) {
+        abortRef.current = null;
         setStreaming(false);
-        ctrl.abort();
-      },
-    });
+        setMessages((m) => finishLastAssistant(m));
+      }
+    }
   }
 
   return (
@@ -332,13 +353,22 @@ export default function ChatPage() {
             }
             className="flex-1 rounded-lg border bg-gray-50 px-4 py-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
           />
-          <button
-            onClick={send}
-            disabled={streaming || (!input.trim() && images.length === 0)}
-            className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
-          >
-            发送
-          </button>
+          {streaming ? (
+            <button
+              onClick={stopGenerating}
+              className="rounded-lg bg-gray-700 px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+            >
+              停止
+            </button>
+          ) : (
+            <button
+              onClick={send}
+              disabled={!input.trim() && images.length === 0}
+              className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
+            >
+              发送
+            </button>
+          )}
         </div>
       </footer>
       </div>

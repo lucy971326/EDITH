@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: await req.text(),
+    // 浏览器中断 BFF 请求时，同时中断发往 Go 后端的请求。
+    signal: req.signal,
   });
 
   return new Response(upstream.body, {
