@@ -9,24 +9,15 @@ import type {
   StreamRequest,
   ModelInfo,
   SessionInfo,
+  ChatMessage,
+  SessionHistory,
 } from "@/types/api";
 
 // ---------------------------------------------------------------------------
-// 消息模型
+// 消息模型（使用公共类型 ChatMessage）
 // ---------------------------------------------------------------------------
 
-type Message =
-  | { id: string; kind: "user"; text: string }
-  | { id: string; kind: "assistant"; text: string; done: boolean }
-  | {
-      id: string;
-      kind: "tool";
-      name: string;
-      arguments: string;
-      result?: unknown;
-    }
-  | { id: string; kind: "reasoning"; text: string }
-  | { id: string; kind: "error"; text: string };
+type Message = ChatMessage
 
 // ---------------------------------------------------------------------------
 // Main
@@ -211,7 +202,14 @@ export default function ChatPage() {
           {sessions.map((s) => (
             <button
               key={s.id}
-              onClick={() => { setSessionId(s.id); setMessages([]); }}
+              onClick={() => {
+                setSessionId(s.id);
+                setMessages([]);
+                fetch(`/api/sessions/${s.id}?user_id=u-alice`)
+                  .then((r) => r.json())
+                  .then((data: SessionHistory) => setMessages(data.messages))
+                  .catch(() => {});
+              }}
               className={`w-full px-4 py-2.5 text-left text-sm transition ${
                 s.id === sessionId
                   ? "bg-blue-50 text-blue-700"
@@ -624,17 +622,18 @@ function updateMessages(messages: Message[], data: AgentEvent): Message[] {
       out.push({
         id: crypto.randomUUID(),
         kind: "tool",
+        tool_id: data.id,
         name: data.name ?? "",
         arguments: data.arguments ?? "",
-        _toolId: data.id,
-      } as any);
+      });
       break;
     case "tool_result":
       // 1) 按 ToolID 精确匹配；2) 兜底：按名称匹配最后一个未完成的
       for (let i = out.length - 1; i >= 0; i--) {
-        if (out[i].kind === "tool" && (out[i] as any)._toolId === data.id) {
-          out[i] = { ...out[i], result: data.result } as Message;
-          return out;
+        const item = out[i]
+        if (item.kind === "tool" && item.tool_id === data.id) {
+          out[i] = { ...item, result: data.result }
+          return out
         }
       }
       for (let i = out.length - 1; i >= 0; i--) {
