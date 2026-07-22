@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -24,6 +24,11 @@ type Message = ChatMessage
 // ---------------------------------------------------------------------------
 
 export default function ChatPage() {
+  // 开发阶段用手动填写的 user_id 代替登录态。
+  const [userID, setUserID] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem("agent_user_id") ?? "";
+  });
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -49,18 +54,29 @@ export default function ChatPage() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [sessionId, setSessionId] = useState("");
 
-  function fetchSessions() {
-    fetch("/api/sessions?user_id=u-alice")
+  const fetchSessions = useCallback(() => {
+    if (!userID.trim()) {
+      setSessions([]);
+      return;
+    }
+
+    fetch(`/api/sessions?user_id=${encodeURIComponent(userID.trim())}`)
       .then((r) => r.json())
       .then((list: SessionInfo[]) => setSessions(list))
       .catch(() => {});
-  }
+  }, [userID]);
 
   useEffect(() => {
     fetchSessions();
     setSessionId(crypto.randomUUID());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchSessions]);
+
+  function changeUserID(value: string) {
+    setUserID(value);
+    window.localStorage.setItem("agent_user_id", value);
+    setMessages([]);
+    setSessionId(crypto.randomUUID());
+  }
 
   function newSession() {
     const id = crypto.randomUUID();
@@ -109,7 +125,7 @@ export default function ChatPage() {
   }
 
   async function send() {
-    if (!input.trim() || streaming) return;
+    if (!userID.trim() || (!input.trim() && images.length === 0) || streaming) return;
     const userText = input;
     const sentImages = [...images];
     setInput("");
@@ -131,7 +147,7 @@ export default function ChatPage() {
     setMessages((m) => [...m, userMsg, asstMsg]);
 
     const body: StreamRequest = {
-      user_id: "u-alice",
+      user_id: userID.trim(),
       session_id: sessionId,
       message: userText,
       model,
@@ -207,7 +223,7 @@ export default function ChatPage() {
               onClick={() => {
                 setSessionId(s.id);
                 setMessages([]);
-                fetch(`/api/sessions/${s.id}?user_id=u-alice`)
+                fetch(`/api/sessions/${s.id}?user_id=${encodeURIComponent(userID)}`)
                   .then((r) => r.json())
                   .then((data: SessionHistory) => setMessages(data.messages))
                   .catch(() => {});
@@ -244,6 +260,13 @@ export default function ChatPage() {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <input
+            value={userID}
+            onChange={(e) => changeUserID(e.target.value)}
+            placeholder="输入 user_id"
+            className="w-32 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600 outline-none focus:border-blue-400"
+            aria-label="user_id"
+          />
           {models.length > 1 && (
             <select
               value={model}
@@ -363,7 +386,7 @@ export default function ChatPage() {
           ) : (
             <button
               onClick={send}
-              disabled={!input.trim() && images.length === 0}
+              disabled={!userID.trim() || (!input.trim() && images.length === 0)}
               className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-40"
             >
               发送

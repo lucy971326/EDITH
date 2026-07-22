@@ -86,14 +86,19 @@ func (c *FeishuChannel) handleMessage(ctx context.Context, event *larkimv1.P2Mes
 	}
 
 	sender := ""
-	if event.Event.Sender != nil && event.Event.Sender.SenderId != nil {
+	if event.Event.Sender != nil && event.Event.Sender.SenderId != nil && event.Event.Sender.SenderId.OpenId != nil {
 		sender = *event.Event.Sender.SenderId.OpenId
 	}
+	if sender == "" || chatID == "" {
+		return
+	}
 	log.Printf("[feishu] %s: %s", sender, content.Text)
+	userID := "feishu:" + sender
+	sessionID := "feishu:dm:" + chatID
 
 	reply, err := c.gw.SendText(ctx, gateway.SendTextInput{
-		UserID:    "u-alice",
-		SessionID: "u-alice",
+		UserID:    userID,
+		SessionID: sessionID,
 		Text:      content.Text,
 	})
 	if err != nil {

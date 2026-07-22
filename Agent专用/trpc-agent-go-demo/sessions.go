@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strings"
 
 	"trpc.group/trpc-go/trpc-agent-go/session"
 )
@@ -16,8 +17,8 @@ type SessionInfo struct {
 func sessionsHandler(svc session.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		userID := req.URL.Query().Get("user_id")
-		if userID == "" {
-			writeJSON(w, []SessionInfo{})
+		if strings.TrimSpace(userID) == "" {
+			http.Error(w, `{"error":"user_id is required"}`, http.StatusBadRequest)
 			return
 		}
 
