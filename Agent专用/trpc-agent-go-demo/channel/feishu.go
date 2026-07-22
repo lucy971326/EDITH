@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 
 	"demo/gateway"
 
@@ -54,6 +55,48 @@ func (c *FeishuChannel) Run(ctx context.Context) error {
 
 	log.Printf("Feishu bot running...")
 	return cli.Start(ctx)
+}
+
+type feishuWebhookRequest struct {
+	Challenge string `json:"challenge"`
+	Header    *struct {
+		EventType string `json:"event_type"`
+	} `json:"header"`
+	Event *larkimv1.P2MessageReceiveV1Data `json:"event"`
+}
+
+// WebhookHandler handles Feishu event callbacks.
+func (c *FeishuChannel) WebhookHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var payload feishuWebhookRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "invalid feishu event", http.StatusBadRequest)
+			return
+		}
+
+		// Feishu sends challenge when verifying the request URL.
+		if payload.Challenge != "" {
+			writeFeishuJSON(w, map[string]string{"challenge": payload.Challenge})
+			return
+		}
+
+		if payload.Event != nil {
+			// Webhook 返回后，HTTP request context 会被取消；后台 Agent
+			// 仍需要继续运行并发送回复，因此不能直接传 r.Context()。
+			go c.handleMessage(context.WithoutCancel(r.Context()), &larkimv1.P2MessageReceiveV1{Event: payload.Event})
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+func writeFeishuJSON(w http.ResponseWriter, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(value)
 }
 
 type feishuTextContent struct {

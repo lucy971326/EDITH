@@ -240,6 +240,7 @@ func main() {
 	// ----- 8. Gateway + IM Channels -----
 	gw := gateway.NewClient(r)
 	var telegramChannel *channel.Channel
+	var feishuChannel *channel.FeishuChannel
 
 	if telegramToken := os.Getenv("TELEGRAM_TOKEN"); telegramToken != "" {
 		telegramChannelInstance, err := channel.NewChannel(telegramToken, gw, "./state", os.Getenv("TELEGRAM_PROXY"))
@@ -265,8 +266,13 @@ func main() {
 		if err != nil {
 			log.Printf("feishu: %v", err)
 		} else {
-			go fs.Run(ctx)
-			log.Printf("Feishu bot listening...")
+			feishuChannel = fs
+			if os.Getenv("FEISHU_WEBHOOK_URL") == "" {
+				go fs.Run(ctx)
+				log.Printf("Feishu bot listening...")
+			} else {
+				log.Printf("Feishu webhook configured: %s", os.Getenv("FEISHU_WEBHOOK_URL"))
+			}
 		}
 	}
 
@@ -274,6 +280,9 @@ func main() {
 	mux := http.NewServeMux()
 	if telegramChannel != nil && os.Getenv("TELEGRAM_WEBHOOK_URL") != "" {
 		mux.Handle("POST /webhook/telegram", telegramChannel.WebhookHandler())
+	}
+	if feishuChannel != nil && os.Getenv("FEISHU_WEBHOOK_URL") != "" {
+		mux.Handle("POST /webhook/feishu", feishuChannel.WebhookHandler())
 	}
 
 	// 原生 SSE handler — POST JSON body → SSE stream
