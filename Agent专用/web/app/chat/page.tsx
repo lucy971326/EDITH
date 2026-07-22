@@ -47,7 +47,7 @@ export default function ChatPage() {
 
   // 会话列表
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
+  const [sessionId, setSessionId] = useState("");
 
   function fetchSessions() {
     fetch("/api/sessions?user_id=u-alice")
@@ -58,6 +58,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     fetchSessions();
+    setSessionId(crypto.randomUUID());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function newSession() {
