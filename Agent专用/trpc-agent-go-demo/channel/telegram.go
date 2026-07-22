@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -95,12 +96,51 @@ func (c *Channel) Run(ctx context.Context) error {
 	}
 }
 
+// WebhookHandler handles Telegram Update JSON delivered by Telegram.
+// The handler reuses the same message handling path as long polling.
+func (c *Channel) WebhookHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var update tgbotapi.Update
+		if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+			http.Error(w, "invalid telegram update", http.StatusBadRequest)
+			return
+		}
+
+		if update.Message != nil {
+			c.handleMessage(r.Context(), update.Message)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// SetWebhook registers the public HTTPS endpoint with Telegram.
+func (c *Channel) SetWebhook(webhookURL string) error {
+	config, err := tgbotapi.NewWebhook(webhookURL)
+	if err != nil {
+		return err
+	}
+	_, err = c.bot.Request(config)
+	return err
+}
+
 func (c *Channel) handleMessage(ctx context.Context, msg *tgbotapi.Message) {
+	if msg == nil || msg.From == nil || msg.Chat == nil {
+		return
+	}
+
 	log.Printf("[tg] %s: %s", msg.From.UserName, msg.Text)
+	userID := "telegram:" + strconv.FormatInt(msg.From.ID, 10)
+	sessionID := "telegram:dm:" + strconv.FormatInt(msg.Chat.ID, 10)
 
 	reply, err := c.gw.SendText(ctx, gateway.SendTextInput{
-		UserID:    "u-alice",
-		SessionID: "u-alice",
+		UserID:    userID,
+		SessionID: sessionID,
 		Text:      msg.Text,
 	})
 	if err != nil {

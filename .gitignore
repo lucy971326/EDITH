@@ -17,3 +17,5 @@ test/
 **/.codegraph
 
 demo
+
+**/.gocache/

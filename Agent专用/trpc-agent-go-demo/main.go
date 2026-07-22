@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"demo/sandbox"
@@ -238,14 +239,24 @@ func main() {
 
 	// ----- 8. Gateway + IM Channels -----
 	gw := gateway.NewClient(r)
+	var telegramChannel *channel.Channel
 
-	if tgToken := os.Getenv("TELEGRAM_TOKEN"); tgToken != "" {
-		tg, err := channel.NewChannel(tgToken, gw, "./state", os.Getenv("TELEGRAM_PROXY"))
+	if telegramToken := os.Getenv("TELEGRAM_TOKEN"); telegramToken != "" {
+		telegramChannelInstance, err := channel.NewChannel(telegramToken, gw, "./state", os.Getenv("TELEGRAM_PROXY"))
 		if err != nil {
 			log.Printf("telegram: %v", err)
 		} else {
-			go tg.Run(ctx)
-			log.Printf("Telegram bot listening...")
+			telegramChannel = telegramChannelInstance
+			if webhookURL := os.Getenv("TELEGRAM_WEBHOOK_URL"); webhookURL != "" {
+				if err := telegramChannelInstance.SetWebhook(webhookURL); err != nil {
+					log.Printf("telegram webhook: %v", err)
+				} else {
+					log.Printf("Telegram webhook registered: %s", webhookURL)
+				}
+			} else {
+				go telegramChannelInstance.Run(ctx)
+				log.Printf("Telegram bot listening...")
+			}
 		}
 	}
 
@@ -261,6 +272,9 @@ func main() {
 
 	// ----- 9. HTTP Server -----
 	mux := http.NewServeMux()
+	if telegramChannel != nil && os.Getenv("TELEGRAM_WEBHOOK_URL") != "" {
+		mux.Handle("POST /webhook/telegram", telegramChannel.WebhookHandler())
+	}
 
 	// 原生 SSE handler — POST JSON body → SSE stream
 	mux.HandleFunc("POST /stream", sseHandler(r))
@@ -318,6 +332,11 @@ func sseHandler(r runner.Runner) http.HandlerFunc {
 		var input StreamInput
 		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
 			fmt.Fprintf(w, "event: error\ndata: {\"type\":\"error\",\"message\":\"%s\"}\n\n", err.Error())
+			flusher.Flush()
+			return
+		}
+		if strings.TrimSpace(input.UserID) == "" {
+			writeSSE(w, "error", FrontendEvent{Type: "error", Message: "user_id is required"})
 			flusher.Flush()
 			return
 		}

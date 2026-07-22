@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/session"
@@ -36,7 +37,7 @@ func sessionHistoryHandler(svc session.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		sessionID := req.PathValue("sessionID")
 		userID := req.URL.Query().Get("user_id")
-		if sessionID == "" || userID == "" {
+		if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(userID) == "" {
 			http.Error(w, `{"error":"sessionID and user_id are required"}`, http.StatusBadRequest)
 			return
 		}
