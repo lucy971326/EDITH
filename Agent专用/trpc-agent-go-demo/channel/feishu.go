@@ -72,7 +72,6 @@ func (c *FeishuChannel) handleMessage(ctx context.Context, event *larkimv1.P2Mes
 		return
 	}
 
-	// Parse text content from JSON
 	var content feishuTextContent
 	if msg.Content == nil {
 		return

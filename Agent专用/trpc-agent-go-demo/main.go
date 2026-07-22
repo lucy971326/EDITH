@@ -214,7 +214,7 @@ func main() {
 	llmAgent := llmagent.New(
 		"assistant",
 		llmagent.WithModels(models),
-		llmagent.WithModel(models["deepseek-v4-flash"]), // 默认模型
+		llmagent.WithModel(models["MiniMax-M3"]), // 默认模型
 		llmagent.WithInstruction(
 			"你叫小天，用户的助手。",
 		),
