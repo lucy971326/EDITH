@@ -7,176 +7,313 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"demo/gateway"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/google/uuid"
 )
 
-// Channel handles Telegram messages via long polling.
-type Channel struct {
-	bot        *tgbotapi.BotAPI
-	gw         *gateway.Client
-	offsetFile string
+type TelegramConfig struct {
+	WebhookBaseURL string
+	ProxyURL       string
 }
 
-func NewChannel(token string, gw *gateway.Client, stateDir string, proxyURL string) (*Channel, error) {
-	httpClient := &http.Client{}
-	if proxyURL != "" {
-		u, err := url.Parse(proxyURL)
+// TelegramService 管理所有用户配置的 Telegram Bot。
+type TelegramService struct {
+	gateway        *gateway.Client
+	webhookBaseURL string
+	httpClient     *http.Client
+
+	botsMu   sync.RWMutex // 保护 byUser 和 byRoute 的读写
+	changeMu sync.Mutex   // 保证“配置/替换/删除 Bot”整套流程不会互相打架
+	byUser   map[string]*telegramBot
+	byRoute  map[string]*telegramBot
+}
+
+// telegramBot 保存一个用户 Bot 的归属和 Telegram 客户端。
+type telegramBot struct {
+	ownerUserID string
+	routeKey    string
+	client      *tgbotapi.BotAPI
+}
+
+type TelegramStatus struct {
+	Connected bool   `json:"connected"`
+	Username  string `json:"username,omitempty"`
+}
+
+type telegramConfigureInput struct {
+	UserID   string `json:"user_id"`
+	BotToken string `json:"bot_token"`
+}
+
+func NewTelegramService(gw *gateway.Client, cfg TelegramConfig) (*TelegramService, error) {
+	httpClient := &http.Client{Timeout: 35 * time.Second}
+	if cfg.ProxyURL != "" {
+		proxyURL, err := url.Parse(cfg.ProxyURL)
 		if err != nil {
 			return nil, fmt.Errorf("telegram proxy url: %w", err)
 		}
-		httpClient.Transport = &http.Transport{Proxy: http.ProxyURL(u)}
-		log.Printf("Telegram bot using proxy: %s", proxyURL)
+		httpClient.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+		log.Printf("Telegram bot using proxy: %s", cfg.ProxyURL)
 	}
 
-	bot, err := tgbotapi.NewBotAPIWithClient(token, tgbotapi.APIEndpoint, httpClient)
-	if err != nil {
-		return nil, fmt.Errorf("telegram bot: %w", err)
-	}
-
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		return nil, fmt.Errorf("telegram state dir: %w", err)
-	}
-
-	return &Channel{
-		bot:        bot,
-		gw:         gw,
-		offsetFile: filepath.Join(stateDir, "telegram-offset"),
+	return &TelegramService{
+		gateway:        gw,
+		webhookBaseURL: strings.TrimRight(cfg.WebhookBaseURL, "/"),
+		httpClient:     httpClient,
+		byUser:         make(map[string]*telegramBot),
+		byRoute:        make(map[string]*telegramBot),
 	}, nil
 }
 
-// Run starts the long polling loop. Blocks until ctx is cancelled.
-func (c *Channel) Run(ctx context.Context) error {
-	log.Printf("Telegram bot [@%s] running...", c.bot.Self.UserName)
-
-	offset := c.loadOffset()
-	cfg := tgbotapi.UpdateConfig{
-		Offset:  offset,
-		Timeout: 25,
+// Configure 验证 Token、注册 Webhook，并替换该用户原有的 Bot。
+func (s *TelegramService) Configure(userID, token string) (TelegramStatus, error) {
+	userID = strings.TrimSpace(userID)
+	token = strings.TrimSpace(token)
+	if userID == "" || token == "" {
+		return TelegramStatus{}, fmt.Errorf("user_id and bot_token are required")
+	}
+	if s.webhookBaseURL == "" {
+		return TelegramStatus{}, fmt.Errorf("TELEGRAM_WEBHOOK_BASE_URL is required")
 	}
 
-	for {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
+	bot, err := s.connectBot(userID, token)
+	if err != nil {
+		return TelegramStatus{}, err
+	}
 
-		updates, err := c.bot.GetUpdates(cfg)
+	// Bot 的替换过程需要串行，普通消息仍可并发处理。
+	s.changeMu.Lock()
+	defer s.changeMu.Unlock()
+
+	if owner := s.ownerOfBot(bot.client.Self.ID); owner != "" && owner != userID {
+		return TelegramStatus{}, fmt.Errorf("this Telegram Bot is already connected by another user")
+	}
+
+	// 先登记路由，避免 setWebhook 成功后第一条消息找不到 Bot。
+	s.botsMu.Lock()
+	s.byRoute[bot.routeKey] = bot
+	s.botsMu.Unlock()
+
+	webhookURL := s.webhookBaseURL + "/webhook/telegram/" + bot.routeKey
+	if err := bot.setWebhook(webhookURL); err != nil {
+		s.botsMu.Lock()
+		delete(s.byRoute, bot.routeKey)
+		s.botsMu.Unlock()
+		return TelegramStatus{}, fmt.Errorf("register telegram webhook: %w", err)
+	}
+
+	s.botsMu.Lock()
+	oldBot := s.byUser[userID]
+	s.byUser[userID] = bot
+	if oldBot != nil {
+		delete(s.byRoute, oldBot.routeKey)
+	}
+	s.botsMu.Unlock()
+
+	if oldBot != nil && oldBot.client.Self.ID != bot.client.Self.ID {
+		if err := oldBot.deleteWebhook(); err != nil {
+			log.Printf("telegram remove old webhook: %v", err)
+		}
+	}
+
+	return TelegramStatus{Connected: true, Username: bot.client.Self.UserName}, nil
+}
+
+func (s *TelegramService) Status(userID string) TelegramStatus {
+	s.botsMu.RLock()
+	bot := s.byUser[strings.TrimSpace(userID)]
+	s.botsMu.RUnlock()
+	if bot == nil {
+		return TelegramStatus{Connected: false}
+	}
+	return TelegramStatus{Connected: true, Username: bot.client.Self.UserName}
+}
+
+func (s *TelegramService) Remove(userID string) bool {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return false
+	}
+
+	s.changeMu.Lock()
+	defer s.changeMu.Unlock()
+
+	s.botsMu.Lock()
+	bot := s.byUser[userID]
+	if bot != nil {
+		delete(s.byUser, userID)
+		delete(s.byRoute, bot.routeKey)
+	}
+	s.botsMu.Unlock()
+
+	if bot == nil {
+		return false
+	}
+	if err := bot.deleteWebhook(); err != nil {
+		log.Printf("telegram delete webhook: %v", err)
+	}
+	return true
+}
+
+func (s *TelegramService) connectBot(userID, token string) (*telegramBot, error) {
+	client, err := tgbotapi.NewBotAPIWithClient(token, tgbotapi.APIEndpoint, s.httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("telegram bot: %w", err)
+	}
+	return &telegramBot{
+		ownerUserID: userID,
+		routeKey:    uuid.NewString(),
+		client:      client,
+	}, nil
+}
+
+func (s *TelegramService) ownerOfBot(botID int64) string {
+	s.botsMu.RLock()
+	defer s.botsMu.RUnlock()
+	for userID, bot := range s.byUser {
+		if bot.client.Self.ID == botID {
+			return userID
+		}
+	}
+	return ""
+}
+
+// HandleConfigure 处理前端的连接、状态查询和断开请求。
+func (s *TelegramService) HandleConfigure(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		var input telegramConfigureInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeTelegramError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		status, err := s.Configure(input.UserID, input.BotToken)
 		if err != nil {
-			if strings.Contains(err.Error(), "canceled") {
-				continue
-			}
-			log.Printf("telegram getUpdates: %v", err)
-			time.Sleep(time.Second)
-			continue
+			writeTelegramError(w, http.StatusBadRequest, err.Error())
+			return
 		}
+		writeTelegramJSON(w, http.StatusOK, status)
 
-		for _, u := range updates {
-			if u.Message == nil || u.Message.Chat == nil {
-				continue
-			}
-			if !u.Message.Chat.IsPrivate() {
-				continue // only DMs for now
-			}
-
-			go c.handleMessage(ctx, u.Message)
-
-			if u.UpdateID >= offset {
-				offset = u.UpdateID + 1
-				cfg.Offset = offset
-				c.saveOffset(offset)
-			}
+	case http.MethodGet:
+		userID := strings.TrimSpace(r.URL.Query().Get("user_id"))
+		if userID == "" {
+			writeTelegramError(w, http.StatusBadRequest, "user_id is required")
+			return
 		}
+		writeTelegramJSON(w, http.StatusOK, s.Status(userID))
+
+	case http.MethodDelete:
+		userID := strings.TrimSpace(r.URL.Query().Get("user_id"))
+		if userID == "" {
+			writeTelegramError(w, http.StatusBadRequest, "user_id is required")
+			return
+		}
+		if !s.Remove(userID) {
+			writeTelegramError(w, http.StatusNotFound, "telegram bot not found")
+			return
+		}
+		writeTelegramJSON(w, http.StatusOK, TelegramStatus{Connected: false})
+
+	default:
+		w.Header().Set("Allow", "GET, POST, DELETE")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-// WebhookHandler handles Telegram Update JSON delivered by Telegram.
-// The handler reuses the same message handling path as long polling.
-func (c *Channel) WebhookHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
+// HandleWebhook 找到对应 Bot，立即确认收件，再在后台运行 Agent。
+func (s *TelegramService) HandleWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-		var update tgbotapi.Update
-		if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
-			http.Error(w, "invalid telegram update", http.StatusBadRequest)
-			return
-		}
+	s.botsMu.RLock()
+	bot := s.byRoute[r.PathValue("routeKey")]
+	s.botsMu.RUnlock()
+	if bot == nil {
+		http.NotFound(w, r)
+		return
+	}
 
-		if update.Message != nil {
-			c.handleMessage(r.Context(), update.Message)
-		}
+	var update tgbotapi.Update
+	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+		http.Error(w, "invalid telegram update", http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 
-		w.WriteHeader(http.StatusOK)
-	})
+	message := update.Message
+	if message == nil || message.Chat == nil || !message.Chat.IsPrivate() || strings.TrimSpace(message.Text) == "" {
+		return
+	}
+
+	baseCtx := context.WithoutCancel(r.Context())
+	go func() {
+		ctx, cancel := context.WithTimeout(baseCtx, 2*time.Minute)
+		defer cancel()
+		s.handleMessage(ctx, bot, message)
+	}()
 }
 
-// SetWebhook registers the public HTTPS endpoint with Telegram.
-func (c *Channel) SetWebhook(webhookURL string) error {
+func (s *TelegramService) handleMessage(ctx context.Context, bot *telegramBot, message *tgbotapi.Message) {
+	from := "unknown"
+	if message.From != nil {
+		from = message.From.UserName
+	}
+	log.Printf("[telegram] %s: %s", from, message.Text)
+
+	sessionID := "telegram:dm:" + strconv.FormatInt(message.Chat.ID, 10)
+	reply, err := s.gateway.SendText(ctx, gateway.SendTextInput{
+		UserID:    bot.ownerUserID,
+		SessionID: sessionID,
+		Text:      message.Text,
+	})
+	if err != nil {
+		log.Printf("gateway error: %v", err)
+		bot.sendReply(message.Chat.ID, "❌ 出错了，稍后再试")
+		return
+	}
+	if reply != "" {
+		bot.sendReply(message.Chat.ID, reply)
+	}
+}
+
+func (b *telegramBot) setWebhook(webhookURL string) error {
 	config, err := tgbotapi.NewWebhook(webhookURL)
 	if err != nil {
 		return err
 	}
-	_, err = c.bot.Request(config)
+	_, err = b.client.Request(config)
 	return err
 }
 
-func (c *Channel) handleMessage(ctx context.Context, msg *tgbotapi.Message) {
-	if msg == nil || msg.From == nil || msg.Chat == nil {
-		return
-	}
-
-	log.Printf("[tg] %s: %s", msg.From.UserName, msg.Text)
-	userID := "telegram:" + strconv.FormatInt(msg.From.ID, 10)
-	sessionID := "telegram:dm:" + strconv.FormatInt(msg.Chat.ID, 10)
-
-	reply, err := c.gw.SendText(ctx, gateway.SendTextInput{
-		UserID:    userID,
-		SessionID: sessionID,
-		Text:      msg.Text,
-	})
-	if err != nil {
-		log.Printf("gateway error: %v", err)
-		c.sendReply(msg.Chat.ID, "❌ 出错了，稍后再试")
-		return
-	}
-
-	if reply != "" {
-		c.sendReply(msg.Chat.ID, reply)
-	}
+func (b *telegramBot) deleteWebhook() error {
+	_, err := b.client.Request(tgbotapi.DeleteWebhookConfig{})
+	return err
 }
 
-func (c *Channel) sendReply(chatID int64, text string) {
-	msg := tgbotapi.NewMessage(chatID, text)
-	if _, err := c.bot.Send(msg); err != nil {
+func (b *telegramBot) sendReply(chatID int64, text string) {
+	message := tgbotapi.NewMessage(chatID, text)
+	if _, err := b.client.Send(message); err != nil {
 		log.Printf("telegram send: %v", err)
 	}
 }
 
-// ---- offset persistence ----
-
-func (c *Channel) loadOffset() int {
-	data, err := os.ReadFile(c.offsetFile)
-	if err != nil {
-		return 0
+func writeTelegramJSON(w http.ResponseWriter, statusCode int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		log.Printf("telegram response: %v", err)
 	}
-	offset, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return 0
-	}
-	return offset
 }
 
-func (c *Channel) saveOffset(offset int) {
-	if err := os.WriteFile(c.offsetFile, []byte(strconv.Itoa(offset)), 0644); err != nil {
-		log.Printf("telegram save offset: %v", err)
-	}
+func writeTelegramError(w http.ResponseWriter, statusCode int, message string) {
+	writeTelegramJSON(w, statusCode, map[string]string{"error": message})
 }

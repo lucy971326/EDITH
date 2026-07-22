@@ -19,6 +19,11 @@ import type {
 
 type Message = ChatMessage
 
+type TelegramStatus = {
+  connected: boolean
+  username?: string
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -29,6 +34,11 @@ export default function ChatPage() {
     if (typeof window === "undefined") return "";
     return window.localStorage.getItem("agent_user_id") ?? "";
   });
+  const [telegramOpen, setTelegramOpen] = useState(false);
+  const [telegramToken, setTelegramToken] = useState("");
+  const [telegramStatus, setTelegramStatus] = useState<TelegramStatus>({ connected: false });
+  const [telegramLoading, setTelegramLoading] = useState(false);
+  const [telegramError, setTelegramError] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -76,6 +86,65 @@ export default function ChatPage() {
     window.localStorage.setItem("agent_user_id", value);
     setMessages([]);
     setSessionId(crypto.randomUUID());
+  }
+
+  const loadTelegramStatus = useCallback(async () => {
+    if (!userID.trim()) {
+      setTelegramStatus({ connected: false });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/telegram/configure?user_id=${encodeURIComponent(userID.trim())}`);
+      if (!response.ok) throw new Error("无法获取 Telegram 状态");
+      setTelegramStatus(await response.json() as TelegramStatus);
+    } catch {
+      setTelegramStatus({ connected: false });
+    }
+  }, [userID]);
+
+  useEffect(() => {
+    loadTelegramStatus();
+  }, [loadTelegramStatus]);
+
+  async function connectTelegram() {
+    if (!userID.trim() || !telegramToken.trim()) return;
+    setTelegramLoading(true);
+    setTelegramError("");
+
+    try {
+      const response = await fetch("/api/telegram/configure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userID.trim(), bot_token: telegramToken.trim() }),
+      });
+      const data = await response.json() as TelegramStatus & { error?: string };
+      if (!response.ok) throw new Error(data.error || "连接失败");
+      setTelegramToken("");
+      setTelegramStatus(data);
+    } catch (err) {
+      setTelegramError(err instanceof Error ? err.message : "连接失败");
+    } finally {
+      setTelegramLoading(false);
+    }
+  }
+
+  async function disconnectTelegram() {
+    if (!userID.trim()) return;
+    setTelegramLoading(true);
+    setTelegramError("");
+
+    try {
+      const response = await fetch(`/api/telegram/configure?user_id=${encodeURIComponent(userID.trim())}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("断开失败");
+      setTelegramStatus({ connected: false });
+    } catch (err) {
+      setTelegramError(err instanceof Error ? err.message : "断开失败");
+    } finally {
+      setTelegramLoading(false);
+    }
   }
 
   function newSession() {
@@ -267,6 +336,12 @@ export default function ChatPage() {
             className="w-32 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600 outline-none focus:border-blue-400"
             aria-label="user_id"
           />
+          <button
+            onClick={() => setTelegramOpen((open) => !open)}
+            className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600 hover:border-blue-400"
+          >
+            Telegram
+          </button>
           {models.length > 1 && (
             <select
               value={model}
@@ -283,6 +358,43 @@ export default function ChatPage() {
           <span className="text-xs text-gray-400">{sessionId.slice(0, 8)}</span>
         </div>
       </header>
+
+      {telegramOpen && (
+        <div className="border-b bg-blue-50 px-6 py-3">
+          <div className="mx-auto flex max-w-3xl items-center gap-2">
+            <span className="text-xs text-gray-600">
+              {telegramStatus.connected ? `已连接 @${telegramStatus.username}` : "连接你的 Telegram Bot"}
+            </span>
+            {!telegramStatus.connected && (
+              <input
+                type="password"
+                value={telegramToken}
+                onChange={(e) => setTelegramToken(e.target.value)}
+                placeholder="粘贴 Bot Token"
+                className="flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-blue-400"
+              />
+            )}
+            {telegramStatus.connected ? (
+              <button
+                onClick={disconnectTelegram}
+                disabled={telegramLoading}
+                className="rounded bg-red-500 px-2 py-1 text-xs text-white disabled:opacity-50"
+              >
+                断开
+              </button>
+            ) : (
+              <button
+                onClick={connectTelegram}
+                disabled={!userID.trim() || !telegramToken.trim() || telegramLoading}
+                className="rounded bg-blue-600 px-2 py-1 text-xs text-white disabled:opacity-50"
+              >
+                {telegramLoading ? "连接中…" : "连接"}
+              </button>
+            )}
+          </div>
+          {telegramError && <p className="mx-auto mt-1 max-w-3xl text-xs text-red-600">{telegramError}</p>}
+        </div>
+      )}
 
       {/* 消息区 */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
