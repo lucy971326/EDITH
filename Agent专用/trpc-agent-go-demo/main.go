@@ -239,27 +239,17 @@ func main() {
 
 	// ----- 8. Gateway + IM Channels -----
 	gw := gateway.NewClient(r)
-	var telegramChannel *channel.Channel
-	var feishuChannel *channel.FeishuChannel
-
-	if telegramToken := os.Getenv("TELEGRAM_TOKEN"); telegramToken != "" {
-		telegramChannelInstance, err := channel.NewChannel(telegramToken, gw, "./state", os.Getenv("TELEGRAM_PROXY"))
-		if err != nil {
-			log.Printf("telegram: %v", err)
-		} else {
-			telegramChannel = telegramChannelInstance
-			if webhookURL := os.Getenv("TELEGRAM_WEBHOOK_URL"); webhookURL != "" {
-				if err := telegramChannelInstance.SetWebhook(webhookURL); err != nil {
-					log.Printf("telegram webhook: %v", err)
-				} else {
-					log.Printf("Telegram webhook registered: %s", webhookURL)
-				}
-			} else {
-				go telegramChannelInstance.Run(ctx)
-				log.Printf("Telegram bot listening...")
-			}
-		}
+	telegramService, err := channel.NewTelegramService(
+		gw,
+		channel.TelegramConfig{
+			WebhookBaseURL: os.Getenv("TELEGRAM_WEBHOOK_BASE_URL"),
+			ProxyURL:       os.Getenv("TELEGRAM_PROXY"),
+		})
+	if err != nil {
+		log.Fatalf("telegram service: %v", err)
 	}
+
+	var feishuChannel *channel.FeishuChannel
 
 	if fsAppID := os.Getenv("FEISHU_APP_ID"); fsAppID != "" {
 		fs, err := channel.NewFeishuChannel(fsAppID, os.Getenv("FEISHU_APP_SECRET"), gw)
@@ -278,9 +268,8 @@ func main() {
 
 	// ----- 9. HTTP Server -----
 	mux := http.NewServeMux()
-	if telegramChannel != nil && os.Getenv("TELEGRAM_WEBHOOK_URL") != "" {
-		mux.Handle("POST /webhook/telegram", telegramChannel.WebhookHandler())
-	}
+	mux.HandleFunc("/telegram/configure", telegramService.HandleConfigure)
+	mux.HandleFunc("POST /webhook/telegram/{routeKey}", telegramService.HandleWebhook)
 	if feishuChannel != nil && os.Getenv("FEISHU_WEBHOOK_URL") != "" {
 		mux.Handle("POST /webhook/feishu", feishuChannel.WebhookHandler())
 	}
