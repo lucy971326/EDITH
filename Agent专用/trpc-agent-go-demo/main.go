@@ -13,6 +13,9 @@ import (
 
 	"demo/sandbox"
 
+	"demo/channel"
+	"demo/gateway"
+
 	"github.com/google/uuid"
 	_ "github.com/joho/godotenv/autoload"
 	_ "github.com/mattn/go-sqlite3"
@@ -144,7 +147,7 @@ func main() {
 
 	// ----- 1. Models（预注册多个，请求时按名称切换）-----
 	// 每个模型显式指定 API Key + Base URL，优先读专用环境变量
-	deepseekKey := envOr("DEEPSEEK_API_KEY", "sk-12e81c9adab34fcb9fd9a7a6a699738a")
+	deepseekKey := envOr("DEEPSEEK_API_KEY", "sk-48273bd3d17d486a861b61a06be381e1")
 	deepseekURL := envOr("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
 	minimaxKey := envOr("MINIMAX_API_KEY", "sk-cp-8Bnw6tM8ZV3JZH74o-c2j-UOoYk3ktO_FDFQGAzNn76Qk4ZLX1NNI492sWI0YwIRqf_NC7kyHel8CrJe7k_hZI2sboFaEp_gAEl8WEgoCHsUbwGJoWC1h8o")
 	minimaxURL := envOr("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
@@ -233,7 +236,30 @@ func main() {
 	)
 	defer r.Close()
 
-	// ----- 8. HTTP Server -----
+	// ----- 8. Gateway + IM Channels -----
+	gw := gateway.NewClient(r)
+
+	if tgToken := os.Getenv("TELEGRAM_TOKEN"); tgToken != "" {
+		tg, err := channel.NewChannel(tgToken, gw, "./state", os.Getenv("TELEGRAM_PROXY"))
+		if err != nil {
+			log.Printf("telegram: %v", err)
+		} else {
+			go tg.Run(ctx)
+			log.Printf("Telegram bot listening...")
+		}
+	}
+
+	if fsAppID := os.Getenv("FEISHU_APP_ID"); fsAppID != "" {
+		fs, err := channel.NewFeishuChannel(fsAppID, os.Getenv("FEISHU_APP_SECRET"), gw)
+		if err != nil {
+			log.Printf("feishu: %v", err)
+		} else {
+			go fs.Run(ctx)
+			log.Printf("Feishu bot listening...")
+		}
+	}
+
+	// ----- 9. HTTP Server -----
 	mux := http.NewServeMux()
 
 	// 原生 SSE handler — POST JSON body → SSE stream

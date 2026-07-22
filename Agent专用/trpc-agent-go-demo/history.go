@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"trpc.group/trpc-go/trpc-agent-go/model"
@@ -63,6 +64,7 @@ func sessionHistoryHandler(svc session.Service) http.HandlerFunc {
 
 func sessionEventsToMessages(sess *session.Session) []ChatMessage {
 	msgs := make([]ChatMessage, 0, len(sess.Events))
+	var seq int
 
 	for _, evt := range sess.Events {
 		if evt.Response == nil || evt.IsPartial || evt.IsRunnerCompletion() {
@@ -72,10 +74,11 @@ func sessionEventsToMessages(sess *session.Session) []ChatMessage {
 		// Error
 		if evt.Response.Error != nil {
 			msgs = append(msgs, ChatMessage{
-				ID:   evt.ID,
+				ID:   fmt.Sprintf("%s-%d", evt.ID, seq),
 				Kind: "error",
 				Text: evt.Response.Error.Message,
 			})
+			seq++
 			continue
 		}
 
@@ -83,12 +86,13 @@ func sessionEventsToMessages(sess *session.Session) []ChatMessage {
 			// Tool calls
 			for _, tc := range choice.Message.ToolCalls {
 				msgs = append(msgs, ChatMessage{
-					ID:        evt.ID,
+					ID:        fmt.Sprintf("%s-%d", evt.ID, seq),
 					Kind:      "tool",
 					ToolID:    tc.ID,
 					ToolName:  tc.Function.Name,
 					Arguments: string(tc.Function.Arguments),
 				})
+				seq++
 			}
 
 			// Tool result — match by ToolID to the last matching tool call
@@ -120,21 +124,23 @@ func sessionEventsToMessages(sess *session.Session) []ChatMessage {
 			// User message
 			if choice.Message.Role == model.RoleUser && choice.Message.Content != "" {
 				msgs = append(msgs, ChatMessage{
-					ID:   evt.ID,
+					ID:   fmt.Sprintf("%s-%d", evt.ID, seq),
 					Kind: "user",
 					Text: choice.Message.Content,
 				})
+				seq++
 			}
 
 			// Assistant text is displayed before the persisted reasoning event.
 			// This matches the order users see during real-time conversation.
 			if choice.Message.Role == model.RoleAssistant && choice.Message.Content != "" {
 				msgs = append(msgs, ChatMessage{
-					ID:   evt.ID,
+					ID:   fmt.Sprintf("%s-%d", evt.ID, seq),
 					Kind: "assistant",
 					Text: choice.Message.Content,
 					Done: true, // stored events are always complete
 				})
+				seq++
 			}
 
 			// Reasoning
@@ -144,10 +150,11 @@ func sessionEventsToMessages(sess *session.Session) []ChatMessage {
 			}
 			if reasoning != "" {
 				msgs = append(msgs, ChatMessage{
-					ID:   evt.ID,
+					ID:   fmt.Sprintf("%s-%d", evt.ID, seq),
 					Kind: "reasoning",
 					Text: reasoning,
 				})
+				seq++
 			}
 		}
 	}
