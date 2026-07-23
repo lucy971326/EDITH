@@ -1,20 +1,24 @@
-import type { NextRequest } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: NextRequest,
+  _req: Request,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
+  const { userId } = await auth();
+  if (!userId) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { sessionId } = await params;
-  const url = new URL(_req.url);
-  const userID = url.searchParams.get("user_id") || "";
 
   const upstream = await fetch(
-    `http://127.0.0.1:8080/sessions/${sessionId}?user_id=${userID}`,
+    `http://127.0.0.1:8080/sessions/${encodeURIComponent(sessionId)}?user_id=${encodeURIComponent(userId)}`,
   );
   return new Response(upstream.body, {
+    status: upstream.status,
     headers: { "Content-Type": "application/json" },
   });
 }

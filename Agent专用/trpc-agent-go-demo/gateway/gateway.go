@@ -27,7 +27,10 @@ type SendTextInput struct {
 // SendText sends a message and returns the assistant's final text.
 // Non-streaming — waits for the full reply.
 func (c *Client) SendText(ctx context.Context, in SendTextInput) (string, error) {
-	eventCh, err := c.runner.Run(ctx, in.UserID, in.SessionID,
+	eventCh, err := c.runner.Run(
+		ctx,
+		in.UserID,
+		in.SessionID,
 		model.NewUserMessage(in.Text),
 		agent.WithStream(false),
 	)
