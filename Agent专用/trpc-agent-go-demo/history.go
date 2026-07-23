@@ -17,14 +17,15 @@ import (
 // ChatMessage is the public message type returned to the frontend.
 // Mirrors the TypeScript ChatMessage in web/types/api.ts.
 type ChatMessage struct {
-	ID        string `json:"id"`
-	Kind      string `json:"kind"`                // "user" | "assistant" | "reasoning" | "tool" | "error"
-	Text      string `json:"text,omitempty"`      // user / assistant / reasoning / error
-	Done      bool   `json:"done,omitempty"`      // assistant: always true for stored events
-	ToolID    string `json:"tool_id,omitempty"`   // tool / tool_result
-	ToolName  string `json:"name,omitempty"`      // tool
-	Arguments string `json:"arguments,omitempty"` // tool: JSON string
-	Result    any    `json:"result,omitempty"`    // tool: filled when tool result arrives
+	ID         string `json:"id"`
+	ResponseID string `json:"response_id,omitempty"` // assistant / reasoning 所属的 LLM Response
+	Kind       string `json:"kind"`                  // "user" | "assistant" | "reasoning" | "tool" | "error"
+	Text       string `json:"text,omitempty"`        // user / assistant / reasoning / error
+	Done       bool   `json:"done,omitempty"`        // assistant: always true for stored events
+	ToolID     string `json:"tool_id,omitempty"`     // tool / tool_result
+	ToolName   string `json:"name,omitempty"`        // tool
+	Arguments  string `json:"arguments,omitempty"`   // tool: JSON string
+	Result     any    `json:"result,omitempty"`      // tool: filled when tool result arrives
 }
 
 // SessionHistory is the HTTP response for GET /sessions/{sessionID}.
@@ -84,16 +85,33 @@ func sessionEventsToMessages(sess *session.Session) []ChatMessage {
 		}
 
 		for _, choice := range evt.Response.Choices {
+			// 一个模型 Response 的视觉顺序固定为：思考 → 工具 → 文本。
+			// 这与实时 SSE 的发送顺序一致，刷新页面后不会跳位。
+			reasoning := choice.Delta.ReasoningContent
+			if reasoning == "" {
+				reasoning = choice.Message.ReasoningContent
+			}
+			if reasoning != "" {
+				messageID := nextChatMessageID(evt.ID, &seq)
+				msgs = append(msgs, ChatMessage{
+					ID:         messageID,
+					ResponseID: responseIDOrFallback(evt.Response.ID, messageID),
+					Kind:       "reasoning",
+					Text:       reasoning,
+				})
+			}
+
 			// Tool calls
 			for _, tc := range choice.Message.ToolCalls {
+				messageID := nextChatMessageID(evt.ID, &seq)
 				msgs = append(msgs, ChatMessage{
-					ID:        fmt.Sprintf("%s-%d", evt.ID, seq),
-					Kind:      "tool",
-					ToolID:    tc.ID,
-					ToolName:  tc.Function.Name,
-					Arguments: string(tc.Function.Arguments),
+					ID:         messageID,
+					ResponseID: responseIDOrFallback(evt.Response.ID, messageID),
+					Kind:       "tool",
+					ToolID:     tc.ID,
+					ToolName:   tc.Function.Name,
+					Arguments:  string(tc.Function.Arguments),
 				})
-				seq++
 			}
 
 			// Tool result — match by ToolID to the last matching tool call
@@ -125,40 +143,39 @@ func sessionEventsToMessages(sess *session.Session) []ChatMessage {
 			// User message
 			if choice.Message.Role == model.RoleUser && choice.Message.Content != "" {
 				msgs = append(msgs, ChatMessage{
-					ID:   fmt.Sprintf("%s-%d", evt.ID, seq),
+					ID:   nextChatMessageID(evt.ID, &seq),
 					Kind: "user",
 					Text: choice.Message.Content,
 				})
-				seq++
 			}
 
-			// Assistant text is displayed before the persisted reasoning event.
-			// This matches the order users see during real-time conversation.
 			if choice.Message.Role == model.RoleAssistant && choice.Message.Content != "" {
+				messageID := nextChatMessageID(evt.ID, &seq)
 				msgs = append(msgs, ChatMessage{
-					ID:   fmt.Sprintf("%s-%d", evt.ID, seq),
-					Kind: "assistant",
-					Text: choice.Message.Content,
-					Done: true, // stored events are always complete
+					ID:         messageID,
+					ResponseID: responseIDOrFallback(evt.Response.ID, messageID),
+					Kind:       "assistant",
+					Text:       choice.Message.Content,
+					Done:       true, // stored events are always complete
 				})
 				seq++
 			}
 
-			// Reasoning
-			reasoning := choice.Delta.ReasoningContent
-			if reasoning == "" {
-				reasoning = choice.Message.ReasoningContent
-			}
-			if reasoning != "" {
-				msgs = append(msgs, ChatMessage{
-					ID:   fmt.Sprintf("%s-%d", evt.ID, seq),
-					Kind: "reasoning",
-					Text: reasoning,
-				})
-				seq++
-			}
 		}
 	}
 
 	return msgs
+}
+
+func nextChatMessageID(eventID string, seq *int) string {
+	id := fmt.Sprintf("%s-%d", eventID, *seq)
+	*seq++
+	return id
+}
+
+func responseIDOrFallback(responseID, messageID string) string {
+	if responseID != "" {
+		return responseID
+	}
+	return messageID
 }

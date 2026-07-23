@@ -38,16 +38,17 @@ import (
 // ============================================================================
 
 type FrontendEvent struct {
-	Type      string `json:"type"`                // "text" | "tool_call" | "tool_result" | "error" | "done"
-	RequestID string `json:"request_id"`          // 请求唯一 ID
-	Text      string `json:"text,omitempty"`      // text 事件：流式文本片段
-	Thinking  string `json:"thinking,omitempty"`  // reasoning 事件：推理过程
-	ToolID    string `json:"id,omitempty"`        // tool_call/tool_result：工具调用 ID
-	ToolName  string `json:"name,omitempty"`      // tool_call/tool_result：工具名
-	Arguments string `json:"arguments,omitempty"` // tool_call：JSON 字符串，前端需 JSON.parse
-	Result    any    `json:"result,omitempty"`    // tool_result：工具返回（JSON）
-	Message   string `json:"message,omitempty"`   // error：错误文案
-	Usage     *Usage `json:"usage,omitempty"`     // done：token 用量
+	Type       string `json:"type"`                  // "text" | "reasoning" | "tool_call" | "tool_result" | "error" | "done"
+	RequestID  string `json:"request_id"`            // 请求唯一 ID
+	ResponseID string `json:"response_id,omitempty"` // 本次 LLM Response 的唯一 ID：文本/思考归属到对应回复气泡
+	Text       string `json:"text,omitempty"`        // text 事件：流式文本片段
+	Thinking   string `json:"thinking,omitempty"`    // reasoning 事件：推理过程
+	ToolID     string `json:"id,omitempty"`          // tool_call/tool_result：工具调用 ID
+	ToolName   string `json:"name,omitempty"`        // tool_call/tool_result：工具名
+	Arguments  string `json:"arguments,omitempty"`   // tool_call：JSON 字符串，前端需 JSON.parse
+	Result     any    `json:"result,omitempty"`      // tool_result：工具返回（JSON）
+	Message    string `json:"message,omitempty"`     // error：错误文案
+	Usage      *Usage `json:"usage,omitempty"`       // done：token 用量
 }
 
 type Usage struct {
@@ -216,9 +217,7 @@ func main() {
 		"assistant",
 		llmagent.WithModels(models),
 		llmagent.WithModel(models["MiniMax-M3"]), // 默认模型
-		llmagent.WithInstruction(
-			"你叫小天，用户的助手。",
-		),
+		llmagent.WithInstruction(loadSystemPrompt()),
 		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
 		llmagent.WithTools(tools),
 		llmagent.WithToolSets([]tool.ToolSet{githubToolSet, sandboxTS}),
@@ -239,6 +238,8 @@ func main() {
 
 	// ----- 8. Gateway + Telegram -----
 	gw := gateway.NewClient(r)
+
+	// TelegramService 管理用户 Bot，并将 Webhook 消息经 Gateway 交给 Agent 后回复 Telegram。
 	telegramService, err := channel.NewTelegramService(
 		gw,
 		channel.TelegramConfig{
@@ -386,17 +387,17 @@ func sseHandler(r runner.Runner) http.HandlerFunc {
 			choice := ev.Response.Choices[0]
 
 			if choice.Delta.ReasoningContent != "" {
-				writeSSE(w, "reasoning", FrontendEvent{Type: "reasoning", RequestID: requestID, Thinking: choice.Delta.ReasoningContent})
+				writeSSE(w, "reasoning", FrontendEvent{Type: "reasoning", RequestID: requestID, ResponseID: ev.Response.ID, Thinking: choice.Delta.ReasoningContent})
 				flusher.Flush()
 			}
 
 			if choice.Delta.Content != "" {
-				writeSSE(w, "text", FrontendEvent{Type: "text", RequestID: requestID, Text: choice.Delta.Content})
+				writeSSE(w, "text", FrontendEvent{Type: "text", RequestID: requestID, ResponseID: ev.Response.ID, Text: choice.Delta.Content})
 				flusher.Flush()
 			}
 
 			for _, call := range choice.Message.ToolCalls {
-				writeSSE(w, "tool_call", FrontendEvent{Type: "tool_call", RequestID: requestID, ToolID: call.ID, ToolName: call.Function.Name, Arguments: string(call.Function.Arguments)})
+				writeSSE(w, "tool_call", FrontendEvent{Type: "tool_call", RequestID: requestID, ResponseID: ev.Response.ID, ToolID: call.ID, ToolName: call.Function.Name, Arguments: string(call.Function.Arguments)})
 				flusher.Flush()
 			}
 

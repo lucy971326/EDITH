@@ -12,7 +12,6 @@ export interface ImageInput {
 
 // POST /stream 请求体
 export interface StreamRequest {
-  user_id: string
   session_id: string
   message: string
   model?: string    // 可选：指定模型名，空则用服务端默认
@@ -43,6 +42,8 @@ export type AgentEvent =
 export interface TextEvent {
   type: 'text'
   request_id: string
+  /** 这段文本属于哪一次 LLM Response */
+  response_id: string
   text: string
 }
 
@@ -50,6 +51,8 @@ export interface TextEvent {
 export interface ReasoningEvent {
   type: 'reasoning'
   request_id: string
+  /** 这段思考属于哪一次 LLM Response */
+  response_id: string
   thinking: string
 }
 
@@ -57,6 +60,8 @@ export interface ReasoningEvent {
 export interface ToolCallEvent {
   type: 'tool_call'
   request_id: string
+  /** 这次工具调用属于哪一次 LLM Response */
+  response_id: string
   id: string
   name: string
   /** JSON 字符串，前端需 JSON.parse */
@@ -104,16 +109,17 @@ export interface SessionInfo {
 /** 会话历史消息（等同于页面内部的 Message 类型，增加了 tool_id） */
 export type ChatMessage =
   | { id: string; kind: "user"; text: string }
-  | { id: string; kind: "assistant"; text: string; done: boolean }
+  | { id: string; response_id: string; kind: "assistant"; text: string; done: boolean }
   | {
       id: string
+      response_id: string
       kind: "tool"
       tool_id: string
       name: string
       arguments: string
       result?: unknown
     }
-  | { id: string; kind: "reasoning"; text: string }
+  | { id: string; response_id: string; kind: "reasoning"; text: string }
   | { id: string; kind: "error"; text: string }
 
 /** 会话历史 */
