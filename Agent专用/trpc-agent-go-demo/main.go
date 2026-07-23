@@ -237,7 +237,7 @@ func main() {
 	)
 	defer r.Close()
 
-	// ----- 8. Gateway + IM Channels -----
+	// ----- 8. Gateway + Telegram -----
 	gw := gateway.NewClient(r)
 	telegramService, err := channel.NewTelegramService(
 		gw,
@@ -249,30 +249,10 @@ func main() {
 		log.Fatalf("telegram service: %v", err)
 	}
 
-	var feishuChannel *channel.FeishuChannel
-
-	if fsAppID := os.Getenv("FEISHU_APP_ID"); fsAppID != "" {
-		fs, err := channel.NewFeishuChannel(fsAppID, os.Getenv("FEISHU_APP_SECRET"), gw)
-		if err != nil {
-			log.Printf("feishu: %v", err)
-		} else {
-			feishuChannel = fs
-			if os.Getenv("FEISHU_WEBHOOK_URL") == "" {
-				go fs.Run(ctx)
-				log.Printf("Feishu bot listening...")
-			} else {
-				log.Printf("Feishu webhook configured: %s", os.Getenv("FEISHU_WEBHOOK_URL"))
-			}
-		}
-	}
-
 	// ----- 9. HTTP Server -----
 	mux := http.NewServeMux()
 	mux.HandleFunc("/telegram/configure", telegramService.HandleConfigure)
 	mux.HandleFunc("POST /webhook/telegram/{routeKey}", telegramService.HandleWebhook)
-	if feishuChannel != nil && os.Getenv("FEISHU_WEBHOOK_URL") != "" {
-		mux.Handle("POST /webhook/feishu", feishuChannel.WebhookHandler())
-	}
 
 	// 原生 SSE handler — POST JSON body → SSE stream
 	mux.HandleFunc("POST /stream", sseHandler(r))
