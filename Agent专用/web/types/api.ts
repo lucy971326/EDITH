@@ -10,6 +10,14 @@ export interface ImageInput {
   format: string // "png" | "jpeg" | "webp" | "gif"
 }
 
+/** 已写入当前会话工作区的用户文件 */
+export interface UploadedFile {
+  id: string
+  name: string
+  path: string
+  size: number
+}
+
 // POST /stream 请求体
 export interface StreamRequest {
   session_id: string

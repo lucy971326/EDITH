@@ -41,10 +41,10 @@ func loadGitHubToolSet(ctx context.Context) (*mcp.ToolSet, error) {
 	return githubToolSet, nil
 }
 
-// newSandboxToolSet 创建需要数据库维护会话工作区的 Sandbox ToolSet。
-func newSandboxToolSet(db *sql.DB) tool.ToolSet {
-	backendProvider := newBackendProvider(db)
-	return sandbox.NewToolSet(backendProvider)
+// newSandboxToolSet 把同一个工作区 Provider 交给 Agent 工具。
+// 上传接口也使用它，确保文件落到 Agent 实际工作的那个工作区。
+func newSandboxToolSet(provider sandbox.BackendProvider) tool.ToolSet {
+	return sandbox.NewToolSet(provider)
 }
 
 // newBackendProvider 根据配置创建每个会话工作区使用的执行后端。

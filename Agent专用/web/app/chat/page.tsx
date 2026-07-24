@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { AgentEvent, ChatMessage, ModelInfo, SessionHistory, SessionInfo, StreamRequest } from "@/types/api";
+import type { AgentEvent, ChatMessage, ModelInfo, SessionHistory, SessionInfo, StreamRequest, UploadedFile } from "@/types/api";
 import { Conversation } from "./conversation";
 import { applyAgentEvent, finishStreamingMessages } from "./chat-events";
 
 type TelegramStatus = { connected: boolean; username?: string };
 type ImageDraft = { data: string; format: string; preview: string };
+type FileDraft = { file: File };
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -18,6 +19,7 @@ export default function ChatPage() {
   const [model, setModel] = useState("");
   const [input, setInput] = useState("");
   const [images, setImages] = useState<ImageDraft[]>([]);
+  const [files, setFiles] = useState<FileDraft[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [telegramOpen, setTelegramOpen] = useState(false);
   const [telegramToken, setTelegramToken] = useState("");
@@ -26,7 +28,8 @@ export default function ChatPage() {
   const [telegramLoading, setTelegramLoading] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const imageFileRef = useRef<HTMLInputElement>(null);
+  const uploadFileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const currentModel = models.find((item) => item.id === model);
 
@@ -141,6 +144,27 @@ export default function ChatPage() {
     });
   }
 
+  function addFiles(fileList: FileList | File[]) {
+    // FileList 属于 input；外层会立刻清空 input，先复制出来再交给 React 状态更新。
+    const selectedFiles = Array.from(fileList);
+    setFiles((current) => [
+      ...current,
+      ...selectedFiles.map((file) => ({ file })),
+    ]);
+  }
+
+  async function uploadFiles(drafts: FileDraft[]): Promise<UploadedFile[]> {
+    return Promise.all(drafts.map(async ({ file }) => {
+      const form = new FormData();
+      form.set("session_id", sessionID);
+      form.set("file", file);
+      const response = await fetch("/api/uploads", { method: "POST", body: form });
+      const data = await response.json() as UploadedFile & { error?: string };
+      if (!response.ok) throw new Error(data.error || `上传 ${file.name} 失败`);
+      return data;
+    }));
+  }
+
   function stop() {
     abortRef.current?.abort();
     setStreaming(false);
@@ -149,26 +173,34 @@ export default function ChatPage() {
 
   async function send() {
     const text = input.trim();
-    if (streaming || !sessionID || (!text && images.length === 0)) return;
+    if (streaming || !sessionID || (!text && images.length === 0 && files.length === 0)) return;
 
     const sentImages = images;
+    const sentFiles = files;
     setInput("");
     setImages([]);
     setStreaming(true);
-    setMessages((current) => [
-      ...current,
-      { id: crypto.randomUUID(), kind: "user", text },
-    ]);
-
-    const request: StreamRequest = { session_id: sessionID, message: text, model };
-    if (sentImages.length > 0) {
-      request.images = sentImages.map(({ data, format }) => ({ data, format }));
-    }
 
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
+      const uploadedFiles = await uploadFiles(sentFiles);
+      setFiles([]);
+      const fileNotice = uploadedFiles
+        .map((file) => `已上传文件：${file.path}（原始文件名：${file.name}）`)
+        .join("\n");
+      const message = [text, fileNotice].filter(Boolean).join("\n\n");
+      setMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), kind: "user", text: message },
+      ]);
+
+      const request: StreamRequest = { session_id: sessionID, message, model };
+      if (sentImages.length > 0) {
+        request.images = sentImages.map(({ data, format }) => ({ data, format }));
+      }
+
       await fetchEventSource("/api/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -185,6 +217,7 @@ export default function ChatPage() {
       });
     } catch (error) {
       if (!controller.signal.aborted) {
+        if (sentFiles.length > 0) setFiles(sentFiles);
         setMessages((current) => [
           ...finishStreamingMessages(current),
           { id: crypto.randomUUID(), kind: "error", text: String(error) },
@@ -240,12 +273,16 @@ export default function ChatPage() {
         <Composer
           value={input}
           images={images}
+          files={files}
           showImageButton={Boolean(currentModel?.vision)}
           streaming={streaming}
-          fileRef={fileRef}
+          imageFileRef={imageFileRef}
+          uploadFileRef={uploadFileRef}
           onChange={setInput}
           onAddImages={addImages}
+          onAddFiles={addFiles}
           onRemoveImage={(index) => setImages((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+          onRemoveFile={(index) => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}
           onSend={send}
           onStop={stop}
         />
@@ -298,17 +335,28 @@ function TelegramPanel({ token, status, loading, error, onTokenChange, onConnect
   return <div className="border-b bg-blue-50 px-6 py-3"><div className="mx-auto flex max-w-4xl items-center gap-2 text-xs"><span className="shrink-0 text-slate-600">{status.connected ? `已连接 @${status.username}` : "连接你的 Telegram Bot"}</span>{!status.connected && <input type="password" value={token} onChange={(event) => onTokenChange(event.target.value)} placeholder="粘贴 Bot Token" className="min-w-0 flex-1 rounded-lg border bg-white px-2.5 py-1.5 outline-none focus:border-blue-400" />}{status.connected ? <button type="button" onClick={onDisconnect} disabled={loading} className="rounded-lg bg-red-500 px-2.5 py-1.5 text-white disabled:opacity-50">断开</button> : <button type="button" onClick={onConnect} disabled={!token.trim() || loading} className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-white disabled:opacity-50">{loading ? "连接中…" : "连接"}</button>}</div>{error && <p className="mx-auto mt-1 max-w-4xl text-xs text-red-600">{error}</p>}</div>;
 }
 
-function Composer({ value, images, showImageButton, streaming, fileRef, onChange, onAddImages, onRemoveImage, onSend, onStop }: {
-  value: string; images: ImageDraft[]; showImageButton: boolean; streaming: boolean; fileRef: React.RefObject<HTMLInputElement | null>; onChange: (value: string) => void; onAddImages: (files: FileList | File[]) => void; onRemoveImage: (index: number) => void; onSend: () => void; onStop: () => void;
+function Composer({ value, images, files, showImageButton, streaming, imageFileRef, uploadFileRef, onChange, onAddImages, onAddFiles, onRemoveImage, onRemoveFile, onSend, onStop }: {
+  value: string; images: ImageDraft[]; files: FileDraft[]; showImageButton: boolean; streaming: boolean; imageFileRef: React.RefObject<HTMLInputElement | null>; uploadFileRef: React.RefObject<HTMLInputElement | null>; onChange: (value: string) => void; onAddImages: (files: FileList | File[]) => void; onAddFiles: (files: FileList | File[]) => void; onRemoveImage: (index: number) => void; onRemoveFile: (index: number) => void; onSend: () => void; onStop: () => void;
 }) {
+  function handleDrop(fileList: FileList) {
+    const dropped = Array.from(fileList);
+    const imageFiles = showImageButton ? dropped.filter((file) => file.type.startsWith("image/")) : [];
+    const otherFiles = showImageButton ? dropped.filter((file) => !file.type.startsWith("image/")) : dropped;
+    if (imageFiles.length > 0) onAddImages(imageFiles);
+    if (otherFiles.length > 0) onAddFiles(otherFiles);
+  }
+
   return (
-    <footer className="border-t bg-white px-6 py-4" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onAddImages(event.dataTransfer.files); }}>
+    <footer className="border-t bg-white px-6 py-4" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); handleDrop(event.dataTransfer.files); }}>
       <div className="mx-auto max-w-4xl">
         {images.length > 0 && <div className="mb-3 flex gap-2">{images.map((image, index) => <div key={image.preview} className="relative"><img src={image.preview} alt="待发送图片" className="h-16 w-16 rounded-lg border object-cover" /><button type="button" onClick={() => onRemoveImage(index)} className="absolute -right-2 -top-2 h-5 w-5 rounded-full bg-slate-700 text-xs text-white">×</button></div>)}</div>}
+        {files.length > 0 && <div className="mb-3 flex flex-wrap gap-2">{files.map(({ file }, index) => <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-2 rounded-lg border bg-white px-2.5 py-1.5 text-xs text-slate-600"><span>📎 {file.name}</span><button type="button" onClick={() => onRemoveFile(index)} className="text-slate-400 hover:text-slate-700">×</button></div>)}</div>}
         <div className="flex items-end gap-2 rounded-2xl border bg-slate-50 p-2 focus-within:border-blue-400 focus-within:bg-white">
-          {showImageButton && <><input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => { if (event.target.files) onAddImages(event.target.files); event.target.value = ""; }} /><button type="button" disabled={streaming} onClick={() => fileRef.current?.click()} className="rounded-lg px-2 py-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40" title="上传图片">🖼</button></>}
+          <input ref={uploadFileRef} type="file" multiple className="hidden" onChange={(event) => { if (event.target.files) onAddFiles(event.target.files); event.target.value = ""; }} />
+          <button type="button" disabled={streaming} onClick={() => uploadFileRef.current?.click()} className="rounded-lg px-2 py-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40" title="上传文件">📎</button>
+          {showImageButton && <><input ref={imageFileRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => { if (event.target.files) onAddImages(event.target.files); event.target.value = ""; }} /><button type="button" disabled={streaming} onClick={() => imageFileRef.current?.click()} className="rounded-lg px-2 py-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40" title="上传图片">🖼</button></>}
           <textarea value={value} disabled={streaming} rows={1} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); onSend(); } }} onPaste={(event) => { if (event.clipboardData.files.length) { event.preventDefault(); onAddImages(event.clipboardData.files); } }} placeholder="输入消息，Enter 发送，Shift + Enter 换行" className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:opacity-50" />
-          {streaming ? <button type="button" onClick={onStop} className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white">停止</button> : <button type="button" onClick={onSend} disabled={!value.trim() && images.length === 0} className="rounded-xl bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-40">发送</button>}
+          {streaming ? <button type="button" onClick={onStop} className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white">停止</button> : <button type="button" onClick={onSend} disabled={!value.trim() && images.length === 0 && files.length === 0} className="rounded-xl bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-40">发送</button>}
         </div>
       </div>
     </footer>
