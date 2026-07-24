@@ -1,20 +1,33 @@
-项目需要的文档在docs目录下
+# EDITH 项目说明
 
-不会写东西的时候优先看docs -> examples -> codegraph读源码 -> grep/read读源码
+## 目录职责
 
-## Agent / 框架相关文档
+- `backend/`：Go 后端，负责 Gateway、Runner、Sandbox、Telegram 和 HTTP 接口。
+- `web/`：Next.js 前端与 BFF，负责 Clerk 登录、页面和 API 转发。
+- `docs/`：EDITH 自己的架构设计与学习文档。
+- `.claude/`、`.codex/`：项目级 Agent / Skill 配置，需要随仓库提交，不要删除或忽略。
 
-需要快速理解或回顾 **trpc-agent-go** 框架时，先读：
+## 阅读源码的顺序
 
-- `Agent专用/trpc-agent-go/README.md`（主索引，30 秒上手 + 速查表）
-- `Agent专用/trpc-agent-go/09-EDITH实战指南.md`（项目实际怎么用框架）
+不会写或需要理解现有能力时，按这个顺序查：
 
-需要深入某个模块时，去 `docs/trpc-agent-go/docs/mkdocs/zh/` 找对应官方文档（详见 `Agent专用/trpc-agent-go/README.md#6-文档索引`）。
+1. `docs/`：先看 EDITH 自己的设计和已有心智模型。
+2. 相关框架的官方示例与文档。
+3. CodeGraph：已准备参考源码时，优先用它理解调用关系。
+4. `rg` / `read`：最后定位具体实现。
+
+## Agent / 框架学习文档
+
+需要快速回顾 tRPC-Agent-Go 时，按顺序阅读：
+
+- `docs/learn/快速理解框架概念.md`
+- `docs/learn/trpc-agent-go/01-核心心智模型.md`
+- `docs/learn/trpc-agent-go/02-Runner.md` 至 `08-沙箱与Skill.md`
 
 ## 前后端契约
 
-> **铁律：后端新增/修改接口，必须先在 [types/api.ts](Agent专用/web/types/api.ts) 定义类型，再写 Go 端 struct，两边 JSON tag 严格对齐。**
+> **铁律：后端新增或修改接口，必须先在 `web/types/api.ts` 定义类型，再写 Go 端 struct；两边 JSON tag 严格对齐。**
 
-- `types/api.ts` 是前后端唯一的类型真理来源，不要在后端 struct 里加字段但前端不声明
-- Go struct `json:"xxx"` tag ↔ TS interface field name 必须一致（snake_case）
-- 流式事件 (SSE) 的 6 种 event type 保持 `text | reasoning | tool_call | tool_result | error | done`，加新类型需要前后端同步改
+- `web/types/api.ts` 是前后端交互类型的唯一真理来源。
+- Go struct `json:"xxx"` tag ↔ TypeScript 字段名必须一致，使用 `snake_case`。
+- 流式事件（SSE）保持 `text | reasoning | tool_call | tool_result | error | done`；新增类型时前后端必须同步修改。
