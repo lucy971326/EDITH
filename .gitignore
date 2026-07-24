@@ -1,23 +1,38 @@
-test_*.py
-test_*.go
-workspace/
-!Agent专用/web/app/api/workspace/
-!Agent专用/web/app/api/workspace/**
-.venv/
-test/
+# ---------- Secrets ----------
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ---------- JavaScript / Next.js ----------
 **/node_modules/
-*.db
-**.db-shm
-**.db-wal
-**.kilo
+/web/.next/
+/web/tsconfig.tsbuildinfo
 
+# ---------- Go runtime ----------
+/backend/.gocache/
+/backend/state/
+/backend/workspace/
+/workspace/
+/backend/*.db
+/backend/*.db-shm
+/backend/*.db-wal
+*.exe
+*.exe~
+/backend/demo
 
-.kilo/
-.agent/
+# ---------- Local tools and IDE ----------
+/.idea/
+/.vscode/
+/.agent/
+/.kilo/
+/.mcp.json
+**/.codegraph/
 
-**/**.exe
-**/.codegraph
-
-demo
-demo.exe~
-**/.gocache/
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
