@@ -8,6 +8,9 @@ import (
 	"github.com/eric642/e2b-go-sdk"
 )
 
+// E2B base template 中，/home/user 是我们暴露给用户的虚拟工作区根目录。
+const e2bWorkspaceDir = "/home/user"
+
 // ============================================================================
 // E2BBackend executes file and command operations in one E2B sandbox.
 // ============================================================================
@@ -26,6 +29,10 @@ type E2BBackend struct {
 // ---------------------------------------------------------------------------
 
 func (b *E2BBackend) ReadFile(ctx context.Context, path string) ([]byte, error) {
+	return b.sandbox.Files.Read(ctx, path, e2b.FsOptions{})
+}
+
+func (b *E2BBackend) DownloadFile(ctx context.Context, path string) ([]byte, error) {
 	return b.sandbox.Files.Read(ctx, path, e2b.FsOptions{})
 }
 
@@ -79,6 +86,7 @@ func (b *E2BBackend) RunCommand(ctx context.Context, cmd string, args []string, 
 	handle, err := b.sandbox.Commands.Run(ctx, cmd, e2b.RunOptions{
 		Args: args,
 		Envs: envs,
+		Cwd:  e2bWorkspaceDir,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("run command '%s': %w", cmd, err)

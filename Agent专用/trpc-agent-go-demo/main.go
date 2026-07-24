@@ -193,6 +193,9 @@ func main() {
 
 	// 用户文件上传到当前会话的 Local / E2B 工作区。
 	mux.HandleFunc("POST /uploads", uploadHandler(backendProvider))
+	// 工作区文件树与下载：始终使用当前用户、当前会话的隔离工作区。
+	mux.HandleFunc("GET /workspace", workspaceListHandler(backendProvider))
+	mux.HandleFunc("GET /workspace/download", workspaceDownloadHandler(backendProvider))
 
 	// 模型列表按 models.go 中的登记顺序返回。
 	mux.HandleFunc("GET /models", func(w http.ResponseWriter, _ *http.Request) {

@@ -23,6 +23,8 @@ type ExecResult struct {
 // Implementations: LocalBackend (os + os/exec), E2BBackend (e2b-go-sdk cloud sandbox).
 type ExecBackend interface {
 	ReadFile(ctx context.Context, path string) ([]byte, error)
+	// DownloadFile 是把工作区文件交给用户下载；不受 Agent 文本读取大小限制。
+	DownloadFile(ctx context.Context, path string) ([]byte, error)
 	WriteFile(ctx context.Context, path string, data []byte) error
 	ListDir(ctx context.Context, path string, depth int) ([]FileEntry, error)
 	MakeDir(ctx context.Context, path string) error

@@ -1,6 +1,8 @@
 test_*.py
 test_*.go
 workspace/
+!Agent专用/web/app/api/workspace/
+!Agent专用/web/app/api/workspace/**
 .venv/
 test/
 **/node_modules/
