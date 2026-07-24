@@ -2,6 +2,14 @@
 
 > 一个面向多用户的服务端 Agent MVP：Web 登录、流式对话、会话隔离、Sandbox 工作区，以及用户自带 Telegram Bot 接入。
 
+## 名字来源
+
+EDITH 致敬《蜘蛛侠：英雄远征》中的 AI 系统 **E.D.I.T.H.**：
+
+> **Even Dead, I’m The Hero.**
+
+这个项目借鉴的不是电影设定，而是它的核心意象：AI 不只负责聊天，也能理解任务、调用工具，并在受控工作区中真正完成事情。
+
 ## 当前能力
 
 - Clerk 登录后使用 EDITH；浏览器提交的 `user_id` 不被信任，由 Next.js BFF 从登录态注入。
@@ -12,6 +20,8 @@
 - Local / E2B 两种 Sandbox 后端。
 - 用户在页面填写自己的 Telegram Bot Token；后端注册 Webhook，消息进入该用户的 Agent 空间。
 - GitHub MCP 工具集。
+
+![EDITH 主界面](asset/主界面.png)
 
 ## 架构
 
@@ -119,6 +129,8 @@ TELEGRAM_WEBHOOK_BASE_URL=https://your-public-domain
 ```dotenv
 TELEGRAM_PROXY=http://127.0.0.1:7897
 ```
+
+![模型选择与 Telegram 配置](asset/模型与Tele配置.png)
 
 ## 开发检查
 
