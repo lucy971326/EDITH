@@ -137,7 +137,10 @@ func main() {
 	}
 	defer sandboxDB.Close()
 
-	sandboxToolSet := newSandboxToolSet(sandboxDB)
+	// 同一个 Provider 同时供上传接口和 Agent 工具使用。
+	// 因此无论 Local 还是 E2B，上传文件都会进入本次会话的工作区。
+	backendProvider := newBackendProvider(sandboxDB)
+	sandboxToolSet := newSandboxToolSet(backendProvider)
 	defer sandboxToolSet.Close()
 
 	toolSets := []tool.ToolSet{githubToolSet, sandboxToolSet}
@@ -187,6 +190,9 @@ func main() {
 
 	// 原生 SSE handler — POST JSON body → SSE stream
 	mux.HandleFunc("POST /stream", sseHandler(r, models.clients))
+
+	// 用户文件上传到当前会话的 Local / E2B 工作区。
+	mux.HandleFunc("POST /uploads", uploadHandler(backendProvider))
 
 	// 模型列表按 models.go 中的登记顺序返回。
 	mux.HandleFunc("GET /models", func(w http.ResponseWriter, _ *http.Request) {
