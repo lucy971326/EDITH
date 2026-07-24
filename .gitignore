@@ -26,7 +26,7 @@
 /backend/demo
 
 # ---------- Local tools and IDE ----------
-/.idea/
+.idea/
 /.vscode/
 /.agent/
 /.kilo/
@@ -36,3 +36,4 @@
 # ---------- OS ----------
 .DS_Store
 Thumbs.db
+
