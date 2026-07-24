@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #1e293b;
 }
 
 @theme inline {
@@ -12,11 +12,16 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* EDITH 的页面色板：全站只使用中性灰，深灰表示关键动作与当前状态。 */
+@theme {
+  --color-edith-canvas: #fafafa;
+  --color-edith-surface: #ffffff;
+  --color-edith-border: #e4e4e7;
+  --color-edith-text: #27272a;
+  --color-edith-muted: #71717a;
+  --color-edith-accent: #3f3f46;
+  --color-edith-accent-hover: #27272a;
+  --color-edith-accent-soft: #f4f4f5;
 }
 
 body {
