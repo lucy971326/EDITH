@@ -287,7 +287,7 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="flex h-screen min-w-0 bg-white text-slate-800">
+    <main className="flex h-screen min-w-0 bg-edith-canvas text-edith-text">
       {sidebarMode === "sessions" ? (
         <SessionSidebar
           sessions={sessions}
@@ -310,7 +310,7 @@ export default function ChatPage() {
         />
       )}
 
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className="flex min-w-0 flex-1 flex-col bg-edith-surface">
         <ChatHeader
           streaming={streaming}
           sessionID={sessionID}
@@ -332,7 +332,7 @@ export default function ChatPage() {
           />
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-edith-canvas px-5 py-7 sm:px-8">
           <Conversation messages={messages} />
           <div ref={bottomRef} />
         </div>
@@ -362,15 +362,15 @@ function SessionSidebar({ sessions, activeID, disabled, onCreate, onOpen, onOpen
   sessions: SessionInfo[]; activeID: string; disabled: boolean; onCreate: () => void; onOpen: (id: string) => void; onOpenWorkspace: () => void;
 }) {
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r bg-slate-50">
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <span className="text-sm font-semibold">会话</span>
-        <div className="flex items-center gap-1"><button type="button" onClick={onOpenWorkspace} className="rounded px-2 py-1 text-sm text-slate-400 hover:bg-slate-200 hover:text-blue-600" title="打开工作区">📁</button><button type="button" onClick={onCreate} disabled={disabled} className="rounded px-2 text-xl text-slate-400 hover:bg-slate-200 hover:text-blue-600 disabled:opacity-40" title="新建会话">+</button></div>
+    <aside className="flex w-64 shrink-0 flex-col border-r border-edith-border bg-edith-surface">
+      <div className="flex h-16 items-center justify-between border-b border-edith-border px-4">
+        <span className="text-sm font-semibold tracking-tight text-edith-text">会话</span>
+        <div className="flex items-center gap-1"><button type="button" onClick={onOpenWorkspace} className="rounded-lg px-2 py-1.5 text-sm text-edith-muted transition hover:bg-edith-accent-soft hover:text-edith-accent" title="打开工作区">📁</button><button type="button" onClick={onCreate} disabled={disabled} className="rounded-lg px-2 py-1 text-xl leading-none text-edith-muted transition hover:bg-edith-accent-soft hover:text-edith-accent disabled:opacity-40" title="新建会话">+</button></div>
       </div>
       <div className="flex-1 overflow-y-auto p-2">
-        {sessions.length === 0 && <p className="p-4 text-center text-xs text-slate-400">暂无历史会话</p>}
+        {sessions.length === 0 && <p className="p-6 text-center text-xs text-slate-400">暂无历史会话</p>}
         {sessions.map((session) => (
-          <button key={session.id} type="button" disabled={disabled} onClick={() => onOpen(session.id)} className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-xs transition ${session.id === activeID ? "bg-blue-100 text-blue-700" : "text-slate-500 hover:bg-slate-200"}`}>
+          <button key={session.id} type="button" disabled={disabled} onClick={() => onOpen(session.id)} className={`mb-1 w-full rounded-xl px-3 py-2.5 text-left text-xs transition ${session.id === activeID ? "bg-edith-accent-soft font-medium text-edith-accent shadow-sm ring-1 ring-zinc-200" : "text-edith-muted hover:bg-zinc-100 hover:text-edith-text"}`}>
             {relativeTime(session.updated_at)}
           </button>
         ))}
@@ -383,8 +383,8 @@ function WorkspaceSidebar({ entries, expandedPaths, loading, error, onShowSessio
   entries: Record<string, FileEntry[]>; expandedPaths: Set<string>; loading: boolean; error: string; onShowSessions: () => void; onRefresh: () => void; onToggleDirectory: (path: string) => void; onDownload: (path: string) => void;
 }) {
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r bg-slate-50">
-      <div className="flex items-center justify-between border-b px-4 py-3"><button type="button" onClick={onShowSessions} className="text-sm font-semibold hover:text-blue-600">工作区</button><button type="button" onClick={onRefresh} disabled={loading} className="rounded px-2 py-1 text-sm text-slate-400 hover:bg-slate-200 hover:text-blue-600 disabled:opacity-40" title="刷新">↻</button></div>
+    <aside className="flex w-64 shrink-0 flex-col border-r border-edith-border bg-edith-surface">
+      <div className="flex h-16 items-center justify-between border-b border-edith-border px-4"><button type="button" onClick={onShowSessions} className="text-sm font-semibold tracking-tight text-edith-text hover:text-edith-accent">工作区</button><button type="button" onClick={onRefresh} disabled={loading} className="rounded-lg px-2 py-1.5 text-sm text-edith-muted transition hover:bg-edith-accent-soft hover:text-edith-accent disabled:opacity-40" title="刷新">↻</button></div>
       <div className="flex-1 overflow-y-auto p-2">
         {loading && !entries["."] && <p className="p-3 text-xs text-slate-400">读取工作区…</p>}
         {error && <p className="p-3 text-xs text-red-500">{error}</p>}
@@ -406,7 +406,7 @@ function WorkspaceTree({ path, level, entries, expandedPaths, onToggleDirectory,
     const isDirectory = entry.type === "directory";
     const expanded = expandedPaths.has(entry.path);
     return <div key={entry.path}>
-      <button type="button" onClick={() => isDirectory ? onToggleDirectory(entry.path) : onDownload(entry.path)} onContextMenu={(event) => { if (!isDirectory) { event.preventDefault(); onDownload(entry.path); } }} className="flex w-full items-center gap-1 rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-200" style={{ paddingLeft: `${8 + level * 14}px` }} title={isDirectory ? entry.path : "点击或右键下载"}>
+      <button type="button" onClick={() => isDirectory ? onToggleDirectory(entry.path) : onDownload(entry.path)} onContextMenu={(event) => { if (!isDirectory) { event.preventDefault(); onDownload(entry.path); } }} className="flex w-full items-center gap-1 rounded-lg px-2 py-1.5 text-left text-xs text-slate-600 transition hover:bg-slate-100" style={{ paddingLeft: `${8 + level * 14}px` }} title={isDirectory ? entry.path : "点击或右键下载"}>
         <span className="w-3 text-slate-400">{isDirectory ? (expanded ? "⌄" : "›") : ""}</span><span>{isDirectory ? "📁" : "📄"}</span><span className="min-w-0 flex-1 truncate">{entry.name}</span>{!isDirectory && <span className="text-[10px] text-slate-400">{formatFileSize(entry.size)}</span>}
       </button>
       {isDirectory && expanded && entries[entry.path] && <WorkspaceTree path={entry.path} level={level + 1} entries={entries} expandedPaths={expandedPaths} onToggleDirectory={onToggleDirectory} onDownload={onDownload} />}
@@ -418,12 +418,12 @@ function ChatHeader({ streaming, sessionID, models, model, onModelChange, onTele
   streaming: boolean; sessionID: string; models: ModelInfo[]; model: string; onModelChange: (model: string) => void; onTelegram: () => void;
 }) {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b px-6">
-      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">A</div>
-      <div><h1 className="font-semibold">小天</h1><p className="text-xs text-slate-400">{streaming ? "正在工作…" : "在线"}</p></div>
+    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-edith-border bg-edith-surface px-5 sm:px-8">
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-edith-accent text-sm font-bold text-white shadow-sm">E</div>
+      <div><h1 className="text-sm font-semibold tracking-tight text-edith-text">EDITH</h1><p className="text-xs text-edith-muted">{streaming ? "正在工作…" : "在线"}</p></div>
       <div className="ml-auto flex items-center gap-2">
-        <button type="button" onClick={onTelegram} className="rounded-lg border px-2.5 py-1.5 text-xs text-slate-600 hover:border-blue-300">Telegram</button>
-        {models.length > 1 && <select value={model} onChange={(event) => onModelChange(event.target.value)} className="rounded-lg border bg-white px-2 py-1.5 text-xs text-slate-600"><>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</></select>}
+        <button type="button" onClick={onTelegram} className="rounded-lg border border-edith-border px-2.5 py-1.5 text-xs text-edith-muted transition hover:border-zinc-300 hover:bg-edith-accent-soft hover:text-edith-accent">Telegram</button>
+        {models.length > 1 && <select value={model} onChange={(event) => onModelChange(event.target.value)} className="rounded-lg border border-edith-border bg-edith-surface px-2 py-1.5 text-xs text-edith-muted outline-none focus:border-zinc-400"><>{models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</></select>}
         <span className="hidden text-xs text-slate-300 sm:block">{sessionID.slice(0, 8)}</span>
         <UserButton />
       </div>
@@ -434,7 +434,7 @@ function ChatHeader({ streaming, sessionID, models, model, onModelChange, onTele
 function TelegramPanel({ token, status, loading, error, onTokenChange, onConnect, onDisconnect }: {
   token: string; status: TelegramStatus; loading: boolean; error: string; onTokenChange: (value: string) => void; onConnect: () => void; onDisconnect: () => void;
 }) {
-  return <div className="border-b bg-blue-50 px-6 py-3"><div className="mx-auto flex max-w-4xl items-center gap-2 text-xs"><span className="shrink-0 text-slate-600">{status.connected ? `已连接 @${status.username}` : "连接你的 Telegram Bot"}</span>{!status.connected && <input type="password" value={token} onChange={(event) => onTokenChange(event.target.value)} placeholder="粘贴 Bot Token" className="min-w-0 flex-1 rounded-lg border bg-white px-2.5 py-1.5 outline-none focus:border-blue-400" />}{status.connected ? <button type="button" onClick={onDisconnect} disabled={loading} className="rounded-lg bg-red-500 px-2.5 py-1.5 text-white disabled:opacity-50">断开</button> : <button type="button" onClick={onConnect} disabled={!token.trim() || loading} className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-white disabled:opacity-50">{loading ? "连接中…" : "连接"}</button>}</div>{error && <p className="mx-auto mt-1 max-w-4xl text-xs text-red-600">{error}</p>}</div>;
+  return <div className="border-b border-edith-border bg-edith-accent-soft px-5 py-3 sm:px-8"><div className="mx-auto flex max-w-3xl items-center gap-2 text-xs"><span className="shrink-0 text-edith-muted">{status.connected ? `已连接 @${status.username}` : "连接你的 Telegram Bot"}</span>{!status.connected && <input type="password" value={token} onChange={(event) => onTokenChange(event.target.value)} placeholder="粘贴 Bot Token" className="min-w-0 flex-1 rounded-lg border border-edith-border bg-edith-surface px-2.5 py-1.5 outline-none focus:border-zinc-400" />}{status.connected ? <button type="button" onClick={onDisconnect} disabled={loading} className="rounded-lg bg-red-500 px-2.5 py-1.5 text-white transition hover:bg-red-600 disabled:opacity-50">断开</button> : <button type="button" onClick={onConnect} disabled={!token.trim() || loading} className="rounded-lg bg-edith-accent px-2.5 py-1.5 text-white transition hover:bg-edith-accent-hover disabled:opacity-50">{loading ? "连接中…" : "连接"}</button>}</div>{error && <p className="mx-auto mt-1 max-w-3xl text-xs text-red-600">{error}</p>}</div>;
 }
 
 function Composer({ value, images, files, showImageButton, streaming, imageFileRef, uploadFileRef, onChange, onAddImages, onAddFiles, onRemoveImage, onRemoveFile, onSend, onStop }: {
@@ -449,16 +449,16 @@ function Composer({ value, images, files, showImageButton, streaming, imageFileR
   }
 
   return (
-    <footer className="border-t bg-white px-6 py-4" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); handleDrop(event.dataTransfer.files); }}>
-      <div className="mx-auto max-w-4xl">
+    <footer className="border-t border-edith-border bg-edith-surface px-5 py-4 sm:px-8" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); handleDrop(event.dataTransfer.files); }}>
+      <div className="mx-auto max-w-3xl">
         {images.length > 0 && <div className="mb-3 flex gap-2">{images.map((image, index) => <div key={image.preview} className="relative"><img src={image.preview} alt="待发送图片" className="h-16 w-16 rounded-lg border object-cover" /><button type="button" onClick={() => onRemoveImage(index)} className="absolute -right-2 -top-2 h-5 w-5 rounded-full bg-slate-700 text-xs text-white">×</button></div>)}</div>}
         {files.length > 0 && <div className="mb-3 flex flex-wrap gap-2">{files.map(({ file }, index) => <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-2 rounded-lg border bg-white px-2.5 py-1.5 text-xs text-slate-600"><span>📎 {file.name}</span><button type="button" onClick={() => onRemoveFile(index)} className="text-slate-400 hover:text-slate-700">×</button></div>)}</div>}
-        <div className="flex items-end gap-2 rounded-2xl border bg-slate-50 p-2 focus-within:border-blue-400 focus-within:bg-white">
+        <div className="flex items-end gap-2 rounded-2xl border border-edith-border bg-edith-canvas p-2 shadow-sm transition focus-within:border-zinc-400 focus-within:bg-edith-surface focus-within:ring-4 focus-within:ring-zinc-100">
           <input ref={uploadFileRef} type="file" multiple className="hidden" onChange={(event) => { if (event.target.files) onAddFiles(event.target.files); event.target.value = ""; }} />
-          <button type="button" disabled={streaming} onClick={() => uploadFileRef.current?.click()} className="rounded-lg px-2 py-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40" title="上传文件">📎</button>
-          {showImageButton && <><input ref={imageFileRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => { if (event.target.files) onAddImages(event.target.files); event.target.value = ""; }} /><button type="button" disabled={streaming} onClick={() => imageFileRef.current?.click()} className="rounded-lg px-2 py-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40" title="上传图片">🖼</button></>}
+          <button type="button" disabled={streaming} onClick={() => uploadFileRef.current?.click()} className="rounded-lg px-2 py-2 text-edith-muted transition hover:bg-edith-surface hover:text-edith-accent disabled:opacity-40" title="上传文件">📎</button>
+          {showImageButton && <><input ref={imageFileRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => { if (event.target.files) onAddImages(event.target.files); event.target.value = ""; }} /><button type="button" disabled={streaming} onClick={() => imageFileRef.current?.click()} className="rounded-lg px-2 py-2 text-edith-muted transition hover:bg-edith-surface hover:text-edith-accent disabled:opacity-40" title="上传图片">🖼</button></>}
           <textarea value={value} disabled={streaming} rows={1} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); onSend(); } }} onPaste={(event) => { if (event.clipboardData.files.length) { event.preventDefault(); onAddImages(event.clipboardData.files); } }} placeholder="输入消息，Enter 发送，Shift + Enter 换行" className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:opacity-50" />
-          {streaming ? <button type="button" onClick={onStop} className="rounded-xl bg-slate-700 px-4 py-2 text-sm text-white">停止</button> : <button type="button" onClick={onSend} disabled={!value.trim() && images.length === 0 && files.length === 0} className="rounded-xl bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-40">发送</button>}
+          {streaming ? <button type="button" onClick={onStop} className="rounded-xl bg-zinc-700 px-4 py-2 text-sm text-white transition hover:bg-zinc-800">停止</button> : <button type="button" onClick={onSend} disabled={!value.trim() && images.length === 0 && files.length === 0} className="rounded-xl bg-edith-accent px-4 py-2 text-sm text-white shadow-sm transition hover:bg-edith-accent-hover disabled:opacity-40">发送</button>}
         </div>
       </div>
     </footer>

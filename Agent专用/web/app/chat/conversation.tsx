@@ -21,14 +21,14 @@ export function Conversation({ messages }: { messages: ChatMessage[] }) {
       <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
         <div>
           <div className="mb-2 text-3xl">👋</div>
-          跟小天打个招呼吧
+          跟 EDITH 打个招呼吧
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-5">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       {runs.map((run) => <ConversationRunView key={run.id} run={run} />)}
     </div>
   );
@@ -57,7 +57,7 @@ function buildRuns(messages: ChatMessage[]): ConversationRun[] {
 function UserMessage({ text }: { text: string }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[78%] rounded-2xl rounded-br-sm bg-blue-600 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm">
+      <div className="max-w-[78%] rounded-2xl rounded-br-md bg-edith-accent px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm">
         {text}
       </div>
     </div>
@@ -71,7 +71,7 @@ function ConversationRunView({ run }: { run: ConversationRun }) {
       {run.user && <UserMessage text={run.user.text} />}
       {steps.length > 0 && (
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-600">A</div>
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-edith-accent-soft text-xs font-bold text-edith-accent">E</div>
           <div className="min-w-0 flex-1 space-y-4 pt-0.5">
             {steps.map((step) => step.kind === "error"
               ? <ErrorMessage key={step.message.id} text={step.message.text} />
@@ -133,7 +133,7 @@ function Thinking({ text }: { text: string }) {
         思考过程
       </button>
       {open && (
-        <div className="mt-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-6 text-slate-500">
+        <div className="mt-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs leading-6 text-slate-500 shadow-sm">
           {text}
         </div>
       )}
@@ -143,11 +143,11 @@ function Thinking({ text }: { text: string }) {
 
 function ToolExecution({ message }: { message: Extract<ChatMessage, { kind: "tool" }> }) {
   return (
-    <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs">
-      <div className="flex items-center gap-2 text-blue-700">
+    <div className="rounded-xl border border-zinc-200 bg-edith-accent-soft p-3 text-xs shadow-sm">
+      <div className="flex items-center gap-2 text-edith-accent">
         <span>🔧</span>
         <span className="font-mono font-medium">{message.name}</span>
-        {message.result === undefined && <span className="text-blue-400">执行中…</span>}
+        {message.result === undefined && <span className="text-zinc-400">执行中…</span>}
         {message.result !== undefined && <span className="text-emerald-600">已完成</span>}
       </div>
       <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-white/70 p-2 font-mono text-[11px] leading-5 text-slate-600">
@@ -165,11 +165,11 @@ function ToolExecution({ message }: { message: Extract<ChatMessage, { kind: "too
 function AssistantText({ text, done }: { text: string; done: boolean }) {
   if (!text && done) return null;
   return (
-    <div className="rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-3 text-sm leading-7 text-slate-800">
+    <div className="rounded-2xl rounded-tl-md border border-edith-border bg-edith-surface px-4 py-3 text-sm leading-7 text-edith-text shadow-sm">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {text}
       </ReactMarkdown>
-      {!done && <span className="ml-1 inline-block h-4 w-1 animate-pulse bg-blue-600 align-[-2px]" />}
+      {!done && <span className="ml-1 inline-block h-4 w-1 animate-pulse bg-edith-accent align-[-2px]" />}
     </div>
   );
 }
@@ -204,6 +204,6 @@ const markdownComponents = {
     return <ol className="mb-2 list-decimal pl-5 last:mb-0">{children}</ol>;
   },
   a({ href, children }: { href?: string; children?: React.ReactNode }) {
-    return <a href={href} target="_blank" rel="noreferrer" className="text-blue-600 underline">{children}</a>;
+    return <a href={href} target="_blank" rel="noreferrer" className="text-edith-accent underline">{children}</a>;
   },
 };
