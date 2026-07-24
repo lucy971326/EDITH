@@ -161,3 +161,7 @@ make build          构建前后端
 - [IM 接入设计](docs/IM接入设计.md)
 - [多用户改造计划](docs/多用户改造计划.md)
 - [tRPC-Agent-Go 学习笔记](docs/learn/trpc-agent-go/01-核心心智模型.md)
+
+## License
+
+[MIT](LICENSE)
