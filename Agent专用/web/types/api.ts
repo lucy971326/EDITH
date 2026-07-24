@@ -18,6 +18,20 @@ export interface UploadedFile {
   size: number
 }
 
+/** 工作区中的一个文件或目录，对应 Go sandbox.FileEntry。 */
+export interface FileEntry {
+  name: string
+  path: string
+  type: "file" | "directory"
+  size: number
+}
+
+/** 工作区目录读取结果，对应 Go WorkspaceListing。 */
+export interface WorkspaceListing {
+  path: string
+  entries: FileEntry[]
+}
+
 // POST /stream 请求体
 export interface StreamRequest {
   session_id: string

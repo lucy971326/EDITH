@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { AgentEvent, ChatMessage, ModelInfo, SessionHistory, SessionInfo, StreamRequest, UploadedFile } from "@/types/api";
+import type { AgentEvent, ChatMessage, FileEntry, ModelInfo, SessionHistory, SessionInfo, StreamRequest, UploadedFile, WorkspaceListing } from "@/types/api";
 import { Conversation } from "./conversation";
 import { applyAgentEvent, finishStreamingMessages } from "./chat-events";
 
@@ -20,6 +20,11 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [images, setImages] = useState<ImageDraft[]>([]);
   const [files, setFiles] = useState<FileDraft[]>([]);
+  const [sidebarMode, setSidebarMode] = useState<"sessions" | "workspace">("sessions");
+  const [workspaceEntries, setWorkspaceEntries] = useState<Record<string, FileEntry[]>>({});
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set(["."]));
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [telegramOpen, setTelegramOpen] = useState(false);
   const [telegramToken, setTelegramToken] = useState("");
@@ -76,12 +81,14 @@ export default function ChatPage() {
     if (streaming) return;
     setSessionID(crypto.randomUUID());
     setMessages([]);
+    resetWorkspace();
   }
 
   async function openSession(id: string) {
     if (streaming) return;
     setSessionID(id);
     setMessages([]);
+    resetWorkspace();
     try {
       const response = await fetch(`/api/sessions/${id}`);
       if (!response.ok) throw new Error("无法加载会话");
@@ -165,6 +172,52 @@ export default function ChatPage() {
     }));
   }
 
+  function resetWorkspace() {
+    setWorkspaceEntries({});
+    setExpandedPaths(new Set(["."]));
+    setWorkspaceError("");
+  }
+
+  async function loadWorkspace(path: string) {
+    if (!sessionID) return;
+    setWorkspaceLoading(true);
+    setWorkspaceError("");
+    try {
+      const query = new URLSearchParams({ session_id: sessionID, path });
+      const response = await fetch(`/api/workspace?${query}`);
+      const data = await response.json() as WorkspaceListing & { error?: string };
+      if (!response.ok) throw new Error(data.error || "无法读取工作区");
+      setWorkspaceEntries((current) => ({ ...current, [data.path]: data.entries }));
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "无法读取工作区");
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  }
+
+  function openWorkspace() {
+    setSidebarMode("workspace");
+    if (!workspaceEntries["."]) void loadWorkspace(".");
+  }
+
+  function toggleDirectory(path: string) {
+    if (expandedPaths.has(path)) {
+      setExpandedPaths((current) => {
+        const next = new Set(current);
+        next.delete(path);
+        return next;
+      });
+      return;
+    }
+    setExpandedPaths((current) => new Set(current).add(path));
+    if (!workspaceEntries[path]) void loadWorkspace(path);
+  }
+
+  function downloadWorkspaceFile(path: string) {
+    const query = new URLSearchParams({ session_id: sessionID, path });
+    window.location.assign(`/api/workspace/download?${query}`);
+  }
+
   function stop() {
     abortRef.current?.abort();
     setStreaming(false);
@@ -235,13 +288,27 @@ export default function ChatPage() {
 
   return (
     <main className="flex h-screen min-w-0 bg-white text-slate-800">
-      <SessionSidebar
-        sessions={sessions}
-        activeID={sessionID}
-        disabled={streaming}
-        onCreate={createSession}
-        onOpen={openSession}
-      />
+      {sidebarMode === "sessions" ? (
+        <SessionSidebar
+          sessions={sessions}
+          activeID={sessionID}
+          disabled={streaming}
+          onCreate={createSession}
+          onOpen={openSession}
+          onOpenWorkspace={openWorkspace}
+        />
+      ) : (
+        <WorkspaceSidebar
+          entries={workspaceEntries}
+          expandedPaths={expandedPaths}
+          loading={workspaceLoading}
+          error={workspaceError}
+          onShowSessions={() => setSidebarMode("sessions")}
+          onRefresh={() => void loadWorkspace(".")}
+          onToggleDirectory={toggleDirectory}
+          onDownload={downloadWorkspaceFile}
+        />
+      )}
 
       <section className="flex min-w-0 flex-1 flex-col">
         <ChatHeader
@@ -291,14 +358,14 @@ export default function ChatPage() {
   );
 }
 
-function SessionSidebar({ sessions, activeID, disabled, onCreate, onOpen }: {
-  sessions: SessionInfo[]; activeID: string; disabled: boolean; onCreate: () => void; onOpen: (id: string) => void;
+function SessionSidebar({ sessions, activeID, disabled, onCreate, onOpen, onOpenWorkspace }: {
+  sessions: SessionInfo[]; activeID: string; disabled: boolean; onCreate: () => void; onOpen: (id: string) => void; onOpenWorkspace: () => void;
 }) {
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r bg-slate-50">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <span className="text-sm font-semibold">会话</span>
-        <button type="button" onClick={onCreate} disabled={disabled} className="rounded px-2 text-xl text-slate-400 hover:bg-slate-200 hover:text-blue-600 disabled:opacity-40" title="新建会话">+</button>
+        <div className="flex items-center gap-1"><button type="button" onClick={onOpenWorkspace} className="rounded px-2 py-1 text-sm text-slate-400 hover:bg-slate-200 hover:text-blue-600" title="打开工作区">📁</button><button type="button" onClick={onCreate} disabled={disabled} className="rounded px-2 text-xl text-slate-400 hover:bg-slate-200 hover:text-blue-600 disabled:opacity-40" title="新建会话">+</button></div>
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {sessions.length === 0 && <p className="p-4 text-center text-xs text-slate-400">暂无历史会话</p>}
@@ -310,6 +377,41 @@ function SessionSidebar({ sessions, activeID, disabled, onCreate, onOpen }: {
       </div>
     </aside>
   );
+}
+
+function WorkspaceSidebar({ entries, expandedPaths, loading, error, onShowSessions, onRefresh, onToggleDirectory, onDownload }: {
+  entries: Record<string, FileEntry[]>; expandedPaths: Set<string>; loading: boolean; error: string; onShowSessions: () => void; onRefresh: () => void; onToggleDirectory: (path: string) => void; onDownload: (path: string) => void;
+}) {
+  return (
+    <aside className="flex w-60 shrink-0 flex-col border-r bg-slate-50">
+      <div className="flex items-center justify-between border-b px-4 py-3"><button type="button" onClick={onShowSessions} className="text-sm font-semibold hover:text-blue-600">工作区</button><button type="button" onClick={onRefresh} disabled={loading} className="rounded px-2 py-1 text-sm text-slate-400 hover:bg-slate-200 hover:text-blue-600 disabled:opacity-40" title="刷新">↻</button></div>
+      <div className="flex-1 overflow-y-auto p-2">
+        {loading && !entries["."] && <p className="p-3 text-xs text-slate-400">读取工作区…</p>}
+        {error && <p className="p-3 text-xs text-red-500">{error}</p>}
+        {entries["."] && <WorkspaceTree path="." level={0} entries={entries} expandedPaths={expandedPaths} onToggleDirectory={onToggleDirectory} onDownload={onDownload} />}
+        {entries["."]?.length === 0 && <p className="p-3 text-xs text-slate-400">工作区暂时为空</p>}
+      </div>
+    </aside>
+  );
+}
+
+function WorkspaceTree({ path, level, entries, expandedPaths, onToggleDirectory, onDownload }: {
+  path: string; level: number; entries: Record<string, FileEntry[]>; expandedPaths: Set<string>; onToggleDirectory: (path: string) => void; onDownload: (path: string) => void;
+}) {
+  const children = [...(entries[path] || [])].sort((left, right) => {
+    if (left.type !== right.type) return left.type === "directory" ? -1 : 1;
+    return left.name.localeCompare(right.name, "zh-CN");
+  });
+  return <>{children.map((entry) => {
+    const isDirectory = entry.type === "directory";
+    const expanded = expandedPaths.has(entry.path);
+    return <div key={entry.path}>
+      <button type="button" onClick={() => isDirectory ? onToggleDirectory(entry.path) : onDownload(entry.path)} onContextMenu={(event) => { if (!isDirectory) { event.preventDefault(); onDownload(entry.path); } }} className="flex w-full items-center gap-1 rounded px-2 py-1 text-left text-xs text-slate-600 hover:bg-slate-200" style={{ paddingLeft: `${8 + level * 14}px` }} title={isDirectory ? entry.path : "点击或右键下载"}>
+        <span className="w-3 text-slate-400">{isDirectory ? (expanded ? "⌄" : "›") : ""}</span><span>{isDirectory ? "📁" : "📄"}</span><span className="min-w-0 flex-1 truncate">{entry.name}</span>{!isDirectory && <span className="text-[10px] text-slate-400">{formatFileSize(entry.size)}</span>}
+      </button>
+      {isDirectory && expanded && entries[entry.path] && <WorkspaceTree path={entry.path} level={level + 1} entries={entries} expandedPaths={expandedPaths} onToggleDirectory={onToggleDirectory} onDownload={onDownload} />}
+    </div>;
+  })}</>;
 }
 
 function ChatHeader({ streaming, sessionID, models, model, onModelChange, onTelegram }: {
@@ -369,4 +471,10 @@ function relativeTime(iso: string): string {
   if (minutes < 60) return `${minutes} 分钟前`;
   if (minutes < 24 * 60) return `${Math.floor(minutes / 60)} 小时前`;
   return new Date(iso).toLocaleDateString("zh-CN");
+}
+
+function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }

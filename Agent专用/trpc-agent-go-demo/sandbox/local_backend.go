@@ -82,6 +82,18 @@ func (b *LocalBackend) ReadFile(ctx context.Context, path string) ([]byte, error
 	return data, nil
 }
 
+func (b *LocalBackend) DownloadFile(ctx context.Context, path string) ([]byte, error) {
+	fullPath, err := b.resolvePath(path)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("downloading file %q: %w", path, err)
+	}
+	return data, nil
+}
+
 func (b *LocalBackend) WriteFile(ctx context.Context, path string, data []byte) error {
 	fullPath, err := b.resolvePath(path)
 	if err != nil {
