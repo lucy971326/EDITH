@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"demo/sandbox"
-
 	"demo/channel"
 	"demo/gateway"
 
@@ -24,13 +22,10 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
 	memorysqlite "trpc.group/trpc-go/trpc-agent-go/memory/sqlite"
 	"trpc.group/trpc-go/trpc-agent-go/model"
-	"trpc.group/trpc-go/trpc-agent-go/model/openai"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 	sessionsqlite "trpc.group/trpc-go/trpc-agent-go/session/sqlite"
 
 	"trpc.group/trpc-go/trpc-agent-go/tool"
-	"trpc.group/trpc-go/trpc-agent-go/tool/function"
-	"trpc.group/trpc-go/trpc-agent-go/tool/mcp"
 )
 
 // ============================================================================
@@ -55,23 +50,6 @@ type Usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
-}
-
-// ============================================================================
-// 模型列表
-// ============================================================================
-
-type ModelInfo struct {
-	ID     string `json:"id"`
-	Label  string `json:"label"`
-	Vision bool   `json:"vision"`
-}
-
-// 模型能力（视觉支持等）
-var modelCaps = map[string]bool{
-	"deepseek-v4-flash": false,
-	"deepseek-v4-pro":   false,
-	"MiniMax-M3":        true,
 }
 
 // ============================================================================
@@ -119,27 +97,6 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-// newBackendProvider selects how session workspaces get their execution backend.
-func newBackendProvider(db *sql.DB) sandbox.BackendProvider {
-	if os.Getenv("SANDBOX_MODE") == "e2b" {
-		provider, err := sandbox.NewE2BProvider(db, sandbox.E2BProviderOptions{
-			APIKey:   envOr("E2B_API_KEY", ""),
-			Domain:   envOr("E2B_DOMAIN", ""),
-			Template: envOr("E2B_TEMPLATE", "base"),
-			Timeout:  10 * time.Minute,
-		})
-		if err != nil {
-			log.Fatalf("new E2B backend provider: %v", err)
-		}
-		return provider
-	}
-	provider, err := sandbox.NewLocalProvider("./workspace")
-	if err != nil {
-		log.Fatalf("new local backend provider: %v", err)
-	}
-	return provider
-}
-
 // ============================================================================
 // main：组装一切
 // ============================================================================
@@ -147,29 +104,10 @@ func newBackendProvider(db *sql.DB) sandbox.BackendProvider {
 func main() {
 	ctx := context.Background()
 
-	// ----- 1. Models（预注册多个，请求时按名称切换）-----
-	// 每个模型显式指定 API Key + Base URL，优先读专用环境变量
-	deepseekKey := envOr("DEEPSEEK_API_KEY", "sk-48273bd3d17d486a861b61a06be381e1")
-	deepseekURL := envOr("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
-	minimaxKey := envOr("MINIMAX_API_KEY", "sk-cp-8Bnw6tM8ZV3JZH74o-c2j-UOoYk3ktO_FDFQGAzNn76Qk4ZLX1NNI492sWI0YwIRqf_NC7kyHel8CrJe7k_hZI2sboFaEp_gAEl8WEgoCHsUbwGJoWC1h8o")
-	minimaxURL := envOr("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
-
-	models := map[string]model.Model{
-		// ---- DeepSeek ----
-		"deepseek-v4-flash": openai.New("deepseek-v4-flash",
-			openai.WithAPIKey(deepseekKey),
-			openai.WithBaseURL(deepseekURL),
-		),
-		"deepseek-v4-pro": openai.New("deepseek-v4-pro",
-			openai.WithAPIKey(deepseekKey),
-			openai.WithBaseURL(deepseekURL),
-		),
-		// ---- OpenAI ----
-		"MiniMax-M3": openai.New("MiniMax-M3",
-			openai.WithAPIKey(minimaxKey),
-			openai.WithBaseURL(minimaxURL),
-			openai.WithExtraFields(map[string]any{"reasoning_split": true}),
-		),
+	// ----- 1. Models -----
+	models, err := loadModels()
+	if err != nil {
+		log.Fatalf("load models: %v", err)
 	}
 
 	// ----- 2. Session -----
@@ -183,44 +121,36 @@ func main() {
 	defer memoryService.Close()
 
 	// ----- 4. Tools -----
-	timeTool := function.NewFunctionTool(
-		getCurrentTime,
-		function.WithName("get_current_time"),
-		function.WithDescription("查询指定时区当前的本地时间。不传 timezone 默认用北京时间。"),
-	)
-	tools := append([]tool.Tool{timeTool}, memoryService.Tools()...)
+	tools := loadTools(memoryService.Tools())
 
-	// ----- 5. MCP ToolSets -----
-	githubToken := os.Getenv("GITHUB_TOKEN")
-	if githubToken == "" {
-		log.Fatal("GITHUB_TOKEN is required")
+	// ----- 5. ToolSets -----
+	githubToolSet, err := loadGitHubToolSet(ctx)
+	if err != nil {
+		log.Fatalf("load GitHub tool set: %v", err)
 	}
-	githubToolSet := mcp.NewMCPToolSet(
-		mcp.ConnectionConfig{
-			Transport: "streamable_http",
-			ServerURL: "https://api.githubcopilot.com/mcp/",
-			Timeout:   30 * time.Second,
-			Headers:   map[string]string{"Authorization": "Bearer " + githubToken, "X-MCP-Toolsets": "default"},
-		},
-		mcp.WithName("github"),
-	)
 	defer githubToolSet.Close()
-	githubToolSet.Init(ctx)
 
-	// Sandbox ToolSet — resolves an isolated backend from each Runner invocation.
-	backendProvider := newBackendProvider(memoryDB)
-	sandboxTS := sandbox.NewToolSet(backendProvider)
-	defer sandboxTS.Close()
+	// Sandbox 在 E2B 模式下用自己的 SQLite 连接保存工作区映射。
+	sandboxDB, err := sql.Open("sqlite3", "file:demo.db?_busy_timeout=5000&_journal_mode=WAL")
+	if err != nil {
+		log.Fatalf("open sandbox database: %v", err)
+	}
+	defer sandboxDB.Close()
+
+	sandboxToolSet := newSandboxToolSet(sandboxDB)
+	defer sandboxToolSet.Close()
+
+	toolSets := []tool.ToolSet{githubToolSet, sandboxToolSet}
 
 	// ----- 6. Agent -----
 	llmAgent := llmagent.New(
 		"assistant",
-		llmagent.WithModels(models),
-		llmagent.WithModel(models["MiniMax-M3"]), // 默认模型
+		llmagent.WithModels(models.clients),
+		llmagent.WithModel(models.clients[models.defaultID]),
 		llmagent.WithInstruction(loadSystemPrompt()),
 		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
 		llmagent.WithTools(tools),
-		llmagent.WithToolSets([]tool.ToolSet{githubToolSet, sandboxTS}),
+		llmagent.WithToolSets(toolSets),
 		llmagent.WithPreloadMemory(10),
 		llmagent.WithToolCallRetryPolicy(&tool.RetryPolicy{
 			MaxAttempts: 3, InitialInterval: 200 * time.Millisecond, BackoffFactor: 2.0,
@@ -256,15 +186,11 @@ func main() {
 	mux.HandleFunc("POST /webhook/telegram/{routeKey}", telegramService.HandleWebhook)
 
 	// 原生 SSE handler — POST JSON body → SSE stream
-	mux.HandleFunc("POST /stream", sseHandler(r))
+	mux.HandleFunc("POST /stream", sseHandler(r, models.clients))
 
-	// 模型列表（从 models map 动态生成，单一真理来源）
+	// 模型列表按 models.go 中的登记顺序返回。
 	mux.HandleFunc("GET /models", func(w http.ResponseWriter, _ *http.Request) {
-		list := make([]ModelInfo, 0, len(models))
-		for key, m := range models {
-			list = append(list, ModelInfo{ID: key, Label: m.Info().Name, Vision: modelCaps[key]})
-		}
-		writeJSON(w, list)
+		writeJSON(w, models.infos)
 	})
 
 	// 会话列表
@@ -295,7 +221,7 @@ type StreamInput struct {
 	Images    []ImageInput `json:"images,omitempty"` // 可选：图片列表
 }
 
-func sseHandler(r runner.Runner) http.HandlerFunc {
+func sseHandler(r runner.Runner, availableModels map[string]model.Model) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -326,6 +252,11 @@ func sseHandler(r runner.Runner) http.HandlerFunc {
 			agent.WithStream(true),
 		}
 		if input.Model != "" {
+			if _, ok := availableModels[input.Model]; !ok {
+				writeSSE(w, "error", FrontendEvent{Type: "error", RequestID: requestID, Message: "unknown model: " + input.Model})
+				flusher.Flush()
+				return
+			}
 			runOpts = append(runOpts, agent.WithModelName(input.Model))
 		}
 
