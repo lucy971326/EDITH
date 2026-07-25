@@ -259,6 +259,8 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
         signal: controller.signal,
+        // 切换标签页时保持当前 POST SSE，避免恢复可见后重复发起一次 Agent Run。
+        openWhenHidden: true,
         onmessage(event) {
           const agentEvent = JSON.parse(event.data) as AgentEvent;
           setMessages((current) => applyAgentEvent(current, agentEvent));

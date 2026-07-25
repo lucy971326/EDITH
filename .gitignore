@@ -37,3 +37,10 @@
 .DS_Store
 Thumbs.db
 
+
+# ---- 源码参考目录 ----
+reference/
+
+
+# 试验场地
+test/

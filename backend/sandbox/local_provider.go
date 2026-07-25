@@ -12,14 +12,16 @@ import (
 
 // LocalProvider gives every workspace its own local directory backend.
 type LocalProvider struct {
-	rootDir string
+	rootDir         string
+	systemSkillsDir string
 
 	mu    sync.RWMutex
 	cache map[WorkspaceID]ExecBackend
 }
 
-// NewLocalProvider creates a backend provider rooted at rootDir.
-func NewLocalProvider(rootDir string) (*LocalProvider, error) {
+// NewLocalProvider creates a local workspace provider.
+// systemSkillsDir is the read-only source behind the Agent-visible skills/system path.
+func NewLocalProvider(rootDir, systemSkillsDir string) (*LocalProvider, error) {
 	abs, err := filepath.Abs(filepath.Clean(rootDir))
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace root %q: %w", rootDir, err)
@@ -27,10 +29,21 @@ func NewLocalProvider(rootDir string) (*LocalProvider, error) {
 	if err := os.MkdirAll(abs, defaultCreateDirMode); err != nil {
 		return nil, fmt.Errorf("create workspace root %q: %w", abs, err)
 	}
+	var skillsAbs string
+	if systemSkillsDir != "" {
+		skillsAbs, err = filepath.Abs(filepath.Clean(systemSkillsDir))
+		if err != nil {
+			return nil, fmt.Errorf("resolve system skills directory %q: %w", systemSkillsDir, err)
+		}
+		if info, statErr := os.Stat(skillsAbs); statErr != nil || !info.IsDir() {
+			return nil, fmt.Errorf("system skills directory %q is not available", skillsAbs)
+		}
+	}
 
 	return &LocalProvider{
-		rootDir: abs,
-		cache:   make(map[WorkspaceID]ExecBackend),
+		rootDir:         abs,
+		systemSkillsDir: skillsAbs,
+		cache:           make(map[WorkspaceID]ExecBackend),
 	}, nil
 }
 
@@ -58,7 +71,7 @@ func (p *LocalProvider) GetBackend(_ context.Context, id WorkspaceID) (ExecBacke
 	if err := os.MkdirAll(dir, defaultCreateDirMode); err != nil {
 		return nil, fmt.Errorf("create local workspace: %w", err)
 	}
-	backend, err := NewLocalBackend(dir)
+	backend, err := NewLocalBackend(dir, p.systemSkillsDir)
 	if err != nil {
 		return nil, err
 	}

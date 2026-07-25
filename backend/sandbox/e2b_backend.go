@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path"
+	"strings"
 
 	"github.com/eric642/e2b-go-sdk"
 )
 
-// E2B base template 中，/home/user 是我们暴露给用户的虚拟工作区根目录。
+// E2B base template 中，/home/user 是 E2B 的真实工作目录。
+// Agent 只传相对路径，真实根目录只在这个 Adapter 内部使用。
 const e2bWorkspaceDir = "/home/user"
 
 // ============================================================================
@@ -24,37 +27,87 @@ type E2BBackend struct {
 	sandbox *e2b.Sandbox
 }
 
+func (b *E2BBackend) resolvePath(input string) (string, error) {
+	relativePath, err := cleanRelativePath(input)
+	if err != nil {
+		return "", err
+	}
+	return path.Join(e2bWorkspaceDir, relativePath), nil
+}
+
+func relativeE2BPath(realPath string) (string, error) {
+	cleaned := path.Clean(realPath)
+	if cleaned == e2bWorkspaceDir {
+		return ".", nil
+	}
+	prefix := e2bWorkspaceDir + "/"
+	if !strings.HasPrefix(cleaned, prefix) {
+		return "", fmt.Errorf("E2B returned a path outside the workspace: %s", realPath)
+	}
+	return strings.TrimPrefix(cleaned, prefix), nil
+}
+
+func rejectSystemSkillWrite(relativePath string) error {
+	if isSystemSkillPath(relativePath) {
+		return fmt.Errorf("system skills are read-only: %s", relativePath)
+	}
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // File operations
 // ---------------------------------------------------------------------------
 
 func (b *E2BBackend) ReadFile(ctx context.Context, path string) ([]byte, error) {
-	return b.sandbox.Files.Read(ctx, path, e2b.FsOptions{})
+	resolved, err := b.resolvePath(path)
+	if err != nil {
+		return nil, err
+	}
+	return b.sandbox.Files.Read(ctx, resolved, e2b.FsOptions{})
 }
 
 func (b *E2BBackend) DownloadFile(ctx context.Context, path string) ([]byte, error) {
-	return b.sandbox.Files.Read(ctx, path, e2b.FsOptions{})
+	return b.ReadFile(ctx, path)
 }
 
 func (b *E2BBackend) WriteFile(ctx context.Context, path string, data []byte) error {
-	_, err := b.sandbox.Files.Write(ctx, path, bytes.NewReader(data), e2b.FsOptions{})
+	relativePath, err := cleanRelativePath(path)
+	if err != nil {
+		return err
+	}
+	if err := rejectSystemSkillWrite(relativePath); err != nil {
+		return err
+	}
+	resolved, err := b.resolvePath(relativePath)
+	if err != nil {
+		return err
+	}
+	_, err = b.sandbox.Files.Write(ctx, resolved, bytes.NewReader(data), e2b.FsOptions{})
 	return err
 }
 
 func (b *E2BBackend) ListDir(ctx context.Context, path string, depth int) ([]FileEntry, error) {
-	entries, err := b.sandbox.Files.List(ctx, path, e2b.FsOptions{Depth: depth})
+	resolved, err := b.resolvePath(path)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := b.sandbox.Files.List(ctx, resolved, e2b.FsOptions{Depth: depth})
 	if err != nil {
 		return nil, err
 	}
 	out := make([]FileEntry, 0, len(entries))
 	for _, e := range entries {
+		relativePath, pathErr := relativeE2BPath(e.Path)
+		if pathErr != nil {
+			return nil, pathErr
+		}
 		entryType := "file"
 		if e.Type == e2b.EntryTypeDirectory {
 			entryType = "directory"
 		}
 		out = append(out, FileEntry{
 			Name: e.Name,
-			Path: e.Path,
+			Path: relativePath,
 			Type: entryType,
 			Size: e.Size,
 		})
@@ -63,19 +116,67 @@ func (b *E2BBackend) ListDir(ctx context.Context, path string, depth int) ([]Fil
 }
 
 func (b *E2BBackend) MakeDir(ctx context.Context, path string) error {
-	return b.sandbox.Files.MakeDir(ctx, path, e2b.FsOptions{})
+	relativePath, err := cleanRelativePath(path)
+	if err != nil {
+		return err
+	}
+	if err := rejectSystemSkillWrite(relativePath); err != nil {
+		return err
+	}
+	resolved, err := b.resolvePath(relativePath)
+	if err != nil {
+		return err
+	}
+	return b.sandbox.Files.MakeDir(ctx, resolved, e2b.FsOptions{})
 }
 
 func (b *E2BBackend) Remove(ctx context.Context, path string) error {
-	return b.sandbox.Files.Remove(ctx, path, e2b.FsOptions{})
+	relativePath, err := cleanRelativePath(path)
+	if err != nil {
+		return err
+	}
+	if err := rejectSystemSkillWrite(relativePath); err != nil {
+		return err
+	}
+	resolved, err := b.resolvePath(relativePath)
+	if err != nil {
+		return err
+	}
+	return b.sandbox.Files.Remove(ctx, resolved, e2b.FsOptions{})
 }
 
 func (b *E2BBackend) Exists(ctx context.Context, path string) (bool, error) {
-	return b.sandbox.Files.Exists(ctx, path, e2b.FsOptions{})
+	resolved, err := b.resolvePath(path)
+	if err != nil {
+		return false, err
+	}
+	return b.sandbox.Files.Exists(ctx, resolved, e2b.FsOptions{})
 }
 
 func (b *E2BBackend) Move(ctx context.Context, from, to string) error {
-	return b.sandbox.Files.Move(ctx, from, to, e2b.FsOptions{})
+	relativeFrom, err := cleanRelativePath(from)
+	if err != nil {
+		return err
+	}
+	relativeTo, err := cleanRelativePath(to)
+	if err != nil {
+		return err
+	}
+	if err := rejectSystemSkillWrite(relativeFrom); err != nil {
+		return err
+	}
+	if err := rejectSystemSkillWrite(relativeTo); err != nil {
+		return err
+	}
+	resolvedFrom, err := b.resolvePath(relativeFrom)
+	if err != nil {
+		return err
+	}
+	resolvedTo, err := b.resolvePath(relativeTo)
+	if err != nil {
+		return err
+	}
+	return b.sandbox.Files.Move(ctx, resolvedFrom, resolvedTo, e2b.FsOptions{})
 }
 
 // ---------------------------------------------------------------------------

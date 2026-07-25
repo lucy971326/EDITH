@@ -14,6 +14,7 @@ import (
 
 	"demo/channel"
 	"demo/gateway"
+	"demo/skills"
 
 	"github.com/google/uuid"
 	_ "github.com/joho/godotenv/autoload"
@@ -110,6 +111,13 @@ func main() {
 		log.Fatalf("load models: %v", err)
 	}
 
+	// 系统 Skills 是 EDITH 的固定规则：启动时读一次，直接进入全局 Prompt。
+	systemSkillsOverview, err := skills.LoadSystemOverview("skills/system")
+	if err != nil {
+		log.Fatalf("load system skills: %v", err)
+	}
+	log.Printf("system skills loaded")
+
 	// ----- 2. Session -----
 	sessionDB, _ := sql.Open("sqlite3", "file:demo.db?_busy_timeout=5000&_journal_mode=WAL")
 	sessionService, _ := sessionsqlite.NewService(sessionDB, sessionsqlite.WithSessionEventLimit(500))
@@ -150,7 +158,7 @@ func main() {
 		"assistant",
 		llmagent.WithModels(models.clients),
 		llmagent.WithModel(models.clients[models.defaultID]),
-		llmagent.WithInstruction(loadSystemPrompt()),
+		llmagent.WithGlobalInstruction(loadSystemPrompt()+"\n\n"+systemSkillsOverview),
 		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
 		llmagent.WithTools(tools),
 		llmagent.WithToolSets(toolSets),

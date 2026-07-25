@@ -2,7 +2,37 @@
 // Same tool interface, interchangeable backends: LocalBackend (dev) or E2BBackend (production).
 package sandbox
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"path"
+	"strings"
+)
+
+// SystemSkillsPath 是 Agent 在工作目录中读取系统 Skills 的固定相对路径。
+const SystemSkillsPath = "skills/system"
+
+// cleanRelativePath 把 Agent 传入的路径限制在工作目录内。
+// Local 与 E2B 都只接受这一层的相对路径，不向 Agent 暴露真实文件系统路径。
+func cleanRelativePath(raw string) (string, error) {
+	p := strings.ReplaceAll(strings.TrimSpace(raw), `\`, "/")
+	if p == "" || p == "." {
+		return ".", nil
+	}
+	if strings.HasPrefix(p, "/") {
+		return "", fmt.Errorf("absolute paths are not allowed: %s", raw)
+	}
+	for _, part := range strings.Split(p, "/") {
+		if part == ".." {
+			return "", fmt.Errorf("'..' is not allowed: %s", raw)
+		}
+	}
+	return path.Clean(p), nil
+}
+
+func isSystemSkillPath(relativePath string) bool {
+	return relativePath == SystemSkillsPath || strings.HasPrefix(relativePath, SystemSkillsPath+"/")
+}
 
 // FileEntry describes a filesystem entry.
 type FileEntry struct {

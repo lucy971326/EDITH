@@ -27,9 +27,10 @@ func (s *sandboxToolSet) runCommandTool() tool.CallableTool {
 		s.runCommand,
 		function.WithName("run_command"),
 		function.WithDescription(
-			"Execute a program in the sandbox. "+
-				"Use 'command' for the program name (e.g. 'whoami', 'cat', 'ls') "+
-				"and 'args' for its arguments (e.g. ['/etc/os-release']). "+
+			"Execute a program from the workspace root. "+
+				"Use relative paths for workspace files. "+
+				"Use 'command' for the program name (e.g. 'python3', 'cat', 'ls') "+
+				"and 'args' for its arguments (e.g. ['--version']). "+
 				"For complex operations, 'args' can include '-c' and a shell expression "+
 				"when 'command' is '/bin/sh' or '/bin/bash'.",
 		),

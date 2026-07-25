@@ -18,6 +18,7 @@ EDITH 致敬《蜘蛛侠：英雄远征》中的 AI 系统 **E.D.I.T.H.**：
 - 普通文件上传到当前会话的 Sandbox；Agent 可处理它们。
 - 工作区文件树：查看 Agent 生成的文件并下载。
 - Local / E2B 两种 Sandbox 后端。
+- 系统 Skills：公共、只读的 Skills 随 E2B Template 预装；Agent 按需读取完整说明后执行。
 - 用户在页面填写自己的 Telegram Bot Token；后端注册 Webhook，消息进入该用户的 Agent 空间。
 - GitHub MCP 工具集。
 
