@@ -36,6 +36,27 @@ func TestLocalProviderMountsSystemSkillsReadOnly(t *testing.T) {
 	}
 }
 
+func TestLocalBackendListsVirtualSkillsDirectory(t *testing.T) {
+	provider, err := NewLocalProvider(t.TempDir(), t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalProvider() error = %v", err)
+	}
+	t.Cleanup(func() { _ = provider.Close() })
+
+	backend, err := provider.GetBackend(context.Background(), WorkspaceID{UserID: "alice", SessionID: "s1"})
+	if err != nil {
+		t.Fatalf("GetBackend() error = %v", err)
+	}
+	entries, err := backend.ListDir(context.Background(), ".", 1)
+	if err != nil || len(entries) != 1 || entries[0].Path != "skills" {
+		t.Fatalf("ListDir(root) = %#v, %v", entries, err)
+	}
+	entries, err = backend.ListDir(context.Background(), "skills", 1)
+	if err != nil || len(entries) != 2 || entries[0].Path != "skills/system" || entries[1].Path != "skills/user" {
+		t.Fatalf("ListDir(skills) = %#v, %v", entries, err)
+	}
+}
+
 func TestCleanRelativePathRejectsPhysicalPaths(t *testing.T) {
 	for _, input := range []string{"/home/user/secret", "../secret", "a/../secret"} {
 		if _, err := cleanRelativePath(input); err == nil {

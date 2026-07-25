@@ -25,5 +25,6 @@ func (id WorkspaceID) validate() error {
 // It may reuse an existing backend or lazily create one.
 type BackendProvider interface {
 	GetBackend(ctx context.Context, id WorkspaceID) (ExecBackend, error)
+	LoadUserSkillsOverview(ctx context.Context, userID string) (string, error)
 	Close() error
 }

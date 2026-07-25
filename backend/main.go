@@ -14,6 +14,7 @@ import (
 
 	"demo/channel"
 	"demo/gateway"
+	"demo/sandbox"
 	"demo/skills"
 
 	"github.com/google/uuid"
@@ -111,12 +112,13 @@ func main() {
 		log.Fatalf("load models: %v", err)
 	}
 
-	// 系统 Skills 是 EDITH 的固定规则：启动时读一次，直接进入全局 Prompt。
+	// 系统 Skills 是 EDITH 的固定规则：启动时读一次，作为所有用户 Prompt 的基础。
 	systemSkillsOverview, err := skills.LoadSystemOverview("skills/system")
 	if err != nil {
 		log.Fatalf("load system skills: %v", err)
 	}
 	log.Printf("system skills loaded")
+	basePrompt := loadSystemPrompt() + "\n\n" + systemSkillsOverview
 
 	// ----- 2. Session -----
 	sessionDB, _ := sql.Open("sqlite3", "file:demo.db?_busy_timeout=5000&_journal_mode=WAL")
@@ -158,7 +160,7 @@ func main() {
 		"assistant",
 		llmagent.WithModels(models.clients),
 		llmagent.WithModel(models.clients[models.defaultID]),
-		llmagent.WithGlobalInstruction(loadSystemPrompt()+"\n\n"+systemSkillsOverview),
+		llmagent.WithGlobalInstruction(basePrompt),
 		llmagent.WithGenerationConfig(model.GenerationConfig{Stream: true}),
 		llmagent.WithTools(tools),
 		llmagent.WithToolSets(toolSets),
@@ -178,7 +180,7 @@ func main() {
 	defer r.Close()
 
 	// ----- 8. Gateway + Telegram -----
-	gw := gateway.NewClient(r)
+	gw := gateway.NewClient(r, basePrompt, backendProvider)
 
 	// TelegramService 管理用户 Bot，并将 Webhook 消息经 Gateway 交给 Agent 后回复 Telegram。
 	telegramService, err := channel.NewTelegramService(
@@ -197,7 +199,7 @@ func main() {
 	mux.HandleFunc("POST /webhook/telegram/{routeKey}", telegramService.HandleWebhook)
 
 	// 原生 SSE handler — POST JSON body → SSE stream
-	mux.HandleFunc("POST /stream", sseHandler(r, models.clients))
+	mux.HandleFunc("POST /stream", sseHandler(r, models.clients, basePrompt, backendProvider))
 
 	// 用户文件上传到当前会话的 Local / E2B 工作区。
 	mux.HandleFunc("POST /uploads", uploadHandler(backendProvider))
@@ -238,7 +240,12 @@ type StreamInput struct {
 	Images    []ImageInput `json:"images,omitempty"` // 可选：图片列表
 }
 
-func sseHandler(r runner.Runner, availableModels map[string]model.Model) http.HandlerFunc {
+func sseHandler(
+	r runner.Runner,
+	availableModels map[string]model.Model,
+	basePrompt string,
+	provider sandbox.BackendProvider,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -267,6 +274,19 @@ func sseHandler(r runner.Runner, availableModels map[string]model.Model) http.Ha
 		runOpts := []agent.RunOption{
 			agent.WithRequestID(requestID),
 			agent.WithStream(true),
+		}
+		if provider != nil {
+			overview, err := provider.LoadUserSkillsOverview(req.Context(), input.UserID)
+			if err != nil {
+				writeSSE(w, "error", FrontendEvent{Type: "error", RequestID: requestID, Message: "load user skills: " + err.Error()})
+				flusher.Flush()
+				return
+			}
+			if overview != "" {
+				runOpts = append(runOpts, agent.WithGlobalInstruction(
+					basePrompt+"\n\n## 可用用户 Skills\n\n"+overview,
+				))
+			}
 		}
 		if input.Model != "" {
 			if _, ok := availableModels[input.Model]; !ok {
