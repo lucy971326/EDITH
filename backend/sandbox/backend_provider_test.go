@@ -11,7 +11,7 @@ import (
 func TestLocalProviderReusesAndIsolatesWorkspaces(t *testing.T) {
 	t.Parallel()
 
-	provider, err := NewLocalProvider(t.TempDir())
+	provider, err := NewLocalProvider(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("NewLocalProvider() error = %v", err)
 	}
@@ -63,7 +63,7 @@ func TestLocalProviderReusesAndIsolatesWorkspaces(t *testing.T) {
 func TestToolSetResolvesWorkspaceFromInvocation(t *testing.T) {
 	t.Parallel()
 
-	provider, err := NewLocalProvider(t.TempDir())
+	provider, err := NewLocalProvider(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("NewLocalProvider() error = %v", err)
 	}
@@ -94,7 +94,7 @@ func TestToolSetResolvesWorkspaceFromInvocation(t *testing.T) {
 func TestToolSetRejectsMissingInvocation(t *testing.T) {
 	t.Parallel()
 
-	provider, err := NewLocalProvider(t.TempDir())
+	provider, err := NewLocalProvider(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("NewLocalProvider() error = %v", err)
 	}

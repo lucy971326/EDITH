@@ -62,7 +62,7 @@ func newBackendProvider(db *sql.DB) sandbox.BackendProvider {
 		return provider
 	}
 
-	provider, err := sandbox.NewLocalProvider("./workspace")
+	provider, err := sandbox.NewLocalProvider("./workspace", "./skills/system")
 	if err != nil {
 		log.Fatalf("new local backend provider: %v", err)
 	}

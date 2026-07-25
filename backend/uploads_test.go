@@ -13,7 +13,7 @@ import (
 )
 
 func TestUploadHandlerWritesToSessionWorkspace(t *testing.T) {
-	provider, err := sandbox.NewLocalProvider(t.TempDir())
+	provider, err := sandbox.NewLocalProvider(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("NewLocalProvider() error = %v", err)
 	}

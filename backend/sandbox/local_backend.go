@@ -20,8 +20,9 @@ const (
 	defaultMaxFileSize    = 1024 * 1024       // 1 MB
 )
 
-// NewLocalBackend creates a LocalBackend rooted at baseDir.
-func NewLocalBackend(baseDir string) (*LocalBackend, error) {
+// NewLocalBackend creates a LocalBackend for one workspace.
+// systemSkillsDir is mounted read-only at the Agent-visible skills/system path.
+func NewLocalBackend(baseDir, systemSkillsDir string) (*LocalBackend, error) {
 	abs, err := filepath.Abs(filepath.Clean(baseDir))
 	if err != nil {
 		return nil, fmt.Errorf("resolve base directory '%s': %w", baseDir, err)
@@ -33,22 +34,30 @@ func NewLocalBackend(baseDir string) (*LocalBackend, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("base directory '%s' is not a directory", abs)
 	}
-	return &LocalBackend{baseDir: abs}, nil
+	return &LocalBackend{baseDir: abs, systemSkillsDir: systemSkillsDir}, nil
 }
 
 type LocalBackend struct {
-	baseDir string
+	baseDir         string
+	systemSkillsDir string
 }
 
 // resolvePath validates a path to prevent directory traversal attacks,
 // and resolves a relative path within the base directory.
 // Mirrors the filetool implementation.
-func (b *LocalBackend) resolvePath(relativePath string) (string, error) {
-	reqPath := strings.TrimSpace(relativePath)
-	if filepath.IsAbs(reqPath) || strings.Contains(reqPath, "..") {
-		return "", fmt.Errorf("invalid path - absolute paths and '..' are not allowed: %s", relativePath)
+func (b *LocalBackend) resolvePath(input string) (string, bool, error) {
+	relativePath, err := cleanRelativePath(input)
+	if err != nil {
+		return "", false, err
 	}
-	return filepath.Join(b.baseDir, reqPath), nil
+	if isSystemSkillPath(relativePath) {
+		if b.systemSkillsDir == "" {
+			return "", true, fmt.Errorf("system skills are unavailable")
+		}
+		suffix := strings.TrimPrefix(relativePath, SystemSkillsPath)
+		return filepath.Join(b.systemSkillsDir, filepath.FromSlash(suffix)), true, nil
+	}
+	return filepath.Join(b.baseDir, filepath.FromSlash(relativePath)), false, nil
 }
 
 func (b *LocalBackend) BaseDir() string { return b.baseDir }
@@ -58,7 +67,7 @@ func (b *LocalBackend) BaseDir() string { return b.baseDir }
 // ---------------------------------------------------------------------------
 
 func (b *LocalBackend) ReadFile(ctx context.Context, path string) ([]byte, error) {
-	fullPath, err := b.resolvePath(path)
+	fullPath, _, err := b.resolvePath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +92,7 @@ func (b *LocalBackend) ReadFile(ctx context.Context, path string) ([]byte, error
 }
 
 func (b *LocalBackend) DownloadFile(ctx context.Context, path string) ([]byte, error) {
-	fullPath, err := b.resolvePath(path)
+	fullPath, _, err := b.resolvePath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -95,9 +104,12 @@ func (b *LocalBackend) DownloadFile(ctx context.Context, path string) ([]byte, e
 }
 
 func (b *LocalBackend) WriteFile(ctx context.Context, path string, data []byte) error {
-	fullPath, err := b.resolvePath(path)
+	fullPath, systemPath, err := b.resolvePath(path)
 	if err != nil {
 		return err
+	}
+	if systemPath {
+		return fmt.Errorf("system skills are read-only: %s", path)
 	}
 	parentDir := filepath.Dir(fullPath)
 	if err := os.MkdirAll(parentDir, defaultCreateDirMode); err != nil {
@@ -110,7 +122,7 @@ func (b *LocalBackend) WriteFile(ctx context.Context, path string, data []byte) 
 }
 
 func (b *LocalBackend) ListDir(ctx context.Context, path string, depth int) ([]FileEntry, error) {
-	fullPath, err := b.resolvePath(path)
+	fullPath, _, err := b.resolvePath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -165,23 +177,29 @@ func (b *LocalBackend) listRecursive(root string, relativePrefix string, depth i
 }
 
 func (b *LocalBackend) MakeDir(ctx context.Context, path string) error {
-	fullPath, err := b.resolvePath(path)
+	fullPath, systemPath, err := b.resolvePath(path)
 	if err != nil {
 		return err
+	}
+	if systemPath {
+		return fmt.Errorf("system skills are read-only: %s", path)
 	}
 	return os.MkdirAll(fullPath, defaultCreateDirMode)
 }
 
 func (b *LocalBackend) Remove(ctx context.Context, path string) error {
-	fullPath, err := b.resolvePath(path)
+	fullPath, systemPath, err := b.resolvePath(path)
 	if err != nil {
 		return err
+	}
+	if systemPath {
+		return fmt.Errorf("system skills are read-only: %s", path)
 	}
 	return os.RemoveAll(fullPath)
 }
 
 func (b *LocalBackend) Exists(ctx context.Context, path string) (bool, error) {
-	fullPath, err := b.resolvePath(path)
+	fullPath, _, err := b.resolvePath(path)
 	if err != nil {
 		return false, err
 	}
@@ -193,13 +211,16 @@ func (b *LocalBackend) Exists(ctx context.Context, path string) (bool, error) {
 }
 
 func (b *LocalBackend) Move(ctx context.Context, from, to string) error {
-	fromPath, err := b.resolvePath(from)
+	fromPath, fromSystemPath, err := b.resolvePath(from)
 	if err != nil {
 		return err
 	}
-	toPath, err := b.resolvePath(to)
+	toPath, toSystemPath, err := b.resolvePath(to)
 	if err != nil {
 		return err
+	}
+	if fromSystemPath || toSystemPath {
+		return fmt.Errorf("system skills are read-only")
 	}
 	return os.Rename(fromPath, toPath)
 }
