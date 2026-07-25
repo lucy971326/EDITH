@@ -1,37 +1,39 @@
 # EDITH
 
-> 一个面向多用户的服务端 Agent MVP：Web 登录、流式对话、会话隔离、Sandbox 工作区，以及用户自带 Telegram Bot 接入。
+> [中文](README.zh-CN.md) | **English**
+>
+> A multi-tenant, server-side Agent platform (MVP): web login, streaming chat, session isolation, sandboxed workspaces, and bring-your-own Telegram Bot integration.
 
-## 名字来源
+## The Name
 
-EDITH 致敬《蜘蛛侠：英雄远征》中的 AI 系统 **E.D.I.T.H.**：
+EDITH is named after the AI system from *Spider-Man: Far From Home*:
 
-> **Even Dead, I’m The Hero.**
+> **Even Dead, I'm The Hero.**
 
-这个项目借鉴的不是电影设定，而是它的核心意象：AI 不只负责聊天，也能理解任务、调用工具，并在受控工作区中真正完成事情。
+What EDITH borrows isn't the film's lore — it's the core idea: **AI that doesn't just chat — it understands tasks, calls tools, and completes real work inside a controlled workspace.**
 
-## 当前能力
+## What It Does
 
-- Clerk 登录后使用 EDITH；浏览器提交的 `user_id` 不被信任，由 Next.js BFF 从登录态注入。
-- Web 流式对话：模型选择、思考过程、工具调用、历史会话加载。
-- 图片直接作为视觉输入发送给支持视觉的模型。
-- 普通文件上传到当前会话的 Sandbox；Agent 可处理它们。
-- 工作区文件树：查看 Agent 生成的文件并下载。
-- Local / E2B 两种 Sandbox 后端。
-- 系统 Skills：公共、只读的 Skills 随 E2B Template 预装；Agent 按需读取完整说明后执行。
-- 用户在页面填写自己的 Telegram Bot Token；后端注册 Webhook，消息进入该用户的 Agent 空间。
-- GitHub MCP 工具集。
+- **Clerk-authenticated access.** Browser-supplied `user_id` is never trusted — the Next.js BFF injects it from the Clerk session.
+- **Streaming chat on the web.** Model selection, reasoning traces, tool calls, and history replay.
+- **Vision input.** Images go straight to vision-capable models as visual input.
+- **File uploads land in the sandbox.** Regular files upload into the current session's sandbox, where the Agent can read and process them.
+- **Workspace browser.** Inspect files the Agent produced and download them.
+- **Two sandbox backends.** Local filesystem or E2B cloud sandbox, switched by env var.
+- **System Skills.** Public, read-only Skills ship preinstalled in the E2B template; the Agent reads the full instruction on demand before executing.
+- **Bring-your-own Telegram Bot.** Users paste their own Bot Token on the page; the backend registers a Webhook and routes messages into that user's Agent session.
+- **GitHub MCP toolset** wired in out of the box.
 
-![EDITH 主界面](asset/主界面.png)
+![EDITH main UI](asset/主界面.png)
 
-## 架构
+## Architecture
 
 ```text
 Web Browser
-    │ Clerk 登录
+    │ Clerk login
     ▼
 Next.js BFF
-    │ 从登录态注入可信 user_id
+    │ injects trusted user_id from the session
     ▼
 Go Backend
     │ Gateway → Runner.Run(APPName, user_id, session_id)
@@ -40,7 +42,7 @@ Agent + Tools + Local / E2B Sandbox
 ```
 
 ```text
-用户自己的 Telegram Bot
+User's own Telegram Bot
     │ Webhook: /webhook/telegram/{routeKey}
     ▼
 TelegramService
@@ -48,60 +50,60 @@ TelegramService
     ▼
 Gateway → Runner → Agent
     │
-    └── 使用同一个 Bot Client 回复消息
+    └── replies via the same Bot client
 ```
 
-核心隔离边界：
+The isolation boundary:
 
 ```text
 APPName + user_id + session_id
 ```
 
-## 目录
+## Repository Layout
 
 ```text
 .
-├── backend/      Go 后端：Agent、Gateway、Sandbox、Telegram、HTTP API
-├── web/          Next.js：Clerk、聊天页、BFF、SSE
-├── docs/         EDITH 架构设计与学习笔记
-├── .claude/      项目级 Agent / Skill 配置
-└── .codex/       项目级 Agent / Skill 配置
+├── backend/      Go backend: Agent, Gateway, Sandbox, Telegram, HTTP API
+├── web/          Next.js: Clerk, chat UI, BFF, SSE
+├── docs/         EDITH architecture & learning notes
+├── .claude/      project-level Agent / Skill config
+└── .codex/      project-level Agent / Skill config
 ```
 
-## 本地启动
+## Local Setup
 
-### 1. 准备配置
+### 1. Configure environment
 
-在两个目录中分别复制环境变量模板：
+Copy the env templates in each directory:
 
 ```powershell
 Copy-Item backend/.env.example backend/.env
 Copy-Item web/.env.example web/.env
 ```
 
-然后填写：
+Then fill in:
 
-- `backend/.env`：DeepSeek、MiniMax、GitHub Token；按需配置 E2B 与 Telegram Webhook。
-- `web/.env`：Clerk Publishable Key 与 Secret Key。
+- `backend/.env` — DeepSeek, MiniMax, GitHub Token; configure E2B and the Telegram Webhook URL if you need them.
+- `web/.env` — Clerk publishable key and secret key.
 
-本地 Sandbox 默认可用：
+Local Sandbox works out of the box:
 
 ```dotenv
 SANDBOX_MODE=local
 ```
 
-### 2. 启动后端
+### 2. Start the backend
 
 ```powershell
 cd backend
 go run .
 ```
 
-默认地址：`http://127.0.0.1:8080`
+Default address: `http://127.0.0.1:8080`
 
-### 3. 启动前端
+### 3. Start the frontend
 
-新开一个终端：
+Open a new terminal:
 
 ```powershell
 cd web
@@ -109,59 +111,59 @@ npm install
 npm run dev
 ```
 
-打开：`http://localhost:3000`
+Then visit: `http://localhost:3000`
 
-## Telegram 接入
+## Telegram Integration
 
-1. 在 Telegram 中通过 BotFather 创建 Bot，取得 Bot Token。
-2. 让后端可被公网 HTTPS 访问，例如使用 ngrok。
-3. 在 `backend/.env` 配置：
+1. Create a Bot via BotFather in Telegram and grab the Bot Token.
+2. Expose the backend over public HTTPS (e.g. via ngrok).
+3. Configure `backend/.env`:
 
 ```dotenv
 TELEGRAM_WEBHOOK_BASE_URL=https://your-public-domain
 ```
 
-4. 登录 EDITH，点击右上角 **Telegram**，填入自己的 Bot Token。
+4. Log in to EDITH, click **Telegram** in the top-right, and paste your Bot Token.
 
-后端会验证 Token、生成内部 `routeKey` 并向 Telegram 注册 Webhook。前端不需要知道 `routeKey`。
+The backend validates the token, generates an internal `routeKey`, and registers the Webhook with Telegram. The frontend never sees the `routeKey`.
 
-若本地无法直接访问 Telegram API，可配置代理，记得代理端口要和clash之类的软件上的端口号一致：
+If your machine can't reach Telegram's API directly, configure a proxy. **The proxy port must match your Clash (or similar) port**:
 
 ```dotenv
 TELEGRAM_PROXY=http://127.0.0.1:7897
 ```
 
-![模型选择与 Telegram 配置](asset/模型与Tele配置.png)
+![Model picker and Telegram configuration](asset/模型与Tele配置.png)
 
-## 开发检查
+## Development Checks
 
 ```powershell
-# 需要 GNU Make；Windows 可使用 Git Bash、MSYS2 或 Scoop 安装 make。
+# Requires GNU Make. On Windows, install via Git Bash, MSYS2, or Scoop.
 make check
 make build
 ```
 
-常用命令：
+Common commands:
 
 ```text
-make backend-run    启动 Go 后端
-make web-dev        启动 Next.js 开发服务
-make check          后端测试 + 前端 TypeScript 检查
-make build          构建前后端
+make backend-run    start the Go backend
+make web-dev        start the Next.js development server
+make check          run backend tests + frontend TypeScript checks
+make build          build backend and web
 ```
 
-## 当前 MVP 边界
+## Known Limitations
 
-- Telegram Bot 配置目前仅保存在后端内存中，重启后需要重新填写 Token。
-- 当前不校验 Telegram 消息发送者；收到私聊消息后，会进入该 Bot 所属用户的 Agent 空间。
-- E2B 需要自行填写 API Key；本地开发默认使用 Local Sandbox。
-- `.env`、私钥、运行时工作区和构建产物不应提交到 Git。
+- **Telegram Bot configuration is in-memory only.** You'll need to re-enter the Token after every backend restart.
+- **Telegram sender verification is not implemented yet.** Anyone who messages your bot lands in your Agent session — see the security note in `docs/IM接入设计.md` before exposing this publicly.
+- **E2B requires your own API key.** Local development defaults to Local Sandbox.
+- **Secrets, runtime workspaces, and build artifacts must not be committed.** Keep `.env`, keys, and build outputs out of Git.
 
-## 文档
+## Documentation
 
-- [IM 接入设计](docs/IM接入设计.md)
-- [多用户改造计划](docs/多用户改造计划.md)
-- [tRPC-Agent-Go 学习笔记](docs/learn/trpc-agent-go/01-核心心智模型.md)
+- [IM integration design](docs/IM接入设计.md) *(中文)*
+- [Multi-tenant migration plan](docs/多用户改造计划.md) *(中文)*
+- [tRPC-Agent-Go learning notes](docs/learn/trpc-agent-go/01-核心心智模型.md) *(中文)*
 
 ## License
 
