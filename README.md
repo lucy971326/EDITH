@@ -21,6 +21,7 @@ What EDITH borrows isn't the film's lore — it's the core idea: **AI that doesn
 - **Workspace browser.** Inspect files the Agent produced and download them.
 - **Two sandbox backends.** Local filesystem or E2B cloud sandbox, switched by env var.
 - **System Skills.** Public, read-only Skills ship preinstalled in the E2B template; the Agent reads the full instruction on demand before executing.
+- **User Skills.** EDITH can create private, persistent Skills for each user; they remain available across that user's sessions in both Local and E2B modes.
 - **Bring-your-own Telegram Bot.** Users paste their own Bot Token on the page; the backend registers a Webhook and routes messages into that user's Agent session.
 - **GitHub MCP toolset** wired in out of the box.
 

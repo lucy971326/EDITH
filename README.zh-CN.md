@@ -21,6 +21,7 @@ EDITH 致敬《蜘蛛侠：英雄远征》中的 AI 系统 **E.D.I.T.H.**：
 - 工作区文件树：查看 Agent 生成的文件并下载。
 - Local / E2B 两种 Sandbox 后端。
 - 系统 Skills：公共、只读的 Skills 随 E2B Template 预装；Agent 按需读取完整说明后执行。
+- 用户级 Skills：EDITH 可为每位用户创建私有、持久保存的 Skills；在 Local 与 E2B 模式下均可跨会话使用。
 - 用户在页面填写自己的 Telegram Bot Token；后端注册 Webhook，消息进入该用户的 Agent 空间。
 - GitHub MCP 工具集。
 
