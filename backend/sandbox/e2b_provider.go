@@ -27,6 +27,9 @@ func NewE2BProvider(db *sql.DB, opts E2BProviderOptions) (*E2BProvider, error) {
 	)`); err != nil {
 		return nil, fmt.Errorf("create sandbox_workspaces table: %w", err)
 	}
+	if err := initUserSkillVolumesTable(db); err != nil {
+		return nil, err
+	}
 
 	cfg := e2b.Config{
 		APIKey: opts.APIKey,
@@ -74,6 +77,8 @@ type E2BProvider struct {
 
 	mu    sync.RWMutex
 	cache map[WorkspaceID]ExecBackend
+
+	userSkillsMu sync.Mutex // 只保护同一时刻首次创建用户 Volume 的事务
 }
 
 // GetBackend returns the backend for a workspace, creating one if needed.
@@ -124,9 +129,20 @@ func (p *E2BProvider) GetBackend(ctx context.Context, id WorkspaceID) (ExecBacke
 	}
 
 	// No existing sandbox — create a new one.
+	userVolume, err := p.ensureUserSkillVolume(ctx, id.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("ensure user skill volume for %s: %w", id.UserID, err)
+	}
+
 	sbx, createErr := p.client.Create(ctx, e2b.CreateOptions{
 		Template: p.opts.template(),
 		Timeout:  p.opts.timeout(),
+		VolumeMounts: []e2b.VolumeMount{
+			{
+				Name: userVolume.Name,
+				Path: "/home/user/skills/user",
+			},
+		},
 		Lifecycle: &e2b.LifecycleOptions{
 			OnTimeout:  "pause",
 			AutoResume: true,

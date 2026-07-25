@@ -9,8 +9,12 @@ import (
 	"strings"
 )
 
-// SystemSkillsPath 是 Agent 在工作目录中读取系统 Skills 的固定相对路径。
-const SystemSkillsPath = "skills/system"
+const (
+	// SystemSkillsPath 是 Agent 在工作目录中读取系统 Skills 的固定相对路径。
+	SystemSkillsPath = "skills/system"
+	// UserSkillsPath 是 Agent 在工作目录中读取用户私有 Skills 的固定相对路径。
+	UserSkillsPath = "skills/user"
+)
 
 // cleanRelativePath 把 Agent 传入的路径限制在工作目录内。
 // Local 与 E2B 都只接受这一层的相对路径，不向 Agent 暴露真实文件系统路径。
@@ -32,6 +36,10 @@ func cleanRelativePath(raw string) (string, error) {
 
 func isSystemSkillPath(relativePath string) bool {
 	return relativePath == SystemSkillsPath || strings.HasPrefix(relativePath, SystemSkillsPath+"/")
+}
+
+func isUserSkillPath(relativePath string) bool {
+	return relativePath == UserSkillsPath || strings.HasPrefix(relativePath, UserSkillsPath+"/")
 }
 
 // FileEntry describes a filesystem entry.

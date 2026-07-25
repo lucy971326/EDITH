@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -14,6 +15,7 @@ import (
 type LocalProvider struct {
 	rootDir         string
 	systemSkillsDir string
+	userSkillsRoot  string
 
 	mu    sync.RWMutex
 	cache map[WorkspaceID]ExecBackend
@@ -29,6 +31,10 @@ func NewLocalProvider(rootDir, systemSkillsDir string) (*LocalProvider, error) {
 	if err := os.MkdirAll(abs, defaultCreateDirMode); err != nil {
 		return nil, fmt.Errorf("create workspace root %q: %w", abs, err)
 	}
+	userSkillsRoot := filepath.Join(filepath.Dir(abs), "user-skills")
+	if err := os.MkdirAll(userSkillsRoot, defaultCreateDirMode); err != nil {
+		return nil, fmt.Errorf("create user skills root %q: %w", userSkillsRoot, err)
+	}
 	var skillsAbs string
 	if systemSkillsDir != "" {
 		skillsAbs, err = filepath.Abs(filepath.Clean(systemSkillsDir))
@@ -43,6 +49,7 @@ func NewLocalProvider(rootDir, systemSkillsDir string) (*LocalProvider, error) {
 	return &LocalProvider{
 		rootDir:         abs,
 		systemSkillsDir: skillsAbs,
+		userSkillsRoot:  userSkillsRoot,
 		cache:           make(map[WorkspaceID]ExecBackend),
 	}, nil
 }
@@ -71,13 +78,49 @@ func (p *LocalProvider) GetBackend(_ context.Context, id WorkspaceID) (ExecBacke
 	if err := os.MkdirAll(dir, defaultCreateDirMode); err != nil {
 		return nil, fmt.Errorf("create local workspace: %w", err)
 	}
-	backend, err := NewLocalBackend(dir, p.systemSkillsDir)
+	userSkillsDir, err := p.ensureUserSkillsDir(id.UserID)
+	if err != nil {
+		return nil, err
+	}
+	backend, err := NewLocalBackend(dir, p.systemSkillsDir, userSkillsDir)
 	if err != nil {
 		return nil, err
 	}
 
 	p.cache[id] = backend
 	return backend, nil
+}
+
+// LoadUserSkillsOverview reads this user's permanent local Skill index.
+func (p *LocalProvider) LoadUserSkillsOverview(_ context.Context, userID string) (string, error) {
+	dir, err := p.ensureUserSkillsDir(userID)
+	if err != nil {
+		return "", err
+	}
+	content, err := os.ReadFile(filepath.Join(dir, "OVERVIEW.md"))
+	if err != nil {
+		return "", fmt.Errorf("read local user skills overview: %w", err)
+	}
+	return strings.TrimSpace(string(content)), nil
+}
+
+func (p *LocalProvider) ensureUserSkillsDir(userID string) (string, error) {
+	if strings.TrimSpace(userID) == "" {
+		return "", fmt.Errorf("user ID is required")
+	}
+	dir := filepath.Join(p.userSkillsRoot, userSkillsDirName(userID))
+	if err := os.MkdirAll(dir, defaultCreateDirMode); err != nil {
+		return "", fmt.Errorf("create local user skills directory: %w", err)
+	}
+	overviewPath := filepath.Join(dir, "OVERVIEW.md")
+	if _, err := os.Stat(overviewPath); os.IsNotExist(err) {
+		if err := os.WriteFile(overviewPath, nil, defaultCreateFileMode); err != nil {
+			return "", fmt.Errorf("initialize local user skills overview: %w", err)
+		}
+	} else if err != nil {
+		return "", fmt.Errorf("access local user skills overview: %w", err)
+	}
+	return dir, nil
 }
 
 // Close releases all cached local backends.
@@ -97,5 +140,10 @@ func (p *LocalProvider) Close() error {
 
 func workspaceDirName(id WorkspaceID) string {
 	sum := sha256.Sum256([]byte(id.UserID + "\x00" + id.SessionID))
+	return hex.EncodeToString(sum[:])
+}
+
+func userSkillsDirName(userID string) string {
+	sum := sha256.Sum256([]byte(userID))
 	return hex.EncodeToString(sum[:])
 }

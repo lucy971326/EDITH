@@ -6,7 +6,7 @@
 
 ```text
 系统 Skills：EDITH 自带，所有用户可用，不可修改
-用户 Skills：用户私有，可安装，也可由 EDITH 直接生成
+用户 Skills：用户私有，由 EDITH 直接生成并永久保存
 ```
 
 ## 核心心智模型
@@ -46,6 +46,15 @@ flowchart LR
 
 注意：Volume 挂载到 `/home/user/skills/user`，不能覆盖整个 `skills/`，否则看不见 Template 中的 `system/`。
 
+Agent 不需要、也不应记住 `/home/user` 这个 E2B 内部绝对路径；它只使用工作目录相对路径：
+
+```text
+skills/system/<skill-name>/SKILL.md
+skills/user/<skill-name>/SKILL.md
+```
+
+后端的 Local / E2B Sandbox 实现各自把相对路径映射到正确位置。
+
 ## 系统 Skills
 
 系统 Skill 只维护一份源码：
@@ -70,7 +79,8 @@ backend/skills/system/       ← Git 管理，唯一真相
 用户 Volume 根目录下，一个文件夹就是一个 Skill：
 
 ```text
-用户 Volume
+skills/user/
+├── OVERVIEW.md               用户 Skill 的短摘要索引
 ├── thesis-helper/
 │   ├── SKILL.md
 │   └── scripts/
@@ -90,13 +100,19 @@ description: 按用户指定的论文规范进行润色与检查
 
 完整正文、脚本、参考资料只在 Agent 真正需要该 Skill 时读取。
 
+`OVERVIEW.md` 只保存供系统提示词注入的短摘要和完整读取路径：
+
+```md
+- thesis-helper：按用户指定的论文规范进行润色与检查
+  读取：skills/user/thesis-helper/SKILL.md
+```
+
 ## 自动触发：摘要与完整内容分离
 
 每轮 Agent 对话只注入短摘要，而不注入全部 Skill 正文：
 
 ```text
-固定 EDITH 规则
-+ 当前用户可用 Skills 摘要
+固定 EDITH 规则 + 系统 Skills 摘要 + 当前用户 Skills 摘要
 ↓
 LLM 判断是否匹配
 ↓
@@ -106,10 +122,9 @@ LLM 判断是否匹配
 ```mermaid
 flowchart LR
   U[user_id] --> SS[SkillService]
-  SS --> C[Skill 摘要]
-  C --> A[AgentService]
-  M[用户消息] --> A
-  A --> R[Runner.Run]
+  SS --> C[用户 Skills Overview]
+  C --> R[Runner.Run]
+  M[用户消息] --> R
   R --> L[LLM]
 ```
 
@@ -124,12 +139,11 @@ flowchart LR
 Prompt 分工：
 
 ```text
-GlobalInstruction = 全体用户相同的 EDITH 核心规则
-Instruction       = 当前 user_id 的 Skill 摘要
-用户消息           = 用户这次真正说的话
+GlobalInstruction = EDITH 核心规则 + 系统 Skills + 当前用户 Skills Overview
+用户消息          = 用户这次真正说的话
 ```
 
-`Runner.Run` 仍只负责运行。外层在每次运行前，根据 `user_id` 组装摘要并以 `agent.WithInstruction(...)` 传入；它不是把摘要伪装成用户消息。
+`Runner.Run` 仍只负责运行。调用它的外层在每次运行前，根据 `user_id` 读取 Overview，并以 `agent.WithGlobalInstruction(...)` 传入本次 Run；它不是把摘要伪装成用户消息，也不修改全局 Agent 实例。
 
 ## 摘要加载与缓存
 
@@ -139,21 +153,18 @@ Instruction       = 当前 user_id 的 Skill 摘要
 → 缓存一次
 
 用户摘要
-→ 缓存命中：直接返回
-→ 缓存未命中：E2B Volume SDK 列目录、读取各 SKILL.md 顶部描述
+→ 每次 Run 前读取 skills/user/OVERVIEW.md
 ```
 
 ```mermaid
 flowchart LR
-  U[user_id] --> K{用户摘要缓存}
-  K -->|命中| R[返回摘要]
-  K -->|未命中| V[E2B Volume]
-  V --> M[列出 Skill 文件夹]
-  M --> P[读取 SKILL.md 描述]
-  P --> R
+  U[user_id] --> V[用户 Skill 存储]
+  V --> O[读取 OVERVIEW.md]
+  O --> P[拼入本次 GlobalInstruction]
+  P --> R[Runner.Run]
 ```
 
-缓存只是优化，不是正确性的前提。用户或 Agent 直接改了 Volume 后，前端可提供“重新加载 Skills”按钮：清掉该 `user_id` 的摘要缓存，下次运行重新读取。
+第一版不缓存用户 Overview：它很小，却能保证 Agent 刚创建或修改 Skill 后，下一次 Run 自动发现变化。后续若需要缓存，可在确认失效机制后再加；缓存不是正确性的前提。
 
 ## Sandbox 生命周期
 
@@ -181,42 +192,22 @@ MVP 可通过稳定名称避免新增用户-Volume 映射表：
 volumeName = "edith-skills-" + hash(user_id)
 ```
 
-## 用户创建与安装 Skills
-
-### EDITH 直接生成
+## EDITH 创建用户 Skills
 
 用户要求新能力时，EDITH 可以直接写入：
 
 ```text
-/home/user/skills/user/<skill-name>/
+skills/user/<skill-name>/SKILL.md
 ```
 
-该目录已挂载用户 Volume，因此写入即永久保存。Agent 不需要用户再次确认“发布”。
-
-### 外部安装
-
-第一版优先提供“从 GitHub 安装 Skill”，而不是先做 zip 上传：
-
-```text
-用户输入 GitHub Skill URL
-→ POST /skills/install
-→ SkillService 下载对应 Skill 文件夹
-→ 写入用户私有 Skill 库
-→ 前端重新加载 Skills
-```
-
-GitHub 安装、未来 zip 上传、未来技能市场，最终都落到同一处：
-
-```text
-用户私有 Skill Volume
-```
+并同步更新 `skills/user/OVERVIEW.md`。该目录在 E2B 中挂载用户 Volume，因此写入即永久保存；在 Local 模式中则映射到该用户的本地持久目录。Agent 不需要用户再次确认“发布”。
 
 ## 职责边界
 
 ```text
 Runner / Agent 核心：运行推理，不认识 Template、Volume、安装流程
-AgentService：按 user_id 获取摘要，并调用 Runner.Run
-SkillService：管理摘要、系统 Skill 来源、用户 Skill 安装
+SkillService：读取系统 Skill 与用户 Skill Overview
+Runner 调用外层：按 user_id 获取 Overview，并调用 Runner.Run
 E2B Provider：创建/恢复 Sandbox，负责 Template 与 Volume 挂载
 Sandbox：执行 Skill 脚本和读写当前工作目录
 ```
@@ -224,10 +215,10 @@ Sandbox：执行 Skill 脚本和读写当前工作目录
 ## 暂不处理
 
 ```text
-- 外部 GitHub URL / 压缩包安全校验
+- Skill 安装、上传与技能市场
 - Skill 版本、更新、依赖管理
 - 多会话同时修改同一个用户 Skill 的冲突策略
-- Telegram 的 reload Skills 命令
+- 用户 Overview 缓存与失效机制
 ```
 
 ## 已验证的 E2B 行为
@@ -238,6 +229,6 @@ Sandbox：执行 Skill 脚本和读写当前工作目录
 实测结果：约 397ms 可见
 ```
 
-因此 GitHub 安装流程可以直接由后端 SDK 写入用户 Volume；当前会话 Sandbox 无需重建，即可使用新安装的 Skill。
+因此，无论 Agent 在挂载目录内创建 Skill，还是后端 SDK 直接写入用户 Volume，当前会话 Sandbox 都无需重建，即可读取新文件。
 
 可复现实验：`backend/test/e2b_volume_visibility`。

@@ -38,7 +38,7 @@ func TestWorkspaceHandlersListAndDownloadOnlyCurrentWorkspace(t *testing.T) {
 	if err := json.NewDecoder(listRec.Body).Decode(&listing); err != nil {
 		t.Fatalf("decode listing: %v", err)
 	}
-	if len(listing.Entries) != 1 || listing.Entries[0].Path != "result" {
+	if len(listing.Entries) != 2 || listing.Entries[0].Path != "result" || listing.Entries[1].Path != "skills" {
 		t.Fatalf("listing entries = %#v", listing.Entries)
 	}
 

@@ -21,8 +21,8 @@ const (
 )
 
 // NewLocalBackend creates a LocalBackend for one workspace.
-// systemSkillsDir is mounted read-only at the Agent-visible skills/system path.
-func NewLocalBackend(baseDir, systemSkillsDir string) (*LocalBackend, error) {
+// systemSkillsDir is mounted read-only at skills/system; userSkillsDir is mounted at skills/user.
+func NewLocalBackend(baseDir, systemSkillsDir, userSkillsDir string) (*LocalBackend, error) {
 	abs, err := filepath.Abs(filepath.Clean(baseDir))
 	if err != nil {
 		return nil, fmt.Errorf("resolve base directory '%s': %w", baseDir, err)
@@ -34,12 +34,17 @@ func NewLocalBackend(baseDir, systemSkillsDir string) (*LocalBackend, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("base directory '%s' is not a directory", abs)
 	}
-	return &LocalBackend{baseDir: abs, systemSkillsDir: systemSkillsDir}, nil
+	return &LocalBackend{
+		baseDir:         abs,
+		systemSkillsDir: systemSkillsDir,
+		userSkillsDir:   userSkillsDir,
+	}, nil
 }
 
 type LocalBackend struct {
 	baseDir         string
 	systemSkillsDir string
+	userSkillsDir   string
 }
 
 // resolvePath validates a path to prevent directory traversal attacks,
@@ -56,6 +61,13 @@ func (b *LocalBackend) resolvePath(input string) (string, bool, error) {
 		}
 		suffix := strings.TrimPrefix(relativePath, SystemSkillsPath)
 		return filepath.Join(b.systemSkillsDir, filepath.FromSlash(suffix)), true, nil
+	}
+	if isUserSkillPath(relativePath) {
+		if b.userSkillsDir == "" {
+			return "", false, fmt.Errorf("user skills are unavailable")
+		}
+		suffix := strings.TrimPrefix(relativePath, UserSkillsPath)
+		return filepath.Join(b.userSkillsDir, filepath.FromSlash(suffix)), false, nil
 	}
 	return filepath.Join(b.baseDir, filepath.FromSlash(relativePath)), false, nil
 }
@@ -122,6 +134,32 @@ func (b *LocalBackend) WriteFile(ctx context.Context, path string, data []byte) 
 }
 
 func (b *LocalBackend) ListDir(ctx context.Context, path string, depth int) ([]FileEntry, error) {
+	relativePath, err := cleanRelativePath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Local 没有真实挂载目录；在列表中补出与 E2B 相同的 skills/ 入口。
+	if relativePath == "." {
+		entries, err := b.listRecursive(b.baseDir, "", depth)
+		if err != nil {
+			return nil, err
+		}
+		visible := make([]FileEntry, 0, len(entries)+1)
+		for _, entry := range entries {
+			if entry.Name != "skills" {
+				visible = append(visible, entry)
+			}
+		}
+		return append(visible, FileEntry{Name: "skills", Path: "skills", Type: "directory"}), nil
+	}
+	if relativePath == "skills" {
+		return []FileEntry{
+			{Name: "system", Path: SystemSkillsPath, Type: "directory"},
+			{Name: "user", Path: UserSkillsPath, Type: "directory"},
+		}, nil
+	}
+
 	fullPath, _, err := b.resolvePath(path)
 	if err != nil {
 		return nil, err
