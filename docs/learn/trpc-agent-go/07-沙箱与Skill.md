@@ -1,4 +1,4 @@
-# 08 - 沙箱（CodeExecutor）与 Skill
+# 07 - 沙箱（CodeExecutor）与 Skill
 
 > CodeExecutor = 让 Agent 在隔离环境执行代码。Skill = 把"任务说明书"按需注入上下文。
 
