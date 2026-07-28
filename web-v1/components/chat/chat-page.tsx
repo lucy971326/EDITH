@@ -14,6 +14,7 @@ import type {
 } from "@/lib/chat/type";
 import type { AvailableModelCatalogResponse, ModelInfo } from "@/lib/models/type";
 
+import { ChatComposer } from "./chat-composer";
 import { ConversationList } from "./conversation-list";
 import { TimelineView } from "./timeline";
 
@@ -26,8 +27,8 @@ type ChatSession = {
 const emptyTimeline: Timeline = { blocks: [] };
 
 export function ChatPage() {
-  const [message, setMessage] = useState("");
   const [isRunning, setIsRunning] = useState(false);
+  const [composerClearSignal, setComposerClearSignal] = useState(0);
   const [sessions, setSessions] = useState<ChatSession[]>([
     { id: "new-session", title: "新对话", timeline: emptyTimeline },
   ]);
@@ -78,7 +79,7 @@ export function ChatPage() {
 
     setSessions((current) => [session, ...current]);
     setActiveSessionID(id);
-    setMessage("");
+    setComposerClearSignal((current) => current + 1);
   }
 
   async function selectSession(sessionID: string) {
@@ -96,9 +97,8 @@ export function ChatPage() {
     setReasoningOptionID("");
   }
 
-  async function sendMessage() {
-    const content = message.trim();
-    if (!content || !modelID || isRunning) {
+  async function sendMessage(content: string) {
+    if (!modelID || isRunning) {
       return;
     }
 
@@ -125,8 +125,6 @@ export function ChatPage() {
         };
       }),
     );
-    setMessage("");
-
     setIsRunning(true);
     try {
       const response = await fetch("/api/chat/stream", {
@@ -192,53 +190,17 @@ export function ChatPage() {
 
         <TimelineView timeline={activeSession.timeline} />
 
-        <form
-          className="border-t border-zinc-200 bg-white p-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            sendMessage();
-          }}
-        >
-          <div className="mx-auto max-w-3xl rounded-2xl border border-zinc-300 bg-white p-3 shadow-sm transition-colors focus-within:border-zinc-400">
-            <textarea
-              className="block min-h-20 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 outline-none placeholder:text-zinc-400"
-              placeholder="输入消息…"
-              rows={2}
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" || event.shiftKey) {
-                  return;
-                }
-
-                event.preventDefault();
-                void sendMessage();
-              }}
-            />
-            <div className="mt-2 flex items-center gap-2 border-t border-zinc-100 pt-2">
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg text-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900" type="button" title="更多输入能力（即将支持）">+</button>
-              <select className="h-8 max-w-52 rounded-lg bg-transparent px-2 text-sm font-medium text-zinc-700 outline-none hover:bg-zinc-100" disabled={isRunning || models.length === 0} value={modelID} onChange={(event) => selectModel(event.target.value)}>
-                {models.length === 0 && <option value="">先在设置配置 API Key</option>}
-                {models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
-              </select>
-              {selectedModel && selectedModel.reasoningOptions.length > 0 && <>
-                <span className="text-zinc-300">·</span>
-                <select className="h-8 rounded-lg bg-transparent px-2 text-sm text-zinc-600 outline-none hover:bg-zinc-100" disabled={isRunning} value={reasoningOptionID} onChange={(event) => setReasoningOptionID(event.target.value)}>
-                  <option value="">思考</option>
-                  {selectedModel.reasoningOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-                </select>
-              </>}
-              <button
-                aria-label="发送"
-                className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-lg text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
-                disabled={!message.trim() || !modelID || isRunning}
-                type="submit"
-              >
-                {isRunning ? "…" : "↑"}
-              </button>
-            </div>
-          </div>
-        </form>
+        <ChatComposer
+          key={composerClearSignal}
+          isRunning={isRunning}
+          modelID={modelID}
+          models={models}
+          reasoningOptionID={reasoningOptionID}
+          selectedModel={selectedModel}
+          onModelChange={selectModel}
+          onReasoningOptionChange={setReasoningOptionID}
+          onSend={(content) => void sendMessage(content)}
+        />
       </section>
 
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />

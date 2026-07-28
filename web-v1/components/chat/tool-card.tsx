@@ -1,6 +1,6 @@
 import type { ToolBlock } from "@/lib/chat/type";
 
-export function ToolCard({ block }: { block: ToolBlock }) {
+export const ToolCard = memo(function ToolCard({ block }: { block: ToolBlock }) {
   const state = block.status === "running" ? "调用中" : block.status === "failed" ? "失败" : "已完成";
   const stateClass = block.status === "running"
     ? "bg-zinc-200 text-zinc-600"
@@ -28,4 +28,5 @@ export function ToolCard({ block }: { block: ToolBlock }) {
       </div>
     </details>
   );
-}
+});
+import { memo } from "react";

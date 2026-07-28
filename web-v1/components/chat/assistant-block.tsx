@@ -3,7 +3,7 @@ import type { AssistantBlock } from "@/lib/chat/type";
 import { MessageMarkdown } from "./message-markdown";
 import { ToolCard } from "./tool-card";
 
-export function AssistantBlockView({ block }: { block: AssistantBlock }) {
+export const AssistantBlockView = memo(function AssistantBlockView({ block }: { block: AssistantBlock }) {
   return (
     <article className="space-y-4 text-sm leading-7 text-zinc-800">
       {block.blocks.map((content) => {
@@ -22,4 +22,5 @@ export function AssistantBlockView({ block }: { block: AssistantBlock }) {
       })}
     </article>
   );
-}
+});
+import { memo } from "react";
