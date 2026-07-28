@@ -1,12 +1,31 @@
 // Package tools contains EDITH's built-in system tools.
 //
-// These tools are shared by every user. User-specific MCP and sandbox tools
-// are created per run and belong in agent.WithAdditionalTools instead.
+// This file is the registry for EDITH's default tool surface. MCP tools do not
+// belong here: they come from a user's configuration and are added per Run.
 package tools
 
-import "trpc.group/trpc-go/trpc-agent-go/tool"
+import (
+	"edith/backend-v1/internal/sandbox"
 
-// Default is the complete built-in tool surface for EDITH 1.0.
-var Default = []tool.Tool{
-	GetCurrentTime,
+	"trpc.group/trpc-go/trpc-agent-go/tool"
+)
+
+// Defaults is EDITH's complete built-in tool registry. Tools and ToolSets are
+// separate only because trpc-agent-go registers them through different options.
+type Defaults struct {
+	Tools    []tool.Tool
+	ToolSets []tool.ToolSet
+}
+
+// Default returns every built-in EDITH tool. SandboxToolSet resolves its user
+// and session from the current invocation, never from main.
+func Default(sandboxes *sandbox.Service) Defaults {
+	return Defaults{
+		Tools: []tool.Tool{
+			GetCurrentTime,
+		},
+		ToolSets: []tool.ToolSet{
+			&SandboxToolSet{Sandboxes: sandboxes},
+		},
+	}
 }

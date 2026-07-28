@@ -11,11 +11,15 @@ import (
 	"os/signal"
 	"time"
 
-	"edith/backend-v1/internal/edithagent"
+	"edith/backend-v1/internal/models"
+	"edith/backend-v1/internal/sandbox"
+	"edith/backend-v1/internal/tools"
 	"edith/backend-v1/internal/userconfig"
 	"edith/backend-v1/internal/webapi"
 
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
+	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 	sessionsqlite "trpc.group/trpc-go/trpc-agent-go/session/sqlite"
 )
@@ -23,6 +27,8 @@ import (
 const appName = "EDITH"
 
 func main() {
+	loadEnv()
+
 	// Both stores use different tables in the same SQLite file. Each service
 	// owns its own connection and closes it when the process stops.
 	users, err := userconfig.Open(databasePath())
@@ -42,9 +48,24 @@ func main() {
 	}
 	defer sessions.Close()
 
+	sandboxes, err := sandbox.Open(databasePath())
+	if err != nil {
+		log.Fatalf("open sandbox service: %v", err)
+	}
+	defer sandboxes.Close()
+
+	defaultTools := tools.Default(sandboxes)
+	chat := llmagent.New(
+		"edith-chat",
+		llmagent.WithModels(models.Registered),
+		llmagent.WithModel(models.MiniMaxM3),
+		llmagent.WithTools(defaultTools.Tools),
+		llmagent.WithToolSets(defaultTools.ToolSets),
+	)
+
 	edithRunner := runner.NewRunner(
 		appName,
-		edithagent.Chat,
+		chat,
 		runner.WithSessionService(sessions),
 	)
 
@@ -74,6 +95,14 @@ func main() {
 
 	if err := httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
+	}
+}
+
+// loadEnv loads local development configuration. Existing process environment
+// variables take priority, so deployment configuration can override .env.
+func loadEnv() {
+	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Fatalf("load .env: %v", err)
 	}
 }
 
