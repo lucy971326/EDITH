@@ -46,6 +46,41 @@ type ProviderCredentialState struct {
 	HasAPIKey  bool   `json:"hasApiKey"`
 }
 
+// MCPServerRequest is the BFF → Go Runtime request body for one MCP server.
+// userId is injected by the BFF. Header values are write-only secrets.
+type MCPServerRequest struct {
+	UserID    string           `json:"userId"`
+	Name      string           `json:"name"`
+	URL       string           `json:"url"`
+	Transport string           `json:"transport"`
+	Enabled   bool             `json:"enabled"`
+	Headers   []MCPHeaderInput `json:"headers"`
+}
+
+type MCPHeaderInput struct {
+	Name  string  `json:"name"`
+	Value *string `json:"value"`
+}
+
+// MCPServerResponse is safe for the browser. Header values never leave Go.
+type MCPServerResponse struct {
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	URL       string           `json:"url"`
+	Transport string           `json:"transport"`
+	Enabled   bool             `json:"enabled"`
+	Headers   []MCPHeaderState `json:"headers"`
+}
+
+type MCPHeaderState struct {
+	Name     string `json:"name"`
+	HasValue bool   `json:"hasValue"`
+}
+
+type MCPServerListResponse struct {
+	Servers []MCPServerResponse `json:"servers"`
+}
+
 // Conversation is the lightweight summary used by the sidebar. Title is
 // derived from the first user message, not stored as separate metadata.
 type Conversation struct {

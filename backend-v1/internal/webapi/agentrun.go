@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"edith/backend-v1/internal/mcp"
 	"edith/backend-v1/internal/models"
 	"edith/backend-v1/internal/runopts"
 	"edith/backend-v1/internal/timeline"
@@ -36,6 +37,17 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load user personality: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	mcpServers, err := s.Users.LoadEnabledMCPServers(r.Context(), request.UserID)
+	if err != nil {
+		http.Error(w, "load MCP servers: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	mcpTools, closeMCP, err := mcp.OpenTools(r.Context(), mcpServers)
+	if err != nil {
+		http.Error(w, "open MCP tools: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer func() { _ = closeMCP() }()
 
 	requestID := uuid.NewString()
 	opts := runopts.Build(runopts.Config{
@@ -43,9 +55,10 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		Stream:    true,
 		ModelName: request.ModelID,
 		APIKey:    apiKey,
-		GlobalInstruction: "你是 EDITH，一个简洁的技术助手。\n\n" +
+		GlobalInstruction: "你是 EDITH AI Agent智能助手\n\n" +
 			personality,
-		Instruction: "需要知道当前时间时，调用 get_current_time 工具。",
+		Instruction:     "需要知道当前时间时，调用 get_current_time 工具。",
+		AdditionalTools: mcpTools,
 	})
 
 	events, err := s.Runner.Run(

@@ -48,3 +48,5 @@ test/
 forward/
 .gemini/
 
+**.db
+edith.db
