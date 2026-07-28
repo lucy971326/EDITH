@@ -27,6 +27,18 @@ export function MermaidDiagram({ chart, isComplete }: { chart: string; isComplet
             lineColor: "#71717a",
             secondaryColor: "#fafafa",
             tertiaryColor: "#ffffff",
+            pie1: "#60a5fa",
+            pie2: "#34d399",
+            pie3: "#fbbf24",
+            pie4: "#fb7185",
+            pie5: "#a78bfa",
+            pie6: "#2dd4bf",
+            pie7: "#fb923c",
+            pie8: "#f472b6",
+            pie9: "#818cf8",
+            pie10: "#a3e635",
+            pie11: "#22d3ee",
+            pie12: "#facc15",
           },
         });
         const valid = await mermaid.parse(chart, { suppressErrors: true });
