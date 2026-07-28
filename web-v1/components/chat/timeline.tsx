@@ -7,7 +7,7 @@ type TimelineViewProps = {
   timeline: Timeline;
 };
 
-export function TimelineView({ timeline }: TimelineViewProps) {
+export const TimelineView = memo(function TimelineView({ timeline }: TimelineViewProps) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-8 px-5 py-8">
@@ -27,4 +27,5 @@ export function TimelineView({ timeline }: TimelineViewProps) {
       </div>
     </div>
   );
-}
+});
+import { memo } from "react";

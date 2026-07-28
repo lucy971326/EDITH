@@ -1,8 +1,34 @@
+import { Children, isValidElement, memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
-export function MessageMarkdown({ content }: { content: string }) {
+import { MermaidDiagram } from "./mermaid-diagram";
+
+function isMermaidCodeBlock(children: ReactNode) {
+  const child = Children.toArray(children)[0];
+  return isValidElement<{ className?: string }>(child) && child.props.className === "language-mermaid";
+}
+
+type MarkdownNode = {
+  position?: {
+    start?: { offset?: number };
+    end?: { offset?: number };
+  };
+};
+
+function isClosedMermaidCodeBlock(content: string, node?: MarkdownNode) {
+  const start = node?.position?.start?.offset;
+  const end = node?.position?.end?.offset;
+  if (start === undefined || end === undefined) {
+    return false;
+  }
+  return content.slice(start, end).trimEnd().endsWith("```");
+}
+
+export const MessageMarkdown = memo(function MessageMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
+	  remarkPlugins={[remarkGfm]}
       components={{
         h1: ({ children }) => <h1 className="mt-6 text-xl font-semibold text-zinc-900">{children}</h1>,
         h2: ({ children }) => <h2 className="mt-5 text-lg font-semibold text-zinc-900">{children}</h2>,
@@ -11,11 +37,29 @@ export function MessageMarkdown({ content }: { content: string }) {
         ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5">{children}</ol>,
         blockquote: ({ children }) => <blockquote className="border-l-2 border-zinc-300 pl-3 text-zinc-500">{children}</blockquote>,
         a: ({ children, href }) => <a className="text-zinc-900 underline underline-offset-2" href={href}>{children}</a>,
-        code: ({ children }) => <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[0.85em]">{children}</code>,
-        pre: ({ children }) => <pre className="overflow-x-auto rounded-lg bg-zinc-800 p-3 text-zinc-100">{children}</pre>,
+        table: ({ children }) => (
+          <div className="my-4 overflow-x-auto rounded-lg border border-zinc-200">
+            <table className="w-full border-collapse text-left text-sm">{children}</table>
+          </div>
+        ),
+        th: ({ children }) => <th className="border-b border-zinc-200 bg-zinc-100 px-3 py-2 font-medium text-zinc-800">{children}</th>,
+        td: ({ children }) => <td className="border-b border-zinc-100 px-3 py-2 align-top last:border-b-0">{children}</td>,
+        code: ({ children, className, node }) => {
+          if (className === "language-mermaid") {
+            return <MermaidDiagram chart={String(children).replace(/\n$/, "")} isComplete={isClosedMermaidCodeBlock(content, node)} />;
+          }
+          return <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[0.85em] text-zinc-700">{children}</code>;
+        },
+        pre: ({ children }) => (
+          isMermaidCodeBlock(children) ? children : (
+            <pre className="overflow-x-auto rounded-lg bg-zinc-800 p-3 font-mono text-sm leading-6 text-zinc-100 [&>code]:bg-transparent [&>code]:p-0 [&>code]:text-inherit">
+              {children}
+            </pre>
+          )
+        ),
       }}
     >
       {content}
     </ReactMarkdown>
   );
-}
+});
