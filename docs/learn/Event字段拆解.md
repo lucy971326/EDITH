@@ -89,3 +89,53 @@ Event.IsRunnerCompletion()  = 整次 Agent Run 真正结束
 ```
 
 业务代码应以 `ev.IsRunnerCompletion()` 停止读取事件流。
+
+---
+
+## Usage（Token 统计）何时出现
+
+> ⚠️ **踩坑点**：不要等 `IsRunnerCompletion()` 才读 Usage——大概率是 nil。
+
+### 框架逻辑
+
+`model/openai/openai.go:2637-2639` 和 `2785-2788`：
+
+```go
+// 只有 token 非零时才挂上 Response.Usage
+if usage.PromptTokens > 0 || usage.CompletionTokens > 0 || usage.TotalTokens > 0 {
+    finalResponse.Usage = &usage
+}
+```
+
+### 三种模式的 Usage 出现时机
+
+| 模式 | Usage 在哪条事件上 |
+|---|---|
+| **非流式** | 唯一那条 Event 必带 Usage |
+| **流式** | **累加在每个分片 chunk 里**，最后一条非空 chunk 才完整 |
+| **Runner 完成事件** | `runner.completion` 事件**通常不带 Usage**——它是控制信号 |
+
+### EDITH BFF 正确读取方式
+
+```go
+// ❌ 错：等 IsRunnerCompletion 才读（大概率 nil）
+if ev.IsRunnerCompletion() {
+    if ev.Response.Usage != nil { /* token 统计 */ }  // ← 经常进不来
+}
+
+// ✅ 对：循环里每条都检查，取最后一条非零
+var lastUsage *model.Usage
+for ev := range events {
+    // ... 处理 Delta / Message ...
+    if ev.Response != nil && ev.Response.Usage != nil &&
+       ev.Response.Usage.TotalTokens > 0 {
+        lastUsage = ev.Response.Usage
+    }
+    if ev.IsRunnerCompletion() {
+        break
+    }
+}
+// lastUsage 就是这次 Run 的最终 token 统计
+```
+
+**Why:** 用户在 2026-07-27 forward 验证首次跑通时发现 `IsRunnerCompletion` 触发时 Usage 不打印，根因即此。
