@@ -1,0 +1,140 @@
+package webapi
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"edith/backend-v1/internal/models"
+	"edith/backend-v1/internal/runopts"
+	"edith/backend-v1/internal/timeline"
+
+	"github.com/google/uuid"
+	"trpc.group/trpc-go/trpc-agent-go/model"
+)
+
+func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
+	request, err := decodeAgentRunRequest(w, r)
+	if err != nil {
+		return
+	}
+
+	definition, ok := models.Lookup(request.ModelID)
+	if !ok {
+		http.Error(w, "unsupported modelId", http.StatusBadRequest)
+		return
+	}
+	apiKey, err := s.Users.LoadProviderAPIKey(r.Context(), request.UserID, definition.ProviderID)
+	if err != nil {
+		http.Error(w, "load model credential: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	personality, err := s.Users.LoadPersonality(r.Context(), request.UserID)
+	if err != nil {
+		http.Error(w, "load user personality: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	requestID := uuid.NewString()
+	opts := runopts.Build(runopts.Config{
+		RequestID: requestID,
+		Stream:    true,
+		ModelName: request.ModelID,
+		APIKey:    apiKey,
+		GlobalInstruction: "你是 EDITH，一个简洁的技术助手。\n\n" +
+			personality,
+		Instruction: "需要知道当前时间时，调用 get_current_time 工具。",
+	})
+
+	events, err := s.Runner.Run(
+		r.Context(),
+		request.UserID,
+		request.SessionID,
+		model.NewUserMessage(request.Message),
+		opts...,
+	)
+	if err != nil {
+		http.Error(w, "start agent run: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeSSEHeaders(w)
+	builder := timeline.NewBuilder(requestID)
+	if err := writeSSE(w, builder.Started()); err != nil {
+		return
+	}
+
+	var usage *timeline.Usage
+	for rawEvent := range events {
+		if rawEvent.Response != nil && rawEvent.Response.Usage != nil &&
+			rawEvent.Response.Usage.TotalTokens > 0 {
+			usage = &timeline.Usage{
+				PromptTokens:     rawEvent.Response.Usage.PromptTokens,
+				CompletionTokens: rawEvent.Response.Usage.CompletionTokens,
+				TotalTokens:      rawEvent.Response.Usage.TotalTokens,
+			}
+		}
+
+		for _, streamEvent := range builder.Add(rawEvent) {
+			if err := writeSSE(w, streamEvent); err != nil {
+				return
+			}
+		}
+		if rawEvent.IsRunnerCompletion() {
+			_ = writeSSE(w, timeline.DoneEvent{
+				Type:      timeline.StreamEventTypeDone,
+				RequestID: requestID,
+				Usage:     usage,
+			})
+			return
+		}
+	}
+}
+
+func decodeAgentRunRequest(w http.ResponseWriter, r *http.Request) (AgentRunRequest, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	defer r.Body.Close()
+
+	var request AgentRunRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		http.Error(w, "invalid agent run request", http.StatusBadRequest)
+		return AgentRunRequest{}, err
+	}
+
+	request.UserID = strings.TrimSpace(request.UserID)
+	request.SessionID = strings.TrimSpace(request.SessionID)
+	request.Message = strings.TrimSpace(request.Message)
+	request.ModelID = strings.TrimSpace(request.ModelID)
+	if request.UserID == "" || request.SessionID == "" || request.Message == "" || request.ModelID == "" {
+		http.Error(w, "userId, sessionId, message, and modelId are required", http.StatusBadRequest)
+		return AgentRunRequest{}, errors.New("missing required agent run fields")
+	}
+	return request, nil
+}
+
+func writeSSEHeaders(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("X-Accel-Buffering", "no")
+}
+
+func writeSSE(w http.ResponseWriter, event timeline.StreamEvent) error {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("encode SSE event: %w", err)
+	}
+
+	_, err = fmt.Fprintf(w, "data: %s\n\n", data)
+	if err != nil {
+		return fmt.Errorf("write SSE event: %w", err)
+	}
+
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	return nil
+}

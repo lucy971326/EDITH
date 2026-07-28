@@ -44,6 +44,7 @@ reference/
 
 # 试验场地
 test/
-
-
+.forward/
+forward/
 .gemini/
+
