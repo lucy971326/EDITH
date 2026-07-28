@@ -27,6 +27,10 @@ func (s Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /internal/available-models", s.listAvailableModels)
 	mux.HandleFunc("GET /internal/user-settings", s.getUserSettings)
 	mux.HandleFunc("PUT /internal/user-settings", s.saveUserSettings)
+	mux.HandleFunc("GET /internal/mcp-servers", s.listMCPServers)
+	mux.HandleFunc("POST /internal/mcp-servers", s.createMCPServer)
+	mux.HandleFunc("PUT /internal/mcp-servers/{serverID}", s.updateMCPServer)
+	mux.HandleFunc("DELETE /internal/mcp-servers/{serverID}", s.deleteMCPServer)
 	mux.HandleFunc("GET /internal/conversations", s.listConversations)
 	mux.HandleFunc("GET /internal/conversations/{sessionID}", s.getConversation)
 }

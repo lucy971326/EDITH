@@ -106,7 +106,12 @@ func isKnownProvider(providerID string) bool {
 }
 
 func writeJSON(w http.ResponseWriter, value any) {
+	writeJSONStatus(w, http.StatusOK, value)
+}
+
+func writeJSONStatus(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
 	encoder := json.NewEncoder(w)
 	err := encoder.Encode(value)
 	if err != nil {

@@ -1,9 +1,10 @@
 "use client";
 
-import { UserButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppSidebar } from "@/components/app-sidebar";
+import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { applyStreamEvent, errorTimelineEvent, readChatStream } from "@/lib/chat/stream";
 import type {
   ConversationListResponse,
@@ -34,6 +35,7 @@ export function ChatPage() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [modelID, setModelID] = useState("");
   const [reasoningOptionID, setReasoningOptionID] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const activeSession = sessions.find((session) => session.id === activeSessionID) ?? sessions[0];
   const selectedModel = models.find((model) => model.id === modelID);
@@ -170,8 +172,8 @@ export function ChatPage() {
   }
 
   return (
-    <main className="flex min-h-screen bg-zinc-50">
-      <AppSidebar activePage="chat">
+    <main className="flex h-screen overflow-hidden bg-zinc-50">
+      <AppSidebar footer={<AccountMenu onOpenSettings={() => setSettingsOpen(true)} />}>
         <ConversationList
           activeSessionID={activeSession.id}
           sessions={sessions}
@@ -186,7 +188,6 @@ export function ChatPage() {
             <p className="text-sm font-medium">{activeSession.title}</p>
             <p className="mt-0.5 text-xs text-zinc-500">EDITH</p>
           </div>
-          <UserButton />
         </header>
 
         <TimelineView timeline={activeSession.timeline} />
@@ -200,11 +201,19 @@ export function ChatPage() {
         >
           <div className="mx-auto max-w-3xl rounded-2xl border border-zinc-300 bg-white p-3 shadow-sm transition-colors focus-within:border-zinc-400">
             <textarea
-              className="block min-h-24 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 outline-none placeholder:text-zinc-400"
+              className="block min-h-20 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 outline-none placeholder:text-zinc-400"
               placeholder="输入消息…"
-              rows={3}
+              rows={2}
               value={message}
               onChange={(event) => setMessage(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey) {
+                  return;
+                }
+
+                event.preventDefault();
+                void sendMessage();
+              }}
             />
             <div className="mt-2 flex items-center gap-2 border-t border-zinc-100 pt-2">
               <button className="flex h-8 w-8 items-center justify-center rounded-lg text-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900" type="button" title="更多输入能力（即将支持）">+</button>
@@ -231,6 +240,8 @@ export function ChatPage() {
           </div>
         </form>
       </section>
+
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </main>
   );
 }

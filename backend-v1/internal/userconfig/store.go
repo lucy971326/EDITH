@@ -156,6 +156,22 @@ func (s *Store) createTables(ctx context.Context) error {
 			api_key TEXT NOT NULL,
 			PRIMARY KEY (user_id, provider_id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS user_mcp_servers (
+			server_id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			url TEXT NOT NULL,
+			transport TEXT NOT NULL,
+			enabled INTEGER NOT NULL,
+			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS user_mcp_headers (
+			server_id TEXT NOT NULL,
+			header_name TEXT NOT NULL,
+			header_value TEXT NOT NULL,
+			PRIMARY KEY (server_id, header_name)
+		)`,
 	}
 	for _, statement := range statements {
 		if _, err := s.db.ExecContext(ctx, statement); err != nil {
