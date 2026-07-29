@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"time"
 
+	"edith/backend-v1/internal/images"
 	"edith/backend-v1/internal/models"
 	"edith/backend-v1/internal/sandbox"
 	"edith/backend-v1/internal/tools"
@@ -41,12 +42,21 @@ func main() {
 	if err != nil {
 		log.Fatalf("open session database: %v", err)
 	}
-	sessions, err := sessionsqlite.NewService(sessionDB)
+	rawSessions, err := sessionsqlite.NewService(sessionDB)
 	if err != nil {
 		sessionDB.Close()
 		log.Fatalf("open session service: %v", err)
 	}
-	defer sessions.Close()
+	defer rawSessions.Close()
+
+	// chatImages 是EDITH启动时创建的、长期存活的图片服务对象
+	// useTO: 统一管理“聊天图片的元数据、归属校验，以及私有 COS 对象的临时访问”。
+	chatImages, err := images.Open(databasePath(), imageConfig())
+	if err != nil {
+		log.Fatalf("open image service: %v", err)
+	}
+	defer chatImages.Close()
+	imageSessions := images.WrapSessionService(rawSessions, chatImages)
 
 	sandboxes, err := sandbox.Open(databasePath(), sandboxTemplate())
 	if err != nil {
@@ -58,7 +68,7 @@ func main() {
 	chat := llmagent.New(
 		"edith-chat",
 		llmagent.WithModels(models.Registered),
-		llmagent.WithModel(models.MiniMaxM3),
+		llmagent.WithModel(models.Registered[models.DefaultModelID]),
 		llmagent.WithTools(defaultTools.Tools),
 		llmagent.WithToolSets(defaultTools.ToolSets),
 	)
@@ -66,14 +76,15 @@ func main() {
 	edithRunner := runner.NewRunner(
 		appName,
 		chat,
-		runner.WithSessionService(sessions),
+		runner.WithSessionService(imageSessions),
 	)
 
 	webapi := webapi.Server{
 		AppName:  appName,
 		Runner:   edithRunner,
 		Users:    users,
-		Sessions: sessions,
+		Images:   chatImages,
+		Sessions: rawSessions,
 	}
 	mux := http.NewServeMux()
 	webapi.Register(mux)
@@ -126,4 +137,13 @@ func sandboxTemplate() string {
 		log.Fatal("EDITH_E2B_TEMPLATE is required")
 	}
 	return template
+}
+
+func imageConfig() images.Config {
+	return images.Config{
+		Bucket:    os.Getenv("EDITH_COS_BUCKET"),
+		Region:    os.Getenv("EDITH_COS_REGION"),
+		SecretID:  os.Getenv("EDITH_COS_SECRET_ID"),
+		SecretKey: os.Getenv("EDITH_COS_SECRET_KEY"),
+	}
 }

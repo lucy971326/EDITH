@@ -13,7 +13,9 @@ const (
 	MiniMaxProviderID  = "minimax"
 
 	DeepSeekV4FlashID = "deepseek.v4.flash"
+	DeepSeekV4ProID   = "deepseek.v4.pro"
 	MiniMaxM3ID       = "minimax.m3"
+	DefaultModelID    = MiniMaxM3ID
 
 	deepSeekBaseURL = "https://api.deepseek.com"
 	miniMaxBaseURL  = "https://api.minimaxi.com/v1"
@@ -32,6 +34,12 @@ type ReasoningOption struct {
 	Name string `json:"name"`
 }
 
+// Capabilities describes what one concrete model can do. It is model-scoped:
+// models from the same provider may expose different capabilities.
+type Capabilities struct {
+	Vision bool `json:"vision"`
+}
+
 // Info is the safe, browser-facing description of a concrete selectable
 // model. ID is EDITH's stable runtime key; Name is display-only.
 type Info struct {
@@ -39,6 +47,7 @@ type Info struct {
 	ProviderID       string            `json:"providerId"`
 	Name             string            `json:"name"`
 	ReasoningOptions []ReasoningOption `json:"reasoningOptions"`
+	Capabilities     Capabilities      `json:"capabilities"`
 }
 
 // Definition binds one catalog entry to the shared model adapter used by the
@@ -49,65 +58,90 @@ type Definition struct {
 }
 
 var (
-	// DeepSeekV4Flash is shared by every user. Credentials are loaded per run.
-	DeepSeekV4Flash = openai.New("deepseek-v4-flash",
-		openai.WithVariant(openai.VariantDeepSeek),
-		openai.WithBaseURL(deepSeekBaseURL),
-	)
-
-	// MiniMaxM3 is shared by every user. Provider request configuration belongs
-	// to this definition, never to a user's stored credential.
-	MiniMaxM3 = openai.New("MiniMax-M3",
-		openai.WithVariant(openai.VariantMiniMax),
-		openai.WithBaseURL(miniMaxBaseURL),
-		openai.WithExtraFields(map[string]any{
-			"reasoning_split": true,
-		}),
-	)
-
+	// Providers is the credential registry. A user configures one API key per
+	// provider, regardless of how many concrete models that provider offers.
 	Providers = []ProviderInfo{
 		{ID: DeepSeekProviderID, Name: "DeepSeek"},
 		{ID: MiniMaxProviderID, Name: "MiniMax"},
 	}
 
-	// Definitions is the model catalog and adapter registry in one place. Add
-	// later model variants here with a new stable ID; never add user API keys.
-	Definitions = map[string]Definition{
-		DeepSeekV4FlashID: {
+	// Definitions is EDITH's ordered model registry and the only place a
+	// concrete model is declared. It binds browser-facing metadata to its
+	// shared adapter; user credentials are still supplied per run.
+	Definitions = []Definition{
+		{
 			Info: Info{
 				ID:               DeepSeekV4FlashID,
 				ProviderID:       DeepSeekProviderID,
 				Name:             "DeepSeek V4 Flash",
 				ReasoningOptions: []ReasoningOption{},
+				Capabilities:     Capabilities{Vision: false},
 			},
-			Model: DeepSeekV4Flash,
+			Model: openai.New("deepseek-v4-flash",
+				openai.WithVariant(openai.VariantDeepSeek),
+				openai.WithBaseURL(deepSeekBaseURL),
+			),
 		},
-		MiniMaxM3ID: {
+		{
+			Info: Info{
+				ID:               DeepSeekV4ProID,
+				ProviderID:       DeepSeekProviderID,
+				Name:             "DeepSeek V4 Pro",
+				ReasoningOptions: []ReasoningOption{},
+				Capabilities:     Capabilities{Vision: false},
+			},
+			Model: openai.New("deepseek-v4-pro",
+				openai.WithVariant(openai.VariantDeepSeek),
+				openai.WithBaseURL(deepSeekBaseURL),
+			),
+		},
+		{
 			Info: Info{
 				ID:               MiniMaxM3ID,
 				ProviderID:       MiniMaxProviderID,
 				Name:             "MiniMax M3",
 				ReasoningOptions: []ReasoningOption{},
+				Capabilities:     Capabilities{Vision: true},
 			},
-			Model: MiniMaxM3,
+			Model: openai.New("MiniMax-M3",
+				openai.WithVariant(openai.VariantMiniMax),
+				openai.WithBaseURL(miniMaxBaseURL),
+				openai.WithExtraFields(map[string]any{
+					"reasoning_split": true,
+				}),
+			),
 		},
 	}
 
-	// Catalog is ordered for UI display. Keep it aligned with Definitions.
-	Catalog = []Info{
-		Definitions[DeepSeekV4FlashID].Info,
-		Definitions[MiniMaxM3ID].Info,
-	}
+	// Catalog is the browser-facing projection of Definitions.
+	Catalog = catalogFrom(Definitions)
 
-	// Registered is the mapping consumed by agent.WithModelName.
-	Registered = map[string]model.Model{
-		DeepSeekV4FlashID: DeepSeekV4Flash,
-		MiniMaxM3ID:       MiniMaxM3,
-	}
+	// Registered is the Runner-facing projection of Definitions.
+	Registered = registeredFrom(Definitions)
 )
 
 // Lookup returns the definition for one stable EDITH model ID.
 func Lookup(modelID string) (Definition, bool) {
-	definition, ok := Definitions[modelID]
-	return definition, ok
+	for _, definition := range Definitions {
+		if definition.ID == modelID {
+			return definition, true
+		}
+	}
+	return Definition{}, false
+}
+
+func catalogFrom(definitions []Definition) []Info {
+	catalog := make([]Info, 0, len(definitions))
+	for _, definition := range definitions {
+		catalog = append(catalog, definition.Info)
+	}
+	return catalog
+}
+
+func registeredFrom(definitions []Definition) map[string]model.Model {
+	registered := make(map[string]model.Model, len(definitions))
+	for _, definition := range definitions {
+		registered[definition.ID] = definition.Model
+	}
+	return registered
 }

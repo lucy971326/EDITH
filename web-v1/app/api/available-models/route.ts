@@ -9,8 +9,18 @@ export async function GET() {
   url.searchParams.set("userId", userId);
   try {
     const response = await fetch(url, { cache: "no-store" });
-    return new Response(response.body, { status: response.status, headers: { "Content-Type": response.headers.get("Content-Type") ?? "application/json", "Cache-Control": "no-store" } });
+    return new Response(response.body, {
+      status: response.status,
+      headers: {
+        "Content-Type":
+          response.headers.get("Content-Type") ?? "application/json",
+        "Cache-Control": "no-store",
+      },
+    });
   } catch {
-    return Response.json({ error: "EDITH runtime is unavailable" }, { status: 502 });
+    return Response.json(
+      { error: "EDITH runtime is unavailable" },
+      { status: 502 },
+    );
   }
 }

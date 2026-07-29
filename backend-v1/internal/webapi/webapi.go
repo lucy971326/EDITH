@@ -4,6 +4,7 @@ package webapi
 import (
 	"net/http"
 
+	"edith/backend-v1/internal/images"
 	"edith/backend-v1/internal/userconfig"
 
 	"trpc.group/trpc-go/trpc-agent-go/runner"
@@ -17,6 +18,7 @@ type Server struct {
 	AppName  string
 	Runner   runner.Runner
 	Users    *userconfig.Store
+	Images   *images.Service
 	Sessions session.Service
 }
 
@@ -33,4 +35,7 @@ func (s Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /internal/mcp-servers/{serverID}", s.deleteMCPServer)
 	mux.HandleFunc("GET /internal/conversations", s.listConversations)
 	mux.HandleFunc("GET /internal/conversations/{sessionID}", s.getConversation)
+	mux.HandleFunc("POST /internal/images", s.createImageUpload)
+	mux.HandleFunc("POST /internal/images/{imageID}/complete", s.completeImageUpload)
+	mux.HandleFunc("GET /internal/images/{imageID}", s.openImage)
 }

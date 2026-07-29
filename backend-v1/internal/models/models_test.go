@@ -6,9 +6,11 @@ func TestRegisteredModels(t *testing.T) {
 	tests := []struct {
 		name      string
 		modelName string
+		vision    bool
 	}{
-		{name: DeepSeekV4FlashID, modelName: "deepseek-v4-flash"},
-		{name: MiniMaxM3ID, modelName: "MiniMax-M3"},
+		{name: DeepSeekV4FlashID, modelName: "deepseek-v4-flash", vision: false},
+		{name: DeepSeekV4ProID, modelName: "deepseek-v4-pro", vision: false},
+		{name: MiniMaxM3ID, modelName: "MiniMax-M3", vision: true},
 	}
 
 	for _, tt := range tests {
@@ -19,6 +21,13 @@ func TestRegisteredModels(t *testing.T) {
 			}
 			if got := m.Info().Name; got != tt.modelName {
 				t.Fatalf("Info().Name = %q, want %q", got, tt.modelName)
+			}
+			definition, ok := Lookup(tt.name)
+			if !ok {
+				t.Fatal("model definition is missing")
+			}
+			if got := definition.Capabilities.Vision; got != tt.vision {
+				t.Fatalf("Capabilities.Vision = %v, want %v", got, tt.vision)
 			}
 		})
 	}

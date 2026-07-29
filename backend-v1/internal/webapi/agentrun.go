@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"edith/backend-v1/internal/images"
 	"edith/backend-v1/internal/mcp"
 	"edith/backend-v1/internal/models"
 	"edith/backend-v1/internal/runopts"
@@ -25,6 +26,10 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 	definition, ok := models.Lookup(request.ModelID)
 	if !ok {
 		http.Error(w, "unsupported modelId", http.StatusBadRequest)
+		return
+	}
+	if len(request.ImageIDs) > 0 && !definition.Info.Capabilities.Vision {
+		http.Error(w, "selected model does not support image input", http.StatusBadRequest)
 		return
 	}
 	apiKey, err := s.Users.LoadProviderAPIKey(r.Context(), request.UserID, definition.ProviderID)
@@ -61,11 +66,31 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		AdditionalTools: mcpTools,
 	})
 
+	message := model.NewUserMessage(request.Message)
+	runContext := images.WithHydratedSession(r.Context())
+	if len(request.ImageIDs) > 0 {
+		if s.Images == nil {
+			http.Error(w, "image service is unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		runContext, err = s.Images.AddMessageImages(
+			runContext,
+			request.UserID,
+			request.SessionID,
+			request.ImageIDs,
+			&message,
+		)
+		if err != nil {
+			http.Error(w, "prepare message images: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	events, err := s.Runner.Run(
-		r.Context(),
+		runContext,
 		request.UserID,
 		request.SessionID,
-		model.NewUserMessage(request.Message),
+		message,
 		opts...,
 	)
 	if err != nil {
@@ -122,8 +147,12 @@ func decodeAgentRunRequest(w http.ResponseWriter, r *http.Request) (AgentRunRequ
 	request.SessionID = strings.TrimSpace(request.SessionID)
 	request.Message = strings.TrimSpace(request.Message)
 	request.ModelID = strings.TrimSpace(request.ModelID)
-	if request.UserID == "" || request.SessionID == "" || request.Message == "" || request.ModelID == "" {
-		http.Error(w, "userId, sessionId, message, and modelId are required", http.StatusBadRequest)
+	for index := range request.ImageIDs {
+		request.ImageIDs[index] = strings.TrimSpace(request.ImageIDs[index])
+	}
+	if request.UserID == "" || request.SessionID == "" || request.ModelID == "" ||
+		(request.Message == "" && len(request.ImageIDs) == 0) {
+		http.Error(w, "userId, sessionId, modelId, and either message or imageIds are required", http.StatusBadRequest)
 		return AgentRunRequest{}, errors.New("missing required agent run fields")
 	}
 	return request, nil

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const chatRequest = await parseChatRequest(request);
   if (!chatRequest) {
     return Response.json(
-      { error: "sessionId and message are required strings" },
+      { error: "sessionId, modelId, and either message or imageIds are required" },
       { status: 400 },
     );
   }
@@ -60,24 +60,28 @@ async function parseChatRequest(request: Request): Promise<ChatRequest | null> {
   }
 
   if (
-    typeof value !== "object" ||
-    value === null ||
-    !("sessionId" in value) ||
-    !("message" in value) ||
-    !("modelId" in value) ||
-    typeof value.sessionId !== "string" ||
-    typeof value.message !== "string" ||
-    typeof value.modelId !== "string" ||
-    !value.sessionId ||
-    !value.message.trim() ||
-    !value.modelId.trim()
-  ) {
-    return null;
-  }
+    typeof value !== "object" || value === null ||
+    !("sessionId" in value) || !("message" in value) || !("modelId" in value) ||
+    typeof value.sessionId !== "string" || typeof value.message !== "string" ||
+    typeof value.modelId !== "string"
+  ) return null;
 
-  return {
-    sessionId: value.sessionId,
+  const imageIds = "imageIds" in value ? value.imageIds : [];
+  const reasoningOptionId = "reasoningOptionId" in value ? value.reasoningOptionId : undefined;
+  if (
+    !Array.isArray(imageIds) ||
+    imageIds.some((id) => typeof id !== "string" || !id.trim()) ||
+    (reasoningOptionId !== undefined && typeof reasoningOptionId !== "string") ||
+    !value.sessionId.trim() || !value.modelId.trim() ||
+    (!value.message.trim() && imageIds.length === 0)
+  ) return null;
+
+  const chatRequest: ChatRequest = {
+    sessionId: value.sessionId.trim(),
     message: value.message.trim(),
+    imageIds: imageIds.map((id) => id.trim()),
     modelId: value.modelId.trim(),
   };
+  if (reasoningOptionId?.trim()) chatRequest.reasoningOptionId = reasoningOptionId.trim();
+  return chatRequest;
 }

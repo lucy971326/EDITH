@@ -7,11 +7,41 @@ import "edith/backend-v1/internal/timeline"
 // AgentRunRequest is the Next BFF → Go Runtime request body for one Agent run.
 // userId comes from Clerk on the BFF, never from browser JSON.
 type AgentRunRequest struct {
-	UserID            string `json:"userId"`
-	SessionID         string `json:"sessionId"`
-	Message           string `json:"message"`
-	ModelID           string `json:"modelId"`
-	ReasoningOptionID string `json:"reasoningOptionId"`
+	UserID            string   `json:"userId"`
+	SessionID         string   `json:"sessionId"`
+	Message           string   `json:"message"`
+	ImageIDs          []string `json:"imageIds"`
+	ModelID           string   `json:"modelId"`
+	ReasoningOptionID string   `json:"reasoningOptionId"`
+}
+
+// CreateImageUploadRequest asks Go to reserve one image and issue its short
+// lived COS upload URL. userId is injected by the BFF.
+type CreateImageUploadRequest struct {
+	UserID    string `json:"userId"`
+	SessionID string `json:"sessionId"`
+	MimeType  string `json:"mimeType"`
+	SizeBytes int64  `json:"sizeBytes"`
+}
+
+// ChatImage is the durable browser-facing image identity. COS object keys and
+// presigned URLs stay inside Go.
+type ChatImage struct {
+	ID       string `json:"id"`
+	MimeType string `json:"mimeType"`
+}
+
+type CreateImageUploadResponse struct {
+	Image     ChatImage `json:"image"`
+	UploadURL string    `json:"uploadUrl"`
+}
+
+type CompleteImageUploadRequest struct {
+	UserID string `json:"userId"`
+}
+
+type CompleteImageUploadResponse struct {
+	Image ChatImage `json:"image"`
 }
 
 // ModelCatalogResponse is the Go Runtime → Next BFF response body for the

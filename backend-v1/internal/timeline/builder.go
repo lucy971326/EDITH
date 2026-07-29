@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"edith/backend-v1/internal/images"
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 )
@@ -253,6 +254,7 @@ func BuildHistory(events []event.Event) Timeline {
 					Type:      BlockTypeUser,
 					ID:        eventID(source, "user"),
 					Content:   choice.Message.Content,
+					Images:    userImages(choice.Message),
 					CreatedAt: eventTime(source),
 				})
 			}
@@ -277,6 +279,21 @@ func BuildHistory(events []event.Event) Timeline {
 	}
 	flushActive()
 	return timeline
+}
+
+func userImages(message model.Message) []UserImage {
+	result := []UserImage{}
+	for _, part := range message.ContentParts {
+		if part.Image == nil {
+			continue
+		}
+		imageID, ok := images.ImageIDFromReference(part.Image.URL)
+		if !ok {
+			continue
+		}
+		result = append(result, UserImage{ID: imageID})
+	}
+	return result
 }
 
 func eventID(source *event.Event, fallback string) string {
