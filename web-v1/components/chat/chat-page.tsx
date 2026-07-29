@@ -97,7 +97,7 @@ export function ChatPage() {
     setReasoningOptionID("");
   }
 
-  async function sendMessage(content: string) {
+  async function sendMessage(content: string, imageIDs: string[]) {
     if (!modelID || isRunning) {
       return;
     }
@@ -108,6 +108,7 @@ export function ChatPage() {
       type: "user",
       id: crypto.randomUUID(),
       content,
+      images: imageIDs.map((id) => ({ id })),
       createdAt: now,
     };
     setSessions((current) =>
@@ -118,7 +119,7 @@ export function ChatPage() {
 
         return {
           ...session,
-          title: session.timeline.blocks.length === 0 ? content.slice(0, 18) : session.title,
+          title: session.timeline.blocks.length === 0 ? (content.slice(0, 18) || "图片") : session.title,
           timeline: {
             blocks: [...session.timeline.blocks, userBlock],
           },
@@ -133,6 +134,7 @@ export function ChatPage() {
         body: JSON.stringify({
           sessionId: sessionID,
           message: content,
+          imageIds: imageIDs,
           modelId: modelID,
           ...(reasoningOptionID ? { reasoningOptionId: reasoningOptionID } : {}),
         }),
@@ -193,13 +195,14 @@ export function ChatPage() {
         <ChatComposer
           key={composerClearSignal}
           isRunning={isRunning}
+          sessionID={activeSession.id}
           modelID={modelID}
           models={models}
           reasoningOptionID={reasoningOptionID}
           selectedModel={selectedModel}
           onModelChange={selectModel}
           onReasoningOptionChange={setReasoningOptionID}
-          onSend={(content) => void sendMessage(content)}
+          onSend={(content, imageIDs) => void sendMessage(content, imageIDs)}
         />
       </section>
 

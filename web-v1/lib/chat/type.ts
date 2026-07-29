@@ -13,7 +13,19 @@ export type UserBlock = {
   type: "user";
   id: string;
   content: string;
+  images: UserImage[];
   createdAt: string;
+};
+
+// ChatImage is an EDITH-owned image reference. The browser always loads it
+// through /api/images/{id}; it never stores a short-lived COS URL.
+export type ChatImage = {
+  id: string;
+  mimeType: string;
+};
+
+export type UserImage = {
+  id: string;
 };
 
 export type AssistantBlock = {
@@ -60,8 +72,20 @@ export type ToolBlock = {
 export type ChatRequest = {
   sessionId: string;
   message: string;
+  imageIds: string[];
   modelId: string;
   reasoningOptionId?: string;
+};
+
+export type CreateImageUploadRequest = {
+  sessionId: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+export type CreateImageUploadResponse = {
+  image: ChatImage;
+  uploadUrl: string;
 };
 
 export type Conversation = {

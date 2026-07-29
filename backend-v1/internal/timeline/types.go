@@ -43,13 +43,20 @@ type TimelineBlock interface {
 
 // UserBlock is one message sent by a human user.
 type UserBlock struct {
-	Type      BlockType `json:"type"`
-	ID        string    `json:"id"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"createdAt"`
+	Type      BlockType   `json:"type"`
+	ID        string      `json:"id"`
+	Content   string      `json:"content"`
+	Images    []UserImage `json:"images"`
+	CreatedAt time.Time   `json:"createdAt"`
 }
 
 func (UserBlock) isTimelineBlock() {}
+
+// UserImage carries only EDITH's durable image identity. The browser resolves
+// it through its authenticated BFF endpoint rather than storing COS URLs.
+type UserImage struct {
+	ID string `json:"id"`
+}
 
 // AssistantBlock is one Agent turn. Its child blocks preserve the visible
 // order of reasoning, text, and tool activity within that turn.
