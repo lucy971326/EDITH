@@ -10,29 +10,21 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// Store owns EDITH's long-lived SQLite connection.
+// Store uses EDITH's long-lived SQLite connection.
 type Store struct {
 	db *sql.DB
 }
 
-// Open opens SQLite and creates EDITH's current tables.
-func Open(path string) (*Store, error) {
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		return nil, fmt.Errorf("open user config database: %w", err)
+// Open creates EDITH's current tables on the caller-owned SQLite connection.
+func Open(db *sql.DB) (*Store, error) {
+	if db == nil {
+		return nil, errors.New("user config database is required")
 	}
-
 	store := &Store{db: db}
 	if err := store.createTables(context.Background()); err != nil {
-		db.Close()
 		return nil, err
 	}
 	return store, nil
-}
-
-// Close releases the long-lived SQLite connection.
-func (s *Store) Close() error {
-	return s.db.Close()
 }
 
 // LoadSettings creates a user record on first visit and returns only safe

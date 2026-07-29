@@ -1,6 +1,7 @@
 package webapi
 
 import (
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -11,11 +12,15 @@ import (
 )
 
 func TestMCPServerResponseNeverReturnsHeaderValue(t *testing.T) {
-	store, err := userconfig.Open(filepath.Join(t.TempDir(), "edith.db"))
+	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "edith.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { db.Close() })
+	store, err := userconfig.Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
 	secret := "Bearer must-not-leak"
 	if _, err := store.CreateMCPServer(t.Context(), "alice", userconfig.MCPServerInput{
 		Name:      "GitHub",

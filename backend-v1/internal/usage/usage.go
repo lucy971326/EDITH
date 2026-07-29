@@ -69,22 +69,17 @@ type Summary struct {
 	CacheHitRate         *float64 `json:"cacheHitRate"`
 }
 
-// Open creates the accounting table in EDITH's shared SQLite database.
-func Open(path string) (*Service, error) {
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		return nil, fmt.Errorf("open usage database: %w", err)
+// Open creates the accounting table on EDITH's caller-owned SQLite database.
+func Open(db *sql.DB) (*Service, error) {
+	if db == nil {
+		return nil, errors.New("usage database is required")
 	}
 	service := &Service{db: db}
 	if err := service.createTable(context.Background()); err != nil {
-		db.Close()
 		return nil, err
 	}
 	return service, nil
 }
-
-// Close releases the accounting database connection.
-func (s *Service) Close() error { return s.db.Close() }
 
 // Start records one accepted Agent Run before its event stream is consumed.
 func (s *Service) Start(ctx context.Context, run Run) error {

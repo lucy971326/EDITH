@@ -28,7 +28,7 @@ type Config struct {
 	SecretKey string
 }
 
-// Service owns EDITH's image metadata connection and COS client.
+// Service uses EDITH's image metadata database and owns its COS client.
 type Service struct {
 	db     *sql.DB
 	cos    cosStore
@@ -57,9 +57,12 @@ type imageRecord struct {
 	Status    string
 }
 
-// Open opens the image metadata store and validates COS configuration once at
-// startup.
-func Open(path string, config Config) (*Service, error) {
+// Open validates COS configuration and creates image tables on the
+// caller-owned SQLite connection.
+func Open(db *sql.DB, config Config) (*Service, error) {
+	if db == nil {
+		return nil, errors.New("image database is required")
+	}
 	config = normalizedConfig(config)
 	if err := checkConfig(config); err != nil {
 		return nil, err
@@ -69,22 +72,11 @@ func Open(path string, config Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		return nil, fmt.Errorf("open image database: %w", err)
-	}
-
 	service := &Service{db: db, cos: client, config: config}
 	if err := service.createTable(context.Background()); err != nil {
-		db.Close()
 		return nil, err
 	}
 	return service, nil
-}
-
-// Close releases the image metadata database connection.
-func (s *Service) Close() error {
-	return s.db.Close()
 }
 
 // CreateUpload reserves one image before the browser uploads its bytes

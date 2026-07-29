@@ -1,6 +1,7 @@
 package webapi
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -67,11 +68,15 @@ func TestAgentRunRejectsInvalidJSONBeforeLoadingDependencies(t *testing.T) {
 }
 
 func TestUserSettingsEmptyProvidersIsJSONArray(t *testing.T) {
-	store, err := userconfig.Open(filepath.Join(t.TempDir(), "edith.db"))
+	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "edith.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { db.Close() })
+	store, err := userconfig.Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	server := Server{Users: store}
 	mux := http.NewServeMux()

@@ -31,15 +31,21 @@ const appName = "EDITH"
 func main() {
 	loadEnv()
 
-	// Both stores use different tables in the same SQLite file. Each service
-	// owns its own connection and closes it when the process stops.
-	users, err := userconfig.Open(databasePath())
+	// EDITH-owned services share one SQLite handle. The framework session
+	// service owns a separate handle because its Close method closes the DB it
+	// receives. Both handles use WAL plus a busy timeout for SQLite writes.
+	appDB, err := openDatabase(databasePath())
+	if err != nil {
+		log.Fatalf("open EDITH database: %v", err)
+	}
+	defer appDB.Close()
+
+	users, err := userconfig.Open(appDB)
 	if err != nil {
 		log.Fatalf("open user config store: %v", err)
 	}
-	defer users.Close()
 
-	sessionDB, err := sql.Open("sqlite3", databasePath())
+	sessionDB, err := openDatabase(databasePath())
 	if err != nil {
 		log.Fatalf("open session database: %v", err)
 	}
@@ -51,24 +57,21 @@ func main() {
 	defer rawSessions.Close()
 
 	// chatImages owns chat-image metadata, ownership checks, and private COS access.
-	chatImages, err := images.Open(databasePath(), imageConfig())
+	chatImages, err := images.Open(appDB, imageConfig())
 	if err != nil {
 		log.Fatalf("open image service: %v", err)
 	}
-	defer chatImages.Close()
 	imageSessions := images.WrapSessionService(rawSessions, chatImages)
 
-	runUsage, err := usage.Open(databasePath())
+	runUsage, err := usage.Open(appDB)
 	if err != nil {
 		log.Fatalf("open usage service: %v", err)
 	}
-	defer runUsage.Close()
 
-	sandboxes, err := sandbox.Open(databasePath(), sandboxTemplate())
+	sandboxes, err := sandbox.Open(appDB, sandboxTemplate())
 	if err != nil {
 		log.Fatalf("open sandbox service: %v", err)
 	}
-	defer sandboxes.Close()
 
 	defaultTools := tools.Default(sandboxes)
 	chat := llmagent.New(
@@ -114,6 +117,28 @@ func main() {
 	if err := httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+}
+
+func openDatabase(path string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return nil, err
+	}
+
+	// One connection per owner keeps SQLite write ordering simple. WAL permits
+	// readers while a writer is active; busy_timeout turns short lock races into
+	// waiting instead of immediate "database is locked" failures.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	if _, err := db.Exec(`PRAGMA journal_mode = WAL`); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if _, err := db.Exec(`PRAGMA busy_timeout = 5000`); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return db, nil
 }
 
 // loadEnv loads local development configuration. Existing process environment
