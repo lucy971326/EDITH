@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 
+	"edith/backend-v1/internal/sandbox"
 	"github.com/eric642/e2b-go-sdk"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 	"trpc.group/trpc-go/trpc-agent-go/tool/function"
@@ -94,7 +95,7 @@ func (s *SandboxToolSet) listFilesTool() tool.Tool {
 			return output, nil
 		},
 		function.WithName("sandbox_list_files"),
-		function.WithDescription("列出当前会话 Sandbox 工作区中的文件和目录。"),
+		function.WithDescription(sandboxToolDescription("列出当前会话 Sandbox 工作区中的文件和目录。")),
 	)
 }
 
@@ -145,7 +146,7 @@ func (s *SandboxToolSet) readFileTool() tool.Tool {
 			}, nil
 		},
 		function.WithName("sandbox_read_file"),
-		function.WithDescription("读取当前会话 Sandbox 工作区中的文本文件。大文件请使用 offset 和 limit 分段读取。"),
+		function.WithDescription(sandboxToolDescription("读取当前会话 Sandbox 工作区中的文本文件。大文件请使用 offset 和 limit 分段读取。")),
 	)
 }
 
@@ -166,7 +167,7 @@ func (s *SandboxToolSet) writeFileTool() tool.Tool {
 			return sandboxFileOutput{Path: sandboxRelativePath(filePath), Message: "file saved"}, nil
 		},
 		function.WithName("sandbox_write_file"),
-		function.WithDescription("在当前会话 Sandbox 工作区中创建或覆盖一个文本文件；缺失的父目录会自动创建。"),
+		function.WithDescription(sandboxToolDescription("在当前会话 Sandbox 工作区中创建或覆盖一个文本文件；缺失的父目录会自动创建。处理中写入 work/，最终交付文件写入 artifacts/。")),
 	)
 }
 
@@ -187,7 +188,7 @@ func (s *SandboxToolSet) makeDirectoryTool() tool.Tool {
 			return sandboxFileOutput{Path: sandboxRelativePath(directory), Message: "directory created"}, nil
 		},
 		function.WithName("sandbox_make_directory"),
-		function.WithDescription("在当前会话 Sandbox 工作区中创建目录，包括缺失的父目录。"),
+		function.WithDescription(sandboxToolDescription("在当前会话 Sandbox 工作区中创建目录，包括缺失的父目录。")),
 	)
 }
 
@@ -212,7 +213,7 @@ func (s *SandboxToolSet) movePathTool() tool.Tool {
 			return sandboxFileOutput{Path: sandboxRelativePath(to), Message: "path moved"}, nil
 		},
 		function.WithName("sandbox_move_path"),
-		function.WithDescription("移动或重命名当前会话 Sandbox 工作区中的文件或目录。"),
+		function.WithDescription(sandboxToolDescription("移动或重命名当前会话 Sandbox 工作区中的文件或目录。")),
 	)
 }
 
@@ -233,7 +234,7 @@ func (s *SandboxToolSet) deletePathTool() tool.Tool {
 			return sandboxFileOutput{Path: sandboxRelativePath(filePath), Message: "path deleted"}, nil
 		},
 		function.WithName("sandbox_delete_path"),
-		function.WithDescription("删除当前会话 Sandbox 工作区中的文件或目录。"),
+		function.WithDescription(sandboxToolDescription("删除当前会话 Sandbox 工作区中的文件或目录。")),
 	)
 }
 
@@ -241,7 +242,7 @@ func sandboxPath(input string, allowRoot bool) (string, error) {
 	relative := strings.ReplaceAll(strings.TrimSpace(input), `\`, "/")
 	if relative == "" || relative == "." {
 		if allowRoot {
-			return sandboxWorkspacePath, nil
+			return sandbox.Workspace.Root, nil
 		}
 		return "", fmt.Errorf("workspace root is not allowed here")
 	}
@@ -253,15 +254,15 @@ func sandboxPath(input string, allowRoot bool) (string, error) {
 			return "", fmt.Errorf("sandbox paths cannot contain '..'")
 		}
 	}
-	return path.Join(sandboxWorkspacePath, relative), nil
+	return path.Join(sandbox.Workspace.Root, relative), nil
 }
 
 func sandboxRelativePath(realPath string) string {
 	cleaned := path.Clean(realPath)
-	if cleaned == sandboxWorkspacePath {
+	if cleaned == sandbox.Workspace.Root {
 		return "."
 	}
-	prefix := sandboxWorkspacePath + "/"
+	prefix := sandbox.Workspace.Root + "/"
 	if !strings.HasPrefix(cleaned, prefix) {
 		return realPath
 	}

@@ -1,13 +1,17 @@
 package tools
 
-import "testing"
+import (
+	"testing"
+
+	"edith/backend-v1/internal/sandbox"
+)
 
 func TestSandboxPathKeepsToolsInsideWorkspace(t *testing.T) {
 	path, err := sandboxPath("project/main.go", false)
 	if err != nil {
 		t.Fatalf("sandboxPath() error = %v", err)
 	}
-	if path != "/home/user/project/main.go" {
+	if path != sandbox.Workspace.Root+"/project/main.go" {
 		t.Fatalf("sandboxPath() = %q", path)
 	}
 
@@ -23,7 +27,7 @@ func TestSandboxPathAllowsRootOnlyForDirectoryListing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sandboxPath(root) error = %v", err)
 	}
-	if path != sandboxWorkspacePath {
+	if path != sandbox.Workspace.Root {
 		t.Fatalf("sandboxPath(root) = %q", path)
 	}
 

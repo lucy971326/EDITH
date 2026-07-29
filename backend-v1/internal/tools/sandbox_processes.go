@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"edith/backend-v1/internal/sandbox"
 	"github.com/eric642/e2b-go-sdk"
 	"github.com/google/uuid"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
@@ -86,7 +87,7 @@ func (s *SandboxToolSet) runCommandTool() tool.Tool {
 
 			handle, err := workspace.Commands.Run(ctx, input.Command, e2b.RunOptions{
 				Args:      input.Args,
-				Cwd:       sandboxWorkspacePath,
+				Cwd:       sandbox.Workspace.WorkPath(),
 				Envs:      input.Envs,
 				TimeoutMs: timeout,
 			})
@@ -114,7 +115,7 @@ func (s *SandboxToolSet) runCommandTool() tool.Tool {
 			return output, nil
 		},
 		function.WithName("sandbox_run_command"),
-		function.WithDescription("在当前会话 Sandbox 工作区中前台执行一个程序，并返回退出码、标准输出和错误输出。"),
+		function.WithDescription(sandboxToolDescription("在当前会话 Sandbox 的 work/ 目录中前台执行一个程序，并返回退出码、标准输出和错误输出。")),
 	)
 }
 
@@ -130,7 +131,7 @@ func (s *SandboxToolSet) startProcessTool() tool.Tool {
 				return sandboxStartProcessOutput{}, fmt.Errorf("command is required")
 			}
 
-			logDirectory := sandboxWorkspacePath + "/.edith/processes"
+			logDirectory := sandbox.Workspace.WorkPath() + "/.edith/processes"
 			if err := workspace.Files.MakeDir(ctx, logDirectory, e2b.FsOptions{}); err != nil {
 				return sandboxStartProcessOutput{}, err
 			}
@@ -141,7 +142,7 @@ func (s *SandboxToolSet) startProcessTool() tool.Tool {
 			)
 			handle, err := workspace.Commands.Start(ctx, "sh", e2b.RunOptions{
 				Args: args,
-				Cwd:  sandboxWorkspacePath,
+				Cwd:  sandbox.Workspace.WorkPath(),
 				Tag:  "edith-agent",
 			})
 			if err != nil {
@@ -157,7 +158,7 @@ func (s *SandboxToolSet) startProcessTool() tool.Tool {
 			}, nil
 		},
 		function.WithName("sandbox_start_process"),
-		function.WithDescription("在当前会话 Sandbox 中启动长期运行的进程。返回 PID 和日志文件路径；使用 sandbox_read_file 查看日志。"),
+		function.WithDescription(sandboxToolDescription("在当前会话 Sandbox 的 work/ 目录中启动长期运行的进程。返回 PID 和日志文件路径；使用 sandbox_read_file 查看日志。")),
 	)
 }
 
@@ -175,7 +176,7 @@ func (s *SandboxToolSet) listProcessesTool() tool.Tool {
 			output := sandboxListProcessesOutput{Processes: []sandboxProcessInfo{}}
 			for _, process := range processes {
 				cwd := process.Cwd
-				if strings.HasPrefix(cwd, sandboxWorkspacePath) {
+				if strings.HasPrefix(cwd, sandbox.Workspace.Root) {
 					cwd = sandboxRelativePath(cwd)
 				}
 				output.Processes = append(output.Processes, sandboxProcessInfo{
@@ -189,7 +190,7 @@ func (s *SandboxToolSet) listProcessesTool() tool.Tool {
 			return output, nil
 		},
 		function.WithName("sandbox_list_processes"),
-		function.WithDescription("列出当前会话 Sandbox 中正在运行的进程。"),
+		function.WithDescription(sandboxToolDescription("列出当前会话 Sandbox 中正在运行的进程。")),
 	)
 }
 
@@ -209,7 +210,7 @@ func (s *SandboxToolSet) killProcessTool() tool.Tool {
 			return sandboxKillProcessOutput{PID: input.PID, Message: "process killed"}, nil
 		},
 		function.WithName("sandbox_kill_process"),
-		function.WithDescription("结束当前会话 Sandbox 中指定 PID 的进程。"),
+		function.WithDescription(sandboxToolDescription("结束当前会话 Sandbox 中指定 PID 的进程。")),
 	)
 }
 

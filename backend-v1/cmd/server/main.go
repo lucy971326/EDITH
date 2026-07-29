@@ -48,7 +48,7 @@ func main() {
 	}
 	defer sessions.Close()
 
-	sandboxes, err := sandbox.Open(databasePath())
+	sandboxes, err := sandbox.Open(databasePath(), sandboxTemplate())
 	if err != nil {
 		log.Fatalf("open sandbox service: %v", err)
 	}
@@ -118,4 +118,12 @@ func runtimeAddress() string {
 		return address
 	}
 	return "127.0.0.1:8080"
+}
+
+func sandboxTemplate() string {
+	template := os.Getenv("EDITH_E2B_TEMPLATE")
+	if template == "" {
+		log.Fatal("EDITH_E2B_TEMPLATE is required")
+	}
+	return template
 }

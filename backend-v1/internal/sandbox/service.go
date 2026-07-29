@@ -18,12 +18,18 @@ const sandboxTimeout = 10 * time.Minute
 // Service owns EDITH's E2B client and the user/session-to-sandbox mapping.
 // It is a long-lived capability created once in main.
 type Service struct {
-	db     *sql.DB
-	client *e2b.Client
+	db       *sql.DB
+	client   *e2b.Client
+	template string
 }
 
 // Open creates the mapping table and one reusable E2B client.
-func Open(databasePath string) (*Service, error) {
+func Open(databasePath string, template string) (*Service, error) {
+	template = strings.TrimSpace(template)
+	if template == "" {
+		return nil, errors.New("sandbox template is required")
+	}
+
 	db, err := sql.Open("sqlite3", databasePath)
 	if err != nil {
 		return nil, fmt.Errorf("open sandbox database: %w", err)
@@ -47,7 +53,7 @@ func Open(databasePath string) (*Service, error) {
 		return nil, fmt.Errorf("create E2B client: %w", err)
 	}
 
-	return &Service{db: db, client: client}, nil
+	return &Service{db: db, client: client, template: template}, nil
 }
 
 // Close releases the SQLite connection. E2B sandbox lifecycle is managed by
@@ -93,7 +99,7 @@ func (s *Service) OpenWorkspace(ctx context.Context, userID, sessionID string) (
 	}
 
 	workspace, err := s.client.Create(ctx, e2b.CreateOptions{
-		Template: "base",
+		Template: s.template,
 		Timeout:  sandboxTimeout,
 		Secure:   true,
 		Metadata: map[string]string{

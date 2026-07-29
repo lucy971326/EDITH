@@ -5,6 +5,7 @@ go 1.26.2
 require (
 	github.com/eric642/e2b-go-sdk v0.1.3
 	github.com/google/uuid v1.6.0
+	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.32
 	trpc.group/trpc-go/trpc-agent-go v1.6.1-0.20260311094958-7b74ee59e339
 	trpc.group/trpc-go/trpc-agent-go/session/sqlite v0.0.0
@@ -23,7 +24,6 @@ require (
 	github.com/go-openapi/swag v0.22.8 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0 // indirect
 	github.com/invopop/yaml v0.2.0 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
