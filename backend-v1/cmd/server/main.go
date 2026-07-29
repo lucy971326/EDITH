@@ -15,6 +15,7 @@ import (
 	"edith/backend-v1/internal/models"
 	"edith/backend-v1/internal/sandbox"
 	"edith/backend-v1/internal/tools"
+	"edith/backend-v1/internal/usage"
 	"edith/backend-v1/internal/userconfig"
 	"edith/backend-v1/internal/webapi"
 
@@ -57,6 +58,12 @@ func main() {
 	defer chatImages.Close()
 	imageSessions := images.WrapSessionService(rawSessions, chatImages)
 
+	runUsage, err := usage.Open(databasePath())
+	if err != nil {
+		log.Fatalf("open usage service: %v", err)
+	}
+	defer runUsage.Close()
+
 	sandboxes, err := sandbox.Open(databasePath(), sandboxTemplate())
 	if err != nil {
 		log.Fatalf("open sandbox service: %v", err)
@@ -84,6 +91,7 @@ func main() {
 		Users:    users,
 		Images:   chatImages,
 		Sessions: rawSessions,
+		Usage:    runUsage,
 	}
 	mux := http.NewServeMux()
 	webapi.Register(mux)

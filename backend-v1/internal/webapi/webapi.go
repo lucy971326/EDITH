@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"edith/backend-v1/internal/images"
+	"edith/backend-v1/internal/usage"
 	"edith/backend-v1/internal/userconfig"
 
 	"trpc.group/trpc-go/trpc-agent-go/runner"
@@ -20,6 +21,7 @@ type Server struct {
 	Users    *userconfig.Store
 	Images   *images.Service
 	Sessions session.Service
+	Usage    *usage.Service
 }
 
 // Register attaches Web BFF routes to mux.

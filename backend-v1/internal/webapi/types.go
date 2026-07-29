@@ -3,6 +3,7 @@ package webapi
 import (
 	"edith/backend-v1/internal/models"
 	"edith/backend-v1/internal/timeline"
+	"edith/backend-v1/internal/usage"
 )
 
 // AgentRunRequest is the Next BFF → Go Runtime request body for one Agent run.
@@ -126,4 +127,5 @@ type ConversationListResponse struct {
 
 type ConversationResponse struct {
 	Timeline timeline.Timeline `json:"timeline"`
+	Usage    usage.Summary     `json:"usage"`
 }

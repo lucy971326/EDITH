@@ -100,6 +100,23 @@ export type ConversationListResponse = {
 
 export type ConversationResponse = {
   timeline: Timeline;
+  usage: SessionUsage;
+};
+
+export type SessionUsage = {
+  totalTokens: number;
+  cachedPromptTokens: number | null;
+  uncachedPromptTokens: number | null;
+  completionTokens: number;
+  cacheHitRate: number | null;
+};
+
+export const emptySessionUsage: SessionUsage = {
+  totalTokens: 0,
+  cachedPromptTokens: null,
+  uncachedPromptTokens: null,
+  completionTokens: 0,
+  cacheHitRate: null,
 };
 
 // Next BFF → internal Go Runtime. userId comes from Clerk on the BFF.
@@ -151,11 +168,5 @@ export type ErrorEvent = {
 export type DoneEvent = {
   type: "done";
   requestId: string;
-  usage?: Usage;
-};
-
-export type Usage = {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
+  sessionUsage?: SessionUsage;
 };
