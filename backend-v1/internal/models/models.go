@@ -9,16 +9,35 @@ import (
 )
 
 const (
-	DeepSeekProviderID = "deepseek"
-	MiniMaxProviderID  = "minimax"
+	DeepSeekProviderID    = "deepseek"
+	MiniMaxProviderID     = "minimax"
+	StepFunProviderID     = "stepfun"
+	StepFunPlanProviderID = "stepfun_plan"
+	XiaomiProviderID      = "xiaomi"
 
-	DeepSeekV4FlashID = "deepseek.v4.flash"
-	DeepSeekV4ProID   = "deepseek.v4.pro"
-	MiniMaxM3ID       = "minimax.m3"
-	DefaultModelID    = MiniMaxM3ID
+	DeepSeekV4FlashID  = "deepseek.v4.flash"
+	DeepSeekV4ProID    = "deepseek.v4.pro"
+	MiniMaxM3ID        = "minimax.m3"
+
+	// Standard StepFun API models
+	Step37FlashID      = "stepfun.step-3.7-flash"
+	Step35FlashID      = "stepfun.step-3.5-flash"
+
+	// StepFun Plan models (use step_plan baseURL)
+	StepPlan37FlashID  = "stepfun_plan.step-3.7-flash"
+	StepPlan35FlashID  = "stepfun_plan.step-3.5-flash"
+
+	// Xiaomi MiMo models
+	XiaomiMimoV25ProID = "xiaomi.mimo-v2.5-pro"
+	XiaomiMimoV25ID    = "xiaomi.mimo-v2.5"
+
+	DefaultModelID     = MiniMaxM3ID
 
 	deepSeekBaseURL = "https://api.deepseek.com"
 	miniMaxBaseURL  = "https://api.minimaxi.com/v1"
+	stepFunBaseURL  = "https://api.stepfun.com/v1"
+	stepPlanBaseURL = "https://api.stepfun.com/step_plan/v1"
+	xiaomiBaseURL   = "https://api.xiaomimimo.com/v1"
 )
 
 // ProviderInfo identifies the service where a user owns an API credential.
@@ -63,6 +82,9 @@ var (
 	Providers = []ProviderInfo{
 		{ID: DeepSeekProviderID, Name: "DeepSeek"},
 		{ID: MiniMaxProviderID, Name: "MiniMax"},
+		{ID: StepFunProviderID, Name: "阶跃星辰"},
+		{ID: StepFunPlanProviderID, Name: "阶跃星辰 (Step Plan)"},
+		{ID: XiaomiProviderID, Name: "小米 MiMo"},
 	}
 
 	// Definitions is EDITH's ordered model registry and the only place a
@@ -109,6 +131,81 @@ var (
 				openai.WithExtraFields(map[string]any{
 					"reasoning_split": true,
 				}),
+			),
+		},
+		// Standard StepFun API models (api.stepfun.com/v1)
+		{
+			Info: Info{
+				ID:               Step37FlashID,
+				ProviderID:       StepFunProviderID,
+				Name:             "Step 3.7 Flash",
+				ReasoningOptions: []ReasoningOption{},
+				Capabilities:     Capabilities{Vision: true},
+			},
+			Model: openai.New("step-3.7-flash",
+				openai.WithBaseURL(stepFunBaseURL),
+			),
+		},
+		{
+			Info: Info{
+				ID:               Step35FlashID,
+				ProviderID:       StepFunProviderID,
+				Name:             "Step 3.5 Flash",
+				ReasoningOptions: []ReasoningOption{},
+				Capabilities:     Capabilities{Vision: true},
+			},
+			Model: openai.New("step-3.5-flash",
+				openai.WithBaseURL(stepFunBaseURL),
+			),
+		},
+		// StepFun Plan models (api.stepfun.com/step_plan/v1)
+		{
+			Info: Info{
+				ID:               StepPlan37FlashID,
+				ProviderID:       StepFunPlanProviderID,
+				Name:             "Step 3.7 Flash (Step Plan)",
+				ReasoningOptions: []ReasoningOption{},
+				Capabilities:     Capabilities{Vision: true},
+			},
+			Model: openai.New("step-3.7-flash",
+				openai.WithBaseURL(stepPlanBaseURL),
+			),
+		},
+		{
+			Info: Info{
+				ID:               StepPlan35FlashID,
+				ProviderID:       StepFunPlanProviderID,
+				Name:             "Step 3.5 Flash (Step Plan)",
+				ReasoningOptions: []ReasoningOption{},
+				Capabilities:     Capabilities{Vision: false},
+			},
+			Model: openai.New("step-3.5-flash",
+				openai.WithBaseURL(stepPlanBaseURL),
+			),
+		},
+		// Xiaomi MiMo models (api.xiaomimimo.com/v1)
+		{
+			Info: Info{
+				ID:               XiaomiMimoV25ProID,
+				ProviderID:       XiaomiProviderID,
+				Name:             "MiMo v2.5 Pro",
+				ReasoningOptions: []ReasoningOption{},
+				Capabilities:     Capabilities{Vision: false},
+			},
+			Model: openai.New("mimo-v2.5-pro",
+				openai.WithBaseURL(xiaomiBaseURL),
+			),
+		},
+		{
+			Info: Info{
+				ID:               XiaomiMimoV25ID,
+				ProviderID:       XiaomiProviderID,
+				Name:             "MiMo v2.5",
+				ReasoningOptions: []ReasoningOption{},
+				Capabilities:     Capabilities{Vision: true},
+			},
+			Model: openai.New("mimo-v2.5",
+				openai.WithBaseURL(xiaomiBaseURL),
 			),
 		},
 	}
