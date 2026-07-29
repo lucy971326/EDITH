@@ -130,7 +130,6 @@ var (
 				Capabilities:     Capabilities{Vision: true},
 			},
 			Model: openai.New("MiniMax-M3",
-				openai.WithVariant(openai.VariantMiniMax),
 				openai.WithBaseURL(miniMaxBaseURL),
 				openai.WithExtraFields(map[string]any{
 					"reasoning_split": true,
