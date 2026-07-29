@@ -39,7 +39,7 @@ events, err := edithRunner.Run(ctx, userID, sessionID, message, opts...)
 | `WithModelRequestHeaders` | 用户自己的 API Key，例如 Authorization Header |
 | `WithGlobalInstruction` | L1 开发者身份 + L2 用户 Agent 性格 |
 | `WithInstruction` | L3 系统 Skill 概览 + L4 用户私有 Skill 概览 |
-| `WithAdditionalTools` | 用户本次可用的 MCP / Sandbox 工具 |
+| `WithAdditionalTools` | 用户本次可用的 MCP 工具 |
 
 这是 EDITH 1.0 的完整核心，不因为框架还有更多字段就提前启用更多字段。
 
@@ -83,18 +83,21 @@ L5 当前用户消息                                     → Runner.Run(message
 
 不要在长期 `LLMAgent` 放默认 Prompt 来掩盖漏装配错误。L1 至 L4 都必须显式由每次 Run 传入；漏传应及早暴露。
 
-EDITH 不使用框架 `WithSkills(repo)`、`skill_load` 或 `InjectedContextMessages`。Skills 是 EDITH 自己的 Markdown + scripts 系统；当前阶段向模型暴露的是经过整理的概览，不是整个脚本内容。
+EDITH 不使用框架 `WithSkills(repo)`、`skill_load` 或 `InjectedContextMessages`。Skills 将是
+EDITH 自己的系统；当前尚未实现，因此不要虚构 Skill Prompt。实现后也应先向模型暴露
+经过整理的概览，而不是把所有脚本全文塞进上下文。
 
 ## 7. 动态工具：每用户、每 Run
 
 ```text
-默认系统工具（长期 Agent）
-  + 用户自己的 MCP ToolSet 转出的 tools
-  + 本 <userID, sessionID> 的 sandbox tools
+长期默认工具
+  = 无状态系统工具 + Sandbox ToolSet（调用时从 Invocation 解析本次 sandbox）
+
+用户自己的 MCP ToolSet 转出的 tools
   = WithAdditionalTools(...)
 ```
 
-MCP 只能支持远程 HTTP transport（SSE 或 streamable HTTP），不能允许平台替用户下载并执行 STDIO server。
+MCP 只能支持远程 HTTP transport（SSE 或 streamable HTTP），不能允许平台替用户下载并执行 STDIO server。Sandbox ToolSet 不需要每 Run 注册；它没有用户字段，并在调用时从 ctx 取本次会话。
 
 每用户每 Run 重建 MCP ToolSet 是 1.0 的隔离优先策略。资源收尾必须由执行 Run 的服务层负责：创建 ToolSet → 消费完整 Event 流 → Close ToolSet。`AdditionalTools` 本身不拥有 Close 生命周期。
 
@@ -129,4 +132,3 @@ MCP 只能支持远程 HTTP transport（SSE 或 streamable HTTP），不能允�
 如果新增功能是“某用户本次运行才不同”，默认先问：能否把选择结果放进 `UserRuntime`，再由 `BuildRunOptions` 翻译？
 
 如果答案是否定的，先说明它为什么是长期共享骨架或 EDITH 的独立资源生命周期；不要习惯性把配置写进 Agent 字段或 package 全局变量。
-
