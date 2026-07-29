@@ -5,6 +5,7 @@ type Conversation = {
 
 type ConversationListProps = {
   activeSessionID: string;
+  isLoading: boolean;
   sessions: Conversation[];
   onCreate: () => void;
   onSelect: (sessionID: string) => void;
@@ -12,6 +13,7 @@ type ConversationListProps = {
 
 export function ConversationList({
   activeSessionID,
+  isLoading,
   sessions,
   onCreate,
   onSelect,
@@ -19,7 +21,8 @@ export function ConversationList({
   return (
     <div className="flex flex-1 flex-col p-3">
       <button
-        className="mb-4 rounded-lg border border-zinc-300 px-3 py-2 text-left text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+        className="mb-4 rounded-lg border border-zinc-300 px-3 py-2 text-left text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-wait disabled:text-zinc-400"
+        disabled={isLoading}
         onClick={onCreate}
       >
         + 新对话

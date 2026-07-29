@@ -1,20 +1,14 @@
 package webapi
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"edith/backend-v1/internal/models"
 )
 
 func (s Server) listModels(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 	response := ModelCatalogResponse{Providers: models.Providers, Models: models.Catalog}
-	encoder := json.NewEncoder(w)
-	err := encoder.Encode(response)
-	if err != nil {
-		http.Error(w, "encode model catalog: "+err.Error(), http.StatusInternalServerError)
-	}
+	writeJSON(w, response)
 }
 
 func (s Server) listAvailableModels(w http.ResponseWriter, r *http.Request) {

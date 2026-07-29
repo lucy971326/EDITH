@@ -14,6 +14,7 @@ type cosStore interface {
 	signPut(ctx context.Context, objectKey string) (string, error)
 	signGet(ctx context.Context, objectKey string) (string, error)
 	head(ctx context.Context, objectKey string) (objectInfo, error)
+	delete(ctx context.Context, objectKey string) error
 }
 
 type objectInfo struct {
@@ -67,4 +68,11 @@ func (c *client) head(ctx context.Context, objectKey string) (objectInfo, error)
 		return objectInfo{}, fmt.Errorf("read uploaded image size: %w", err)
 	}
 	return objectInfo{MimeType: response.Header.Get("Content-Type"), SizeBytes: size}, nil
+}
+
+func (c *client) delete(ctx context.Context, objectKey string) error {
+	if _, err := c.client.Object.Delete(ctx, objectKey); err != nil {
+		return fmt.Errorf("delete image object: %w", err)
+	}
+	return nil
 }

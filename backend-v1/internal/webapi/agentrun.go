@@ -42,6 +42,26 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load user personality: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	message := model.NewUserMessage(request.Message)
+	runContext := images.WithHydratedSession(r.Context())
+	if len(request.ImageIDs) > 0 {
+		if s.Images == nil {
+			http.Error(w, "image service is unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		runContext, err = s.Images.AddMessageImages(
+			runContext,
+			request.UserID,
+			request.SessionID,
+			request.ImageIDs,
+			&message,
+		)
+		if err != nil {
+			http.Error(w, "prepare message images: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	mcpServers, err := s.Users.LoadEnabledMCPServers(r.Context(), request.UserID)
 	if err != nil {
 		http.Error(w, "load MCP servers: "+err.Error(), http.StatusInternalServerError)
@@ -65,26 +85,6 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		Instruction:     "需要知道当前时间时，调用 get_current_time 工具。",
 		AdditionalTools: mcpTools,
 	})
-
-	message := model.NewUserMessage(request.Message)
-	runContext := images.WithHydratedSession(r.Context())
-	if len(request.ImageIDs) > 0 {
-		if s.Images == nil {
-			http.Error(w, "image service is unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		runContext, err = s.Images.AddMessageImages(
-			runContext,
-			request.UserID,
-			request.SessionID,
-			request.ImageIDs,
-			&message,
-		)
-		if err != nil {
-			http.Error(w, "prepare message images: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
 
 	events, err := s.Runner.Run(
 		runContext,

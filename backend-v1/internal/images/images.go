@@ -31,8 +31,8 @@ type Config struct {
 // Service owns EDITH's image metadata connection and COS client.
 type Service struct {
 	db     *sql.DB
-	cos    cosStore // 腾讯COS SDK的三个能力
-	config Config   // Server的身份
+	cos    cosStore
+	config Config
 }
 
 // Image is EDITH's durable image reference. It deliberately excludes the COS
@@ -139,15 +139,28 @@ func (s *Service) CompleteUpload(ctx context.Context, userID, imageID string) (I
 		return Image{}, fmt.Errorf("verify uploaded image: %w", err)
 	}
 	if object.SizeBytes != record.SizeBytes {
-		return Image{}, errors.New("uploaded image size does not match reservation")
+		return Image{}, s.discardUpload(ctx, record, errors.New("uploaded image size does not match reservation"))
 	}
 	if object.MimeType != "" && object.MimeType != record.MimeType {
-		return Image{}, errors.New("uploaded image type does not match reservation")
+		return Image{}, s.discardUpload(ctx, record, errors.New("uploaded image type does not match reservation"))
 	}
 	if err := s.markReady(ctx, record.ID); err != nil {
 		return Image{}, err
 	}
 	return record.Image, nil
+}
+
+// discardUpload removes an invalid browser upload and its reservation. A
+// presigned URL cannot impose every upload rule itself, so this is the final
+// storage boundary after COS object verification.
+func (s *Service) discardUpload(ctx context.Context, record imageRecord, reason error) error {
+	if err := s.cos.delete(ctx, record.ObjectKey); err != nil {
+		return fmt.Errorf("%w; discard invalid image object: %v", reason, err)
+	}
+	if err := s.delete(ctx, record.ID); err != nil {
+		return fmt.Errorf("%w; delete invalid image reservation: %v", reason, err)
+	}
+	return reason
 }
 
 // OpenForUser signs a fresh read URL for a browser-owned image.

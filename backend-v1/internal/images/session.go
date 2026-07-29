@@ -9,8 +9,8 @@ import (
 	frameworksession "trpc.group/trpc-go/trpc-agent-go/session"
 )
 
-// WrapSessionService adds only image URL conversion to a normal framework
-// SessionService. Its embedded Service preserves all other Session behavior.
+// WrapSessionService adds image URL conversion to the framework SQLite session
+// service. Its embedded Service preserves all other Session behavior.
 func WrapSessionService(next frameworksession.Service, images *Service) frameworksession.Service {
 	return &sessionService{Service: next, images: images}
 }
@@ -38,8 +38,8 @@ func (s *sessionService) AppendEvent(
 	source *event.Event,
 	options ...frameworksession.Option,
 ) error {
-	// SQLite updates the Session passed to AppendEvent as well as persisting the
-	// event. Give it an isolated Session copy containing the durable marker,
+	// The framework SQLite service updates the Session passed to AppendEvent as
+	// well as persisting the event. Give it an isolated Session copy containing the durable marker,
 	// then update the Runner's in-memory Session with the original event. The
 	// current model call must keep its short-lived https URL; only the database
 	// may keep edith-image:// references.
@@ -58,7 +58,7 @@ func (s *sessionService) hydrateSession(
 	userID string,
 	sessionID string,
 ) (*frameworksession.Session, error) {
-	copy := *source
+	copy := source.Clone()
 	copy.Events = make([]event.Event, len(source.Events))
 	for index := range source.Events {
 		hydrated, err := s.hydrateEvent(ctx, &source.Events[index], userID, sessionID)
@@ -67,7 +67,7 @@ func (s *sessionService) hydrateSession(
 		}
 		copy.Events[index] = *hydrated
 	}
-	return &copy, nil
+	return copy, nil
 }
 
 func (s *sessionService) hydrateEvent(
