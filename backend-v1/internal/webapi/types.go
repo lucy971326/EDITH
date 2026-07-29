@@ -1,8 +1,9 @@
 package webapi
 
-import "edith/backend-v1/internal/models"
-
-import "edith/backend-v1/internal/timeline"
+import (
+	"edith/backend-v1/internal/models"
+	"edith/backend-v1/internal/timeline"
+)
 
 // AgentRunRequest is the Next BFF → Go Runtime request body for one Agent run.
 // userId comes from Clerk on the BFF, never from browser JSON.

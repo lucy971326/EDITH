@@ -1,12 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
 
+import { parseMCPServerRequest } from "@/lib/mcp/request";
+
 const runtimeURL = process.env.EDITH_RUNTIME_URL ?? "http://127.0.0.1:8080";
 
 export async function PUT(request: Request, context: RouteContext<"/api/mcp-servers/[serverId]">) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await parseObject(request);
+  const body = await parseMCPServerRequestBody(request);
   if (!body) return Response.json({ error: "Invalid MCP server" }, { status: 400 });
   const { serverId } = await context.params;
   return forward(`${runtimeURL}/internal/mcp-servers/${encodeURIComponent(serverId)}`, {
@@ -26,11 +28,9 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/mcp-
   return forward(url, { method: "DELETE" });
 }
 
-async function parseObject(request: Request): Promise<Record<string, unknown> | null> {
+async function parseMCPServerRequestBody(request: Request) {
   try {
-    const body: unknown = await request.json();
-    if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
-    return body as Record<string, unknown>;
+    return parseMCPServerRequest(await request.json());
   } catch {
     return null;
   }

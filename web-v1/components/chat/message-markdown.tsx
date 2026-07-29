@@ -28,7 +28,7 @@ function isClosedMermaidCodeBlock(content: string, node?: MarkdownNode) {
 export const MessageMarkdown = memo(function MessageMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
-	  remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm]}
       components={{
         h1: ({ children }) => <h1 className="mt-6 text-xl font-semibold text-zinc-900">{children}</h1>,
         h2: ({ children }) => <h2 className="mt-5 text-lg font-semibold text-zinc-900">{children}</h2>,

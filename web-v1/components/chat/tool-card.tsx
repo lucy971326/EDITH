@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 import type { ToolBlock } from "@/lib/chat/type";
 
 export const ToolCard = memo(function ToolCard({ block }: { block: ToolBlock }) {
@@ -29,4 +31,3 @@ export const ToolCard = memo(function ToolCard({ block }: { block: ToolBlock }) 
     </details>
   );
 });
-import { memo } from "react";

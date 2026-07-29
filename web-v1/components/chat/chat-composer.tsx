@@ -2,13 +2,14 @@
 
 /* eslint-disable @next/next/no-img-element -- local Blob URLs must remain browser-local while upload is in progress. */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { uploadChatImage, validateImageFile } from "@/lib/chat/images";
 import type { ChatImage } from "@/lib/chat/type";
 import type { ModelInfo } from "@/lib/models/type";
 
 type ChatComposerProps = {
+  isLoading: boolean;
   isRunning: boolean;
   sessionID: string;
   modelID: string;
@@ -29,6 +30,7 @@ type SelectedImage = {
 };
 
 export function ChatComposer({
+  isLoading,
   isRunning,
   sessionID,
   modelID,
@@ -42,20 +44,32 @@ export function ChatComposer({
   const [message, setMessage] = useState("");
   const [images, setImages] = useState<SelectedImage[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
+  const previewURLs = useRef(new Set<string>());
   const canUseVision = selectedModel?.capabilities.vision === true;
   const hasUploadingImage = images.some((image) => image.status === "uploading");
   const readyImageIDs = images.flatMap((image) => image.image ? [image.image.id] : []);
   const hasImageInput = images.length > 0;
 
+  useEffect(() => () => {
+    previewURLs.current.forEach((url) => URL.revokeObjectURL(url));
+    previewURLs.current.clear();
+  }, []);
+
+  function releasePreviewURL(url: string) {
+    if (!url) return;
+    URL.revokeObjectURL(url);
+    previewURLs.current.delete(url);
+  }
+
   function send() {
     const content = message.trim();
-    if ((!content && readyImageIDs.length === 0) || !modelID || isRunning || hasUploadingImage || (hasImageInput && !canUseVision)) {
+    if ((!content && readyImageIDs.length === 0) || !modelID || isLoading || isRunning || hasUploadingImage || (hasImageInput && !canUseVision)) {
       return;
     }
     setMessage("");
     setImages((current) => {
       current.forEach((image) => {
-        if (image.previewURL) URL.revokeObjectURL(image.previewURL);
+        releasePreviewURL(image.previewURL);
       });
       return [];
     });
@@ -63,7 +77,7 @@ export function ChatComposer({
   }
 
   async function selectImages(files: FileList | null) {
-    if (!files || !canUseVision || isRunning) return;
+    if (!files || !canUseVision || isLoading || isRunning) return;
     for (const file of files) {
       const error = validateImageFile(file);
       if (error) {
@@ -75,6 +89,7 @@ export function ChatComposer({
 
       const localID = crypto.randomUUID();
       const previewURL = URL.createObjectURL(file);
+      previewURLs.current.add(previewURL);
       setImages((current) => [...current, { localID, previewURL, status: "uploading" }]);
       try {
         const image = await uploadChatImage(sessionID, file);
@@ -89,7 +104,7 @@ export function ChatComposer({
   function removeImage(localID: string) {
     setImages((current) => {
       const target = current.find((image) => image.localID === localID);
-      if (target?.previewURL) URL.revokeObjectURL(target.previewURL);
+      if (target) releasePreviewURL(target.previewURL);
       return current.filter((image) => image.localID !== localID);
     });
   }
@@ -116,6 +131,7 @@ export function ChatComposer({
           placeholder="输入消息…"
           rows={2}
           value={message}
+          disabled={isLoading}
           onChange={(event) => setMessage(event.target.value)}
           onKeyDown={(event) => {
             if (event.key !== "Enter" || event.shiftKey) {
@@ -127,14 +143,14 @@ export function ChatComposer({
         />
         <input accept="image/jpeg,image/png,image/webp" className="hidden" multiple onChange={(event) => { void selectImages(event.target.files); event.currentTarget.value = ""; }} ref={fileInput} type="file" />
         <div className="mt-2 flex items-center gap-2 border-t border-zinc-100 pt-2">
-          <button aria-label="添加图片" className="flex h-8 w-8 items-center justify-center rounded-lg text-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:text-zinc-300" disabled={!canUseVision || isRunning} onClick={() => fileInput.current?.click()} title={canUseVision ? "添加图片" : "当前模型不支持图片识别"} type="button">+</button>
-          <select className="h-8 max-w-52 rounded-lg bg-transparent px-2 text-sm font-medium text-zinc-700 outline-none hover:bg-zinc-100" disabled={isRunning || models.length === 0} value={modelID} onChange={(event) => onModelChange(event.target.value)}>
+          <button aria-label="添加图片" className="flex h-8 w-8 items-center justify-center rounded-lg text-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:text-zinc-300" disabled={!canUseVision || isLoading || isRunning} onClick={() => fileInput.current?.click()} title={canUseVision ? "添加图片" : "当前模型不支持图片识别"} type="button">+</button>
+          <select className="h-8 max-w-52 rounded-lg bg-transparent px-2 text-sm font-medium text-zinc-700 outline-none hover:bg-zinc-100" disabled={isLoading || isRunning || models.length === 0} value={modelID} onChange={(event) => onModelChange(event.target.value)}>
             {models.length === 0 && <option value="">先在设置配置 API Key</option>}
             {models.map((model) => <option key={model.id} value={model.id}>{model.name}{model.capabilities.vision ? " · 支持识图" : ""}</option>)}
           </select>
           {selectedModel && selectedModel.reasoningOptions.length > 0 && <>
             <span className="text-zinc-300">·</span>
-            <select className="h-8 rounded-lg bg-transparent px-2 text-sm text-zinc-600 outline-none hover:bg-zinc-100" disabled={isRunning} value={reasoningOptionID} onChange={(event) => onReasoningOptionChange(event.target.value)}>
+            <select className="h-8 rounded-lg bg-transparent px-2 text-sm text-zinc-600 outline-none hover:bg-zinc-100" disabled={isLoading || isRunning} value={reasoningOptionID} onChange={(event) => onReasoningOptionChange(event.target.value)}>
               <option value="">思考</option>
               {selectedModel.reasoningOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
             </select>
@@ -142,7 +158,7 @@ export function ChatComposer({
           <button
             aria-label="发送"
             className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-lg text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
-            disabled={(!message.trim() && readyImageIDs.length === 0) || !modelID || isRunning || hasUploadingImage || (hasImageInput && !canUseVision)}
+            disabled={(!message.trim() && readyImageIDs.length === 0) || !modelID || isLoading || isRunning || hasUploadingImage || (hasImageInput && !canUseVision)}
             type="submit"
           >
             {isRunning ? "…" : "↑"}

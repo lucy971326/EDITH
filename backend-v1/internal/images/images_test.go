@@ -75,6 +75,30 @@ func TestMessageImagesRejectOtherSession(t *testing.T) {
 	}
 }
 
+func TestCompleteUploadDiscardsInvalidObject(t *testing.T) {
+	storage := &invalidUploadCOS{}
+	service := openTestServiceWithCOS(t, storage)
+	ctx := context.Background()
+	image, _, err := service.CreateUpload(ctx, "alice", UploadInput{
+		SessionID: "session-1",
+		MimeType:  "image/png",
+		SizeBytes: 12,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := service.CompleteUpload(ctx, "alice", image.ID); err == nil {
+		t.Fatal("CompleteUpload succeeded for an invalid object")
+	}
+	if !storage.deleted {
+		t.Fatal("invalid COS object was not deleted")
+	}
+	if _, err := service.loadForUser(ctx, "alice", image.ID); err == nil {
+		t.Fatal("invalid image reservation was not deleted")
+	}
+}
+
 func TestSessionAppendKeepsHTTPSInMemoryAndMarkerInStore(t *testing.T) {
 	ctx := context.Background()
 	images := openTestService(t)
@@ -132,15 +156,35 @@ func TestSessionAppendKeepsHTTPSInMemoryAndMarkerInStore(t *testing.T) {
 	if persistedURL != Reference(image.ID) {
 		t.Fatalf("stored image URL = %q, want %q", persistedURL, Reference(image.ID))
 	}
+
+	history, err := wrapped.GetSession(ctx, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if historyURL := history.Events[0].Response.Choices[0].Message.ContentParts[0].Image.URL; historyURL != Reference(image.ID) {
+		t.Fatalf("history image URL = %q, want durable reference", historyURL)
+	}
+
+	hydrated, err := wrapped.GetSession(WithHydratedSession(ctx), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hydratedURL := hydrated.Events[0].Response.Choices[0].Message.ContentParts[0].Image.URL; hydratedURL != "https://cos.test/read/"+image.ID {
+		t.Fatalf("hydrated image URL = %q", hydratedURL)
+	}
 }
 
 func openTestService(t *testing.T) *Service {
+	return openTestServiceWithCOS(t, fakeCOS{})
+}
+
+func openTestServiceWithCOS(t *testing.T, storage cosStore) *Service {
 	t.Helper()
 	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "images.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{db: db, cos: fakeCOS{}}
+	service := &Service{db: db, cos: storage}
 	if err := service.createTable(context.Background()); err != nil {
 		db.Close()
 		t.Fatal(err)
@@ -161,4 +205,27 @@ func (fakeCOS) signGet(_ context.Context, objectKey string) (string, error) {
 
 func (fakeCOS) head(_ context.Context, _ string) (objectInfo, error) {
 	return objectInfo{MimeType: "image/png", SizeBytes: 12}, nil
+}
+
+func (fakeCOS) delete(_ context.Context, _ string) error { return nil }
+
+type invalidUploadCOS struct {
+	deleted bool
+}
+
+func (c *invalidUploadCOS) signPut(_ context.Context, objectKey string) (string, error) {
+	return "https://cos.test/upload/" + objectKey, nil
+}
+
+func (c *invalidUploadCOS) signGet(_ context.Context, objectKey string) (string, error) {
+	return "https://cos.test/read/" + objectKey, nil
+}
+
+func (*invalidUploadCOS) head(_ context.Context, _ string) (objectInfo, error) {
+	return objectInfo{MimeType: "image/png", SizeBytes: 13}, nil
+}
+
+func (c *invalidUploadCOS) delete(_ context.Context, _ string) error {
+	c.deleted = true
+	return nil
 }

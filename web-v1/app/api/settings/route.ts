@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 
+import { parseSaveUserSettingsRequest } from "@/lib/userconfig/request";
+
 const runtimeURL = process.env.EDITH_RUNTIME_URL ?? "http://127.0.0.1:8080";
 
 export async function GET() {
@@ -13,9 +15,19 @@ export async function GET() {
 export async function PUT(request: Request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  let settings: unknown;
-  try { settings = await request.json(); } catch { return Response.json({ error: "Invalid settings" }, { status: 400 }); }
-  return forward(`${runtimeURL}/internal/user-settings`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(settings as object), userId }) });
+  let value: unknown;
+  try {
+    value = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid settings" }, { status: 400 });
+  }
+  const settings = parseSaveUserSettingsRequest(value);
+  if (!settings) return Response.json({ error: "Invalid settings" }, { status: 400 });
+  return forward(`${runtimeURL}/internal/user-settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...settings, userId }),
+  });
 }
 
 async function forward(url: string | URL, init: RequestInit) {

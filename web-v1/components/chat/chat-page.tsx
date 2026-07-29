@@ -28,7 +28,7 @@ const emptyTimeline: Timeline = { blocks: [] };
 
 export function ChatPage() {
   const [isRunning, setIsRunning] = useState(false);
-  const [composerClearSignal, setComposerClearSignal] = useState(0);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([
     { id: "new-session", title: "新对话", timeline: emptyTimeline },
   ]);
@@ -54,17 +54,21 @@ export function ChatPage() {
 
   useEffect(() => {
     async function loadConversations() {
-      const response = await fetch("/api/conversations");
-      if (!response.ok) return;
-      const responseBody = await response.json() as ConversationListResponse;
-      if (responseBody.conversations.length === 0) return;
+      try {
+        const response = await fetch("/api/conversations");
+        if (!response.ok) return;
+        const responseBody = await response.json() as ConversationListResponse;
+        if (responseBody.conversations.length === 0) return;
 
-      const history = responseBody.conversations.map((conversation) => ({
-        ...conversation,
-        timeline: emptyTimeline,
-      }));
-      setSessions(history);
-      void selectSession(history[0].id);
+        const history = responseBody.conversations.map((conversation) => ({
+          ...conversation,
+          timeline: emptyTimeline,
+        }));
+        setSessions(history);
+        void selectSession(history[0].id);
+      } finally {
+        setIsLoadingConversations(false);
+      }
     }
     loadConversations();
   }, []);
@@ -79,7 +83,6 @@ export function ChatPage() {
 
     setSessions((current) => [session, ...current]);
     setActiveSessionID(id);
-    setComposerClearSignal((current) => current + 1);
   }
 
   async function selectSession(sessionID: string) {
@@ -176,6 +179,7 @@ export function ChatPage() {
       <AppSidebar footer={<AccountMenu onOpenSettings={() => setSettingsOpen(true)} />}>
         <ConversationList
           activeSessionID={activeSession.id}
+          isLoading={isLoadingConversations}
           sessions={sessions}
           onCreate={createSession}
           onSelect={selectSession}
@@ -193,7 +197,8 @@ export function ChatPage() {
         <TimelineView timeline={activeSession.timeline} />
 
         <ChatComposer
-          key={composerClearSignal}
+          key={activeSession.id}
+          isLoading={isLoadingConversations}
           isRunning={isRunning}
           sessionID={activeSession.id}
           modelID={modelID}

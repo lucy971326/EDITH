@@ -49,8 +49,7 @@ func main() {
 	}
 	defer rawSessions.Close()
 
-	// chatImages 是EDITH启动时创建的、长期存活的图片服务对象
-	// useTO: 统一管理“聊天图片的元数据、归属校验，以及私有 COS 对象的临时访问”。
+	// chatImages owns chat-image metadata, ownership checks, and private COS access.
 	chatImages, err := images.Open(databasePath(), imageConfig())
 	if err != nil {
 		log.Fatalf("open image service: %v", err)

@@ -54,3 +54,5 @@ edith.db
 /backend-v1/*.db
 /backend-v1/*.db-shm
 /backend-v1/*.db-wal
+
+.idea/
