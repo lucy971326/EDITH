@@ -78,7 +78,9 @@ LLMAgent 长期工具：所有用户都一样的系统工具
 RunOptions.AdditionalTools：本用户、本次运行专属工具
 ```
 
-EDITH 将用户 MCP 工具和 Sandbox 工具放在第二层。这样用户 A 的工具不会注册到用户 B 的运行中，也不会污染长期 Agent。
+EDITH 将用户 MCP 工具放在第二层。Sandbox ToolSet 作为长期默认工具注册，但每次调用时从
+Invocation ctx 取得当前 `userID + sessionID`，因此实际操作的仍是本次用户自己的 sandbox；
+它不保存任何用户状态。
 
 MCP ToolSet 有连接生命周期：每个 Run 创建的 ToolSet 必须在**该 Run 的事件流消费完成后**关闭。不能在加载函数返回前关闭，也不能依赖 `Runner.Close()` 代管。
 
@@ -95,18 +97,20 @@ MCP ToolSet 有连接生命周期：每个 Run 创建的 ToolSet 必须在**该 
 | 能力 | EDITH 归属 |
 |---|---|
 | 沙箱创建 / pause / reconnect / Volume | E2B SDK + EDITH Sandbox 服务 |
-| 用户 Skill Markdown 与 scripts | EDITH Skills 系统 + E2B Volume |
+| 用户 Skill Markdown 与 scripts | 将来的 EDITH Skills 系统；不使用框架 Skills |
 | 上传、临时文件、产物 | E2B sandbox 文件系统 + EDITH 自己的规则 |
 | 给模型执行沙箱能力 | EDITH 自己的 sandbox tools，按 Run 注入 |
 
 不要为了“接入框架”再把这些能力包回 `CodeExecutor`。框架只负责调度 EDITH 提供的工具。
+
+> 现状：Sandbox 已完成；EDITH 自有 Skills 尚未实现，下一阶段才设计。不要把旧研究中的
+> “E2B Volume 存 Skills”当成已经确定的实现。当前完成状态以 `06-会话接力.md` 为准。
 
 ## 9. 接手时的检查清单
 
 - 是否仍然只有一个长期 `Runner` 和一个长期 `LLMAgent`？
 - 是否所有用户差异都在每次 `Runner.Run(..., opts...)` 中装配？
 - 是否 API Key 仅随请求 Header 进入模型，而未写进共享 Model？
-- 是否用户工具只通过 `AdditionalTools` 出现？
+- 是否用户 MCP 工具只通过 `AdditionalTools` 出现？Sandbox 工具是否只从 Invocation 解析本次会话？
 - 是否按 `<userID, sessionID>` 管理沙箱？
 - 是否以 `IsRunnerCompletion()` 判断结束，并在随后关闭本次 MCP 资源？
-
