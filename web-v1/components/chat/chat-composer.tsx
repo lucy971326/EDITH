@@ -8,6 +8,8 @@ import { uploadChatImage, validateImageFile } from "@/lib/chat/images";
 import type { ChatImage } from "@/lib/chat/type";
 import type { ModelInfo } from "@/lib/models/type";
 
+import { ModelPicker } from "./model-picker";
+
 type ChatComposerProps = {
   isLoading: boolean;
   isRunning: boolean;
@@ -144,10 +146,12 @@ export function ChatComposer({
         <input accept="image/jpeg,image/png,image/webp" className="hidden" multiple onChange={(event) => { void selectImages(event.target.files); event.currentTarget.value = ""; }} ref={fileInput} type="file" />
         <div className="mt-2 flex items-center gap-2 border-t border-zinc-100 pt-2">
           <button aria-label="添加图片" className="flex h-8 w-8 items-center justify-center rounded-lg text-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:text-zinc-300" disabled={!canUseVision || isLoading || isRunning} onClick={() => fileInput.current?.click()} title={canUseVision ? "添加图片" : "当前模型不支持图片识别"} type="button">+</button>
-          <select className="h-8 max-w-52 rounded-lg bg-transparent px-2 text-sm font-medium text-zinc-700 outline-none hover:bg-zinc-100" disabled={isLoading || isRunning || models.length === 0} value={modelID} onChange={(event) => onModelChange(event.target.value)}>
-            {models.length === 0 && <option value="">先在设置配置 API Key</option>}
-            {models.map((model) => <option key={model.id} value={model.id}>{model.name}{model.capabilities.vision ? " · 支持识图" : ""}</option>)}
-          </select>
+          <ModelPicker
+            disabled={isLoading || isRunning}
+            modelID={modelID}
+            models={models}
+            onChange={onModelChange}
+          />
           {selectedModel && selectedModel.reasoningOptions.length > 0 && <>
             <span className="text-zinc-300">·</span>
             <select className="h-8 rounded-lg bg-transparent px-2 text-sm text-zinc-600 outline-none hover:bg-zinc-100" disabled={isLoading || isRunning} value={reasoningOptionID} onChange={(event) => onReasoningOptionChange(event.target.value)}>

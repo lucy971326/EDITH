@@ -11,6 +11,12 @@ func TestRegisteredModels(t *testing.T) {
 		{name: DeepSeekV4FlashID, modelName: "deepseek-v4-flash", vision: false},
 		{name: DeepSeekV4ProID, modelName: "deepseek-v4-pro", vision: false},
 		{name: MiniMaxM3ID, modelName: "MiniMax-M3", vision: true},
+		{name: Step37FlashID, modelName: "step-3.7-flash", vision: true},
+		{name: Step35FlashID, modelName: "step-3.5-flash", vision: true},
+		{name: StepPlan37FlashID, modelName: "step-3.7-flash", vision: true},
+		{name: StepPlan35FlashID, modelName: "step-3.5-flash", vision: false},
+		{name: XiaomiMimoV25ProID, modelName: "mimo-v2.5-pro", vision: false},
+		{name: XiaomiMimoV25ID, modelName: "mimo-v2.5", vision: true},
 	}
 
 	for _, tt := range tests {
