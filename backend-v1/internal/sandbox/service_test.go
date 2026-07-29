@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,11 +10,15 @@ import (
 
 func TestOpenCreatesSandboxMappingTable(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "edith.db")
-	service, err := Open(databasePath, "edith-test")
+	db, err := sql.Open("sqlite3", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	service, err := Open(db, "edith-test")
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	defer service.Close()
 
 	_, err = service.db.ExecContext(context.Background(), `
 		INSERT INTO user_sandboxes (user_id, session_id, sandbox_id)

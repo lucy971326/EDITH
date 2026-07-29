@@ -2,17 +2,14 @@ package userconfig
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
 )
 
 func TestMCPServerCRUDKeepsHeaderValuesServerSide(t *testing.T) {
-	store, err := Open(filepath.Join(t.TempDir(), "edith.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { store.Close() })
+	store := openTestStore(t)
 
 	secret := "Bearer very-secret"
 	created, err := store.CreateMCPServer(context.Background(), "alice", MCPServerInput{
@@ -60,13 +57,9 @@ func TestMCPServerCRUDKeepsHeaderValuesServerSide(t *testing.T) {
 }
 
 func TestMCPServerRejectsLocalURL(t *testing.T) {
-	store, err := Open(filepath.Join(t.TempDir(), "edith.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { store.Close() })
+	store := openTestStore(t)
 
-	_, err = store.CreateMCPServer(context.Background(), "alice", MCPServerInput{
+	_, err := store.CreateMCPServer(context.Background(), "alice", MCPServerInput{
 		Name:      "Local",
 		URL:       "http://127.0.0.1:3000/mcp",
 		Transport: "streamable",
@@ -77,11 +70,7 @@ func TestMCPServerRejectsLocalURL(t *testing.T) {
 }
 
 func TestLoadEnabledMCPServersSkipsDisabledServers(t *testing.T) {
-	store, err := Open(filepath.Join(t.TempDir(), "edith.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { store.Close() })
+	store := openTestStore(t)
 
 	for _, input := range []MCPServerInput{
 		{Name: "Enabled", URL: "https://enabled.example.com/mcp", Transport: "streamable", Enabled: true},
@@ -99,4 +88,19 @@ func TestLoadEnabledMCPServersSkipsDisabledServers(t *testing.T) {
 	if len(servers) != 1 || servers[0].Name != "Enabled" {
 		t.Fatalf("enabled servers = %#v", servers)
 	}
+}
+
+func openTestStore(t *testing.T) *Store {
+	t.Helper()
+	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "edith.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	store, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store
 }

@@ -2,6 +2,7 @@ package usage
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 
@@ -9,11 +10,7 @@ import (
 )
 
 func TestSessionSummaryOnlyIncludesCompletedRunsWithKnownCacheUsage(t *testing.T) {
-	service, err := Open(filepath.Join(t.TempDir(), "edith.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { service.Close() })
+	service := openTestService(t)
 
 	first := Run{RequestID: "request-1", UserID: "user-1", SessionID: "session-1", ModelID: "model-1"}
 	if err := service.Start(context.Background(), first); err != nil {
@@ -56,11 +53,7 @@ func TestSessionSummaryOnlyIncludesCompletedRunsWithKnownCacheUsage(t *testing.T
 }
 
 func TestSessionSummaryCalculatesCacheMetrics(t *testing.T) {
-	service, err := Open(filepath.Join(t.TempDir(), "edith.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { service.Close() })
+	service := openTestService(t)
 
 	run := Run{RequestID: "request-1", UserID: "user-1", SessionID: "session-1", ModelID: "model-1"}
 	if err := service.Start(context.Background(), run); err != nil {
@@ -85,4 +78,19 @@ func TestSessionSummaryCalculatesCacheMetrics(t *testing.T) {
 	if summary.CacheHitRate == nil || *summary.CacheHitRate != 0.75 {
 		t.Fatalf("rate = %+v", summary.CacheHitRate)
 	}
+}
+
+func openTestService(t *testing.T) *Service {
+	t.Helper()
+	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "edith.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	service, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return service
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -115,7 +116,9 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 	runFinished := false
 	defer func() {
 		if !runFinished {
-			_ = s.Usage.Fail(context.Background(), requestID)
+			if err := s.Usage.Fail(context.Background(), requestID); err != nil {
+				log.Printf("mark agent run %q failed: %v", requestID, err)
+			}
 		}
 	}()
 
@@ -138,18 +141,29 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if rawEvent.IsRunnerCompletion() {
-			var summary *usage.Summary
-			if err := s.Usage.Complete(r.Context(), requestID, tokens); err == nil {
-				if result, err := s.Usage.SessionSummary(r.Context(), request.UserID, request.SessionID); err == nil {
-					summary = &result
-				}
+			if err := s.Usage.Complete(r.Context(), requestID, tokens); err != nil {
+				log.Printf("complete agent run %q usage: %v", requestID, err)
+				_ = writeSSE(w, timeline.DoneEvent{
+					Type:      timeline.StreamEventTypeDone,
+					RequestID: requestID,
+				})
+				return
 			}
-			_ = writeSSE(w, timeline.DoneEvent{
+			runFinished = true
+
+			var summary *usage.Summary
+			if result, err := s.Usage.SessionSummary(r.Context(), request.UserID, request.SessionID); err != nil {
+				log.Printf("summarize agent run %q usage: %v", requestID, err)
+			} else {
+				summary = &result
+			}
+			if err := writeSSE(w, timeline.DoneEvent{
 				Type:         timeline.StreamEventTypeDone,
 				RequestID:    requestID,
 				SessionUsage: summary,
-			})
-			runFinished = true
+			}); err != nil {
+				log.Printf("write agent run %q done event: %v", requestID, err)
+			}
 			return
 		}
 	}

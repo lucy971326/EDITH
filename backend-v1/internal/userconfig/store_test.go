@@ -2,16 +2,21 @@ package userconfig
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 )
 
 func TestStoreKeepsProviderAPIKeyServerSide(t *testing.T) {
-	store, err := Open(filepath.Join(t.TempDir(), "edith.db"))
+	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "edith.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { store.Close() })
+	t.Cleanup(func() { db.Close() })
+	store, err := Open(db)
+	if err != nil {
+		t.Fatal(err)
+	}
 	apiKey := "alice-api-key"
 	settings := Settings{Personality: "简洁。", Providers: []ProviderCredential{{ProviderID: "deepseek", APIKey: &apiKey}}}
 	if err := store.SaveSettings(context.Background(), "alice", settings); err != nil {
