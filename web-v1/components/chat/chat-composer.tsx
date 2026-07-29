@@ -5,10 +5,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import { uploadChatImage, validateImageFile } from "@/lib/chat/images";
-import type { ChatImage } from "@/lib/chat/type";
+import type { ChatImage, SessionUsage } from "@/lib/chat/type";
 import type { ModelInfo } from "@/lib/models/type";
 
 import { ModelPicker } from "./model-picker";
+import { SessionUsageView } from "./session-usage";
 
 type ChatComposerProps = {
   isLoading: boolean;
@@ -18,6 +19,7 @@ type ChatComposerProps = {
   models: ModelInfo[];
   reasoningOptionID: string;
   selectedModel?: ModelInfo;
+  sessionUsage: SessionUsage;
   onModelChange: (modelID: string) => void;
   onReasoningOptionChange: (reasoningOptionID: string) => void;
   onSend: (message: string, imageIDs: string[]) => void;
@@ -39,6 +41,7 @@ export function ChatComposer({
   models,
   reasoningOptionID,
   selectedModel,
+  sessionUsage,
   onModelChange,
   onReasoningOptionChange,
   onSend,
@@ -119,6 +122,9 @@ export function ChatComposer({
         send();
       }}
     >
+      <div className="mx-auto mb-1 max-w-3xl">
+        <SessionUsageView usage={sessionUsage} />
+      </div>
       <div className="mx-auto max-w-3xl rounded-2xl border border-zinc-300 bg-white p-3 shadow-sm transition-colors focus-within:border-zinc-400">
         {images.length > 0 && <div className="mb-2 flex flex-wrap gap-2 px-1">
           {images.map((image) => <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100" key={image.localID}>

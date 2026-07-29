@@ -58,7 +58,7 @@ export function ModelPicker({ disabled, modelID, models, onChange }: ModelPicker
       >
         <span className="truncate">{selectedModel?.name ?? "选择模型"}</span>
         {selectedModel?.capabilities.vision && <VisionMark />}
-        <span aria-hidden="true" className="text-zinc-400">⌄</span>
+        <Chevron open={open} />
       </button>
 
       {open && <div className="absolute bottom-10 left-0 z-20 w-80 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl shadow-zinc-900/10" role="listbox">
@@ -86,6 +86,13 @@ export function ModelPicker({ disabled, modelID, models, onChange }: ModelPicker
       </div>}
     </div>
   );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return <span
+    aria-hidden="true"
+    className={`mb-0.5 inline-block h-1.5 w-1.5 shrink-0 rotate-45 border-b border-r border-zinc-400 transition-transform ${open ? "rotate-[225deg]" : ""}`}
+  />;
 }
 
 function VisionMark() {

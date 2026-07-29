@@ -15,23 +15,23 @@ const (
 	StepFunPlanProviderID = "stepfun_plan"
 	XiaomiProviderID      = "xiaomi"
 
-	DeepSeekV4FlashID  = "deepseek.v4.flash"
-	DeepSeekV4ProID    = "deepseek.v4.pro"
-	MiniMaxM3ID        = "minimax.m3"
+	DeepSeekV4FlashID = "deepseek.v4.flash"
+	DeepSeekV4ProID   = "deepseek.v4.pro"
+	MiniMaxM3ID       = "minimax.m3"
 
 	// Standard StepFun API models
-	Step37FlashID      = "stepfun.step-3.7-flash"
-	Step35FlashID      = "stepfun.step-3.5-flash"
+	Step37FlashID = "stepfun.step-3.7-flash"
+	Step35FlashID = "stepfun.step-3.5-flash"
 
 	// StepFun Plan models (use step_plan baseURL)
-	StepPlan37FlashID  = "stepfun_plan.step-3.7-flash"
-	StepPlan35FlashID  = "stepfun_plan.step-3.5-flash"
+	StepPlan37FlashID = "stepfun_plan.step-3.7-flash"
+	StepPlan35FlashID = "stepfun_plan.step-3.5-flash"
 
 	// Xiaomi MiMo models
 	XiaomiMimoV25ProID = "xiaomi.mimo-v2.5-pro"
 	XiaomiMimoV25ID    = "xiaomi.mimo-v2.5"
 
-	DefaultModelID     = MiniMaxM3ID
+	DefaultModelID = MiniMaxM3ID
 
 	deepSeekBaseURL = "https://api.deepseek.com"
 	miniMaxBaseURL  = "https://api.minimaxi.com/v1"
@@ -74,6 +74,10 @@ type Info struct {
 type Definition struct {
 	Info
 	Model model.Model
+	// DoesNotReportCachedPromptTokens is an exceptional provider capability.
+	// Cache metrics are enabled by default; set this only after confirming that
+	// a provider omits cached prompt token data.
+	DoesNotReportCachedPromptTokens bool
 }
 
 var (

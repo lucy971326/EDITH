@@ -60,8 +60,17 @@ func (s Server) getConversation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "conversation not found", http.StatusNotFound)
 		return
 	}
+	if s.Usage == nil {
+		http.Error(w, "usage service is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	usageSummary, err := s.Usage.SessionSummary(r.Context(), userID, sessionID)
+	if err != nil {
+		http.Error(w, "summarize conversation usage: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	writeJSON(w, ConversationResponse{Timeline: timeline.BuildHistory(sess.GetEvents())})
+	writeJSON(w, ConversationResponse{Timeline: timeline.BuildHistory(sess.GetEvents()), Usage: usageSummary})
 }
 
 func conversationTitle(events []event.Event) string {

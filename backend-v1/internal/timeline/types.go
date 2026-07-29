@@ -4,7 +4,11 @@
 // events and persisted Session events will be projected into these types.
 package timeline
 
-import "time"
+import (
+	"time"
+
+	"edith/backend-v1/internal/usage"
+)
 
 type BlockType string
 
@@ -161,16 +165,9 @@ type ErrorEvent struct {
 func (ErrorEvent) isStreamEvent() {}
 
 type DoneEvent struct {
-	Type      StreamEventType `json:"type"`
-	RequestID string          `json:"requestId"`
-	Usage     *Usage          `json:"usage,omitempty"`
+	Type         StreamEventType `json:"type"`
+	RequestID    string          `json:"requestId"`
+	SessionUsage *usage.Summary  `json:"sessionUsage,omitempty"`
 }
 
 func (DoneEvent) isStreamEvent() {}
-
-// Usage is the user-visible token accounting captured during one Run.
-type Usage struct {
-	PromptTokens     int `json:"promptTokens"`
-	CompletionTokens int `json:"completionTokens"`
-	TotalTokens      int `json:"totalTokens"`
-}

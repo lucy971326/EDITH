@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
+import { emptySessionUsage } from "@/lib/chat/type";
 import { applyStreamEvent, errorTimelineEvent, readChatStream } from "@/lib/chat/stream";
 import type {
   ConversationListResponse,
   ConversationResponse,
+  SessionUsage,
   Timeline,
   UserBlock,
 } from "@/lib/chat/type";
@@ -22,6 +24,7 @@ type ChatSession = {
   id: string;
   title: string;
   timeline: Timeline;
+  usage: SessionUsage;
 };
 
 const emptyTimeline: Timeline = { blocks: [] };
@@ -30,7 +33,7 @@ export function ChatPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([
-    { id: "new-session", title: "新对话", timeline: emptyTimeline },
+    { id: "new-session", title: "新对话", timeline: emptyTimeline, usage: emptySessionUsage },
   ]);
   const [activeSessionID, setActiveSessionID] = useState("new-session");
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -63,6 +66,7 @@ export function ChatPage() {
         const history = responseBody.conversations.map((conversation) => ({
           ...conversation,
           timeline: emptyTimeline,
+          usage: emptySessionUsage,
         }));
         setSessions(history);
         void selectSession(history[0].id);
@@ -79,6 +83,7 @@ export function ChatPage() {
       id,
       title: "新对话",
       timeline: { blocks: [] },
+      usage: emptySessionUsage,
     };
 
     setSessions((current) => [session, ...current]);
@@ -91,7 +96,7 @@ export function ChatPage() {
     if (!response.ok) return;
     const responseBody = await response.json() as ConversationResponse;
     setSessions((current) => current.map((session) =>
-      session.id === sessionID ? { ...session, timeline: responseBody.timeline } : session,
+      session.id === sessionID ? { ...session, timeline: responseBody.timeline, usage: responseBody.usage } : session,
     ));
   }
 
@@ -150,7 +155,11 @@ export function ChatPage() {
         setSessions((current) =>
           current.map((session) =>
             session.id === sessionID
-              ? { ...session, timeline: applyStreamEvent(session.timeline, event) }
+              ? {
+                  ...session,
+                  timeline: applyStreamEvent(session.timeline, event),
+                  usage: event.type === "done" && event.sessionUsage ? event.sessionUsage : session.usage,
+                }
               : session,
           ),
         );
@@ -205,6 +214,7 @@ export function ChatPage() {
           models={models}
           reasoningOptionID={reasoningOptionID}
           selectedModel={selectedModel}
+          sessionUsage={activeSession.usage}
           onModelChange={selectModel}
           onReasoningOptionChange={setReasoningOptionID}
           onSend={(content, imageIDs) => void sendMessage(content, imageIDs)}

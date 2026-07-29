@@ -1,6 +1,7 @@
 package webapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"edith/backend-v1/internal/models"
 	"edith/backend-v1/internal/runopts"
 	"edith/backend-v1/internal/timeline"
+	"edith/backend-v1/internal/usage"
 
 	"github.com/google/uuid"
 	"trpc.group/trpc-go/trpc-agent-go/model"
@@ -20,6 +22,10 @@ import (
 func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 	request, err := decodeAgentRunRequest(w, r)
 	if err != nil {
+		return
+	}
+	if s.Usage == nil {
+		http.Error(w, "usage service is unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -97,6 +103,21 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "start agent run: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if err := s.Usage.Start(r.Context(), usage.Run{
+		RequestID: requestID,
+		UserID:    request.UserID,
+		SessionID: request.SessionID,
+		ModelID:   request.ModelID,
+	}); err != nil {
+		http.Error(w, "start usage record: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	runFinished := false
+	defer func() {
+		if !runFinished {
+			_ = s.Usage.Fail(context.Background(), requestID)
+		}
+	}()
 
 	writeSSEHeaders(w)
 	builder := timeline.NewBuilder(requestID)
@@ -104,15 +125,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var usage *timeline.Usage
+	var tokens usage.Tokens
 	for rawEvent := range events {
-		if rawEvent.Response != nil && rawEvent.Response.Usage != nil &&
-			rawEvent.Response.Usage.TotalTokens > 0 {
-			usage = &timeline.Usage{
-				PromptTokens:     rawEvent.Response.Usage.PromptTokens,
-				CompletionTokens: rawEvent.Response.Usage.CompletionTokens,
-				TotalTokens:      rawEvent.Response.Usage.TotalTokens,
-			}
+		if rawEvent.Response != nil && !rawEvent.Response.IsPartial &&
+			!rawEvent.IsRunnerCompletion() {
+			tokens.Add(rawEvent.Response.Usage, !definition.DoesNotReportCachedPromptTokens)
 		}
 
 		for _, streamEvent := range builder.Add(rawEvent) {
@@ -121,11 +138,18 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if rawEvent.IsRunnerCompletion() {
+			var summary *usage.Summary
+			if err := s.Usage.Complete(r.Context(), requestID, tokens); err == nil {
+				if result, err := s.Usage.SessionSummary(r.Context(), request.UserID, request.SessionID); err == nil {
+					summary = &result
+				}
+			}
 			_ = writeSSE(w, timeline.DoneEvent{
-				Type:      timeline.StreamEventTypeDone,
-				RequestID: requestID,
-				Usage:     usage,
+				Type:         timeline.StreamEventTypeDone,
+				RequestID:    requestID,
+				SessionUsage: summary,
 			})
+			runFinished = true
 			return
 		}
 	}
