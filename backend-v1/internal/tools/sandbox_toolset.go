@@ -11,8 +11,6 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 )
 
-const sandboxWorkspacePath = "/home/user"
-
 const sandboxStateKey = "edith:sandbox-workspace"
 
 // SandboxToolSet is EDITH's built-in filesystem and command capability. Its
@@ -43,6 +41,10 @@ func (s *SandboxToolSet) Close() error { return nil }
 
 // Name implements tool.ToolSet.
 func (s *SandboxToolSet) Name() string { return "sandbox" }
+
+func sandboxToolDescription(action string) string {
+	return action + "\n\n" + sandbox.Workspace.ToolGuide()
+}
 
 func (s *SandboxToolSet) workspace(ctx context.Context) (*e2b.Sandbox, error) {
 	if s.Sandboxes == nil {

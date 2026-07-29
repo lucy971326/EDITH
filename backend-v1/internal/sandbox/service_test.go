@@ -9,7 +9,7 @@ import (
 
 func TestOpenCreatesSandboxMappingTable(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "edith.db")
-	service, err := Open(databasePath)
+	service, err := Open(databasePath, "edith-test")
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
