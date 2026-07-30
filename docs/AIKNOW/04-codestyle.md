@@ -138,7 +138,7 @@ defer closeToolSets(sets) // 在事件流消费完成后才返回
 
 ## 6. 错误、ctx 与并发
 
-- 所有可能阻塞的调用都接收并向下传递 `ctx`。
+- 所有可能阻塞的调用都接收并向下传递 `ctx`。HTTP 请求 ctx 只服务 HTTP；Agent 任务使用服务端创建并拥有的 task ctx。
 - 不吞错误；加必要上下文后返回，例如 `fmt.Errorf("load user MCP: %w", err)`。
 - 不在没有必要时开 goroutine；一旦开 goroutine，必须能随 `ctx.Done()` 退出，并明确谁等待它结束。
 - 不用全局可变状态存请求数据；并发下以参数传递或 session 持久化为准。

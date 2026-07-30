@@ -33,7 +33,7 @@ events, err := edithRunner.Run(ctx, userID, sessionID, message, opts...)
 
 | 字段 | 每次 Run 的含义 |
 |---|---|
-| `WithRequestID` | UUID 链路追踪；未来集中取消的键 |
+| `WithRequestID` | 渠道入口生成的 UUID；链路追踪、断线恢复与未来集中取消的键 |
 | `WithStream` | 渠道输出策略：Web/SSE 为 true，普通 IM 通常为 false |
 | `WithModelName` | 用户本次选择的、已注册的模型名称 |
 | `WithModelRequestHeaders` | 用户自己的 API Key，例如 Authorization Header |
@@ -103,16 +103,16 @@ MCP 只能支持远程 HTTP transport（SSE 或 streamable HTTP），不能允�
 
 ## 8. ctx、取消与资源收尾
 
-在线 SSE 模式直接把请求 `ctx` 传给 Runner：浏览器断连，整条模型/工具/MCP 链路取消。
+在线 SSE 模式中，HTTP 请求 ctx 只管理浏览器连接；服务端另建 task ctx 传给 Runner。浏览器断连后，SSE 写入停止，但服务端必须继续消费 Event channel，让模型、工具、MCP、Session 和 Usage 正常收尾。
 
-每次仍生成 `RequestID`，为以后提供：
+Web 由浏览器在请求前生成 `RequestID`，IM 由对应渠道适配层生成；Go Runtime 只校验、执行和持久化。它为现在和未来提供：
 
 - 用户点击停止；
 - 配额耗尽；
 - 运维中止；
 - 状态追踪。
 
-任何情况下都要 drain / 消费 Event channel，并让 MCP ToolSet 和 EDITH 临时资源走同一条收尾路径。不要为了后台任务提前采用 `DetachedCancel`；只有真实后台运行需求出现时再启用。
+用户主动停止、配额或运维中止，未来通过 `ManagedRunner.Cancel(requestID)` 实现；不能由浏览器断线隐式触发。任何情况下都要 drain / 消费 Event channel，并让 MCP ToolSet 和 EDITH 临时资源走同一条收尾路径。`DetachedCancel` 和 `MaxRunDuration` 暂不启用：任务 ctx 已由 EDITH 业务代码明确创建和拥有。
 
 ## 9. 现在明确不用的东西
 

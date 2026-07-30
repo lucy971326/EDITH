@@ -70,11 +70,17 @@ export type ToolBlock = {
 
 // Browser → Next BFF. userId must never be supplied by the browser.
 export type ChatRequest = {
-  sessionId: string;
+	requestId: string;
+	sessionId: string;
   message: string;
   imageIds: string[];
   modelId: string;
   reasoningOptionId?: string;
+};
+
+export type AgentRunStatus = {
+  requestId: string;
+  status: "running" | "completed" | "failed";
 };
 
 export type CreateImageUploadRequest = {

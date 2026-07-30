@@ -61,8 +61,8 @@ async function parseChatRequest(request: Request): Promise<ChatRequest | null> {
 
   if (
     typeof value !== "object" || value === null ||
-    !("sessionId" in value) || !("message" in value) || !("modelId" in value) ||
-    typeof value.sessionId !== "string" || typeof value.message !== "string" ||
+    !("requestId" in value) || !("sessionId" in value) || !("message" in value) || !("modelId" in value) ||
+    typeof value.requestId !== "string" || typeof value.sessionId !== "string" || typeof value.message !== "string" ||
     typeof value.modelId !== "string"
   ) return null;
 
@@ -72,11 +72,12 @@ async function parseChatRequest(request: Request): Promise<ChatRequest | null> {
     !Array.isArray(imageIds) ||
     imageIds.some((id) => typeof id !== "string" || !id.trim()) ||
     (reasoningOptionId !== undefined && typeof reasoningOptionId !== "string") ||
-    !value.sessionId.trim() || !value.modelId.trim() ||
+    !isUUID(value.requestId) || !value.sessionId.trim() || !value.modelId.trim() ||
     (!value.message.trim() && imageIds.length === 0)
   ) return null;
 
   const chatRequest: ChatRequest = {
+	requestId: value.requestId,
     sessionId: value.sessionId.trim(),
     message: value.message.trim(),
     imageIds: imageIds.map((id) => id.trim()),
@@ -84,4 +85,8 @@ async function parseChatRequest(request: Request): Promise<ChatRequest | null> {
   };
   if (reasoningOptionId?.trim()) chatRequest.reasoningOptionId = reasoningOptionId.trim();
   return chatRequest;
+}
+
+function isUUID(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
