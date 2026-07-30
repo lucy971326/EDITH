@@ -63,9 +63,9 @@ func main() {
 	}
 	imageSessions := images.WrapSessionService(rawSessions, chatImages)
 
-	runUsage, err := usage.Open(appDB)
+	err = usage.CreateTable(appDB)
 	if err != nil {
-		log.Fatalf("open usage service: %v", err)
+		log.Fatalf("create usage tables: %v", err)
 	}
 
 	sandboxes, err := sandbox.Open(appDB, sandboxTemplate())
@@ -94,7 +94,7 @@ func main() {
 		Users:    users,
 		Images:   chatImages,
 		Sessions: rawSessions,
-		Usage:    runUsage,
+		UsageDB:  appDB,
 	}
 	mux := http.NewServeMux()
 	webapi.Register(mux)

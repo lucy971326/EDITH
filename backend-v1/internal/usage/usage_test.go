@@ -10,37 +10,37 @@ import (
 )
 
 func TestSessionSummaryOnlyIncludesCompletedRunsWithKnownCacheUsage(t *testing.T) {
-	service := openTestService(t)
+	db := openTestDatabase(t)
 
 	first := Run{RequestID: "request-1", UserID: "user-1", SessionID: "session-1", ModelID: "model-1"}
-	if err := service.Start(context.Background(), first); err != nil {
+	if err := Start(db, context.Background(), first); err != nil {
 		t.Fatal(err)
 	}
 	firstTokens := Tokens{}
-	firstTokens.Add(&model.Usage{PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120, PromptTokensDetails: model.PromptTokensDetails{CachedTokens: 80}}, true)
-	if err := service.Complete(context.Background(), first.RequestID, firstTokens); err != nil {
+	AddTokens(&firstTokens, &model.Usage{PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120, PromptTokensDetails: model.PromptTokensDetails{CachedTokens: 80}}, true)
+	if _, err := Finish(db, context.Background(), first, firstTokens); err != nil {
 		t.Fatal(err)
 	}
 
 	second := Run{RequestID: "request-2", UserID: "user-1", SessionID: "session-1", ModelID: "model-2"}
-	if err := service.Start(context.Background(), second); err != nil {
+	if err := Start(db, context.Background(), second); err != nil {
 		t.Fatal(err)
 	}
 	secondTokens := Tokens{}
-	secondTokens.Add(&model.Usage{PromptTokens: 50, CompletionTokens: 10, TotalTokens: 60}, false)
-	if err := service.Complete(context.Background(), second.RequestID, secondTokens); err != nil {
+	AddTokens(&secondTokens, &model.Usage{PromptTokens: 50, CompletionTokens: 10, TotalTokens: 60}, false)
+	if _, err := Finish(db, context.Background(), second, secondTokens); err != nil {
 		t.Fatal(err)
 	}
 
 	failed := Run{RequestID: "request-3", UserID: "user-1", SessionID: "session-1", ModelID: "model-1"}
-	if err := service.Start(context.Background(), failed); err != nil {
+	if err := Start(db, context.Background(), failed); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.Fail(context.Background(), failed.RequestID); err != nil {
+	if err := Fail(db, context.Background(), failed.RequestID); err != nil {
 		t.Fatal(err)
 	}
 
-	summary, err := service.SessionSummary(context.Background(), "user-1", "session-1")
+	summary, err := SessionSummary(db, context.Background(), "user-1", "session-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,19 +53,19 @@ func TestSessionSummaryOnlyIncludesCompletedRunsWithKnownCacheUsage(t *testing.T
 }
 
 func TestSessionSummaryCalculatesCacheMetrics(t *testing.T) {
-	service := openTestService(t)
+	db := openTestDatabase(t)
 
 	run := Run{RequestID: "request-1", UserID: "user-1", SessionID: "session-1", ModelID: "model-1"}
-	if err := service.Start(context.Background(), run); err != nil {
+	if err := Start(db, context.Background(), run); err != nil {
 		t.Fatal(err)
 	}
 	tokens := Tokens{}
-	tokens.Add(&model.Usage{PromptTokens: 100, CompletionTokens: 25, TotalTokens: 125, PromptTokensDetails: model.PromptTokensDetails{CachedTokens: 75}}, true)
-	if err := service.Complete(context.Background(), run.RequestID, tokens); err != nil {
+	AddTokens(&tokens, &model.Usage{PromptTokens: 100, CompletionTokens: 25, TotalTokens: 125, PromptTokensDetails: model.PromptTokensDetails{CachedTokens: 75}}, true)
+	if _, err := Finish(db, context.Background(), run, tokens); err != nil {
 		t.Fatal(err)
 	}
 
-	summary, err := service.SessionSummary(context.Background(), "user-1", "session-1")
+	summary, err := SessionSummary(db, context.Background(), "user-1", "session-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestSessionSummaryCalculatesCacheMetrics(t *testing.T) {
 	}
 }
 
-func openTestService(t *testing.T) *Service {
+func openTestDatabase(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "edith.db"))
 	if err != nil {
@@ -88,9 +88,9 @@ func openTestService(t *testing.T) *Service {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	service, err := Open(db)
+	err = CreateTable(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return service
+	return db
 }
