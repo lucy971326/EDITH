@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"time"
 
+	"edith/backend-v1/internal/gateway"
 	"edith/backend-v1/internal/images"
 	"edith/backend-v1/internal/models"
 	"edith/backend-v1/internal/sandbox"
@@ -88,16 +89,23 @@ func main() {
 		runner.WithSessionService(imageSessions),
 	)
 
+	managedRunner, ok := edithRunner.(runner.ManagedRunner)
+	if !ok {
+		log.Fatal("EDITH runner does not support run control")
+	}
+	agentGateway, err := gateway.New(managedRunner, users, chatImages, appDB)
+	if err != nil {
+		log.Fatalf("create agent gateway: %v", err)
+	}
 	webapi := webapi.Server{
 		AppName:  appName,
-		Runner:   edithRunner,
 		Users:    users,
 		Images:   chatImages,
 		Sessions: rawSessions,
 		UsageDB:  appDB,
-		ActiveRuns: webapi.NewActiveSessionRuns(),
 	}
 	mux := http.NewServeMux()
+	agentGateway.Register(mux)
 	webapi.Register(mux)
 
 	address := runtimeAddress()

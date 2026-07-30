@@ -7,35 +7,6 @@ import (
 	"edith/backend-v1/internal/usage"
 )
 
-// AgentRunRequest is the Next BFF → Go Runtime request body for one Agent run.
-// userId comes from Clerk on the BFF, never from browser JSON.
-type AgentRunRequest struct {
-	RequestID         string   `json:"requestId"`
-	UserID            string   `json:"userId"`
-	SessionID         string   `json:"sessionId"`
-	Message           string   `json:"message"`
-	ImageIDs          []string `json:"imageIds"`
-	ModelID           string   `json:"modelId"`
-	ReasoningOptionID string   `json:"reasoningOptionId"`
-}
-
-// AgentRunStatus is the browser-facing state of a Run managed by
-// runner.ManagedRunner. Terminal Runs are intentionally not represented here:
-// once a Run ends, the status endpoint returns 404 and the browser restores
-// the Session history instead.
-type AgentRunStatus string
-
-const (
-	AgentRunStatusRunning AgentRunStatus = "running"
-)
-
-// AgentRunStatusResponse is returned only while ManagedRunner still owns the
-// requestID. Cancellation returns HTTP 204 with no response body.
-type AgentRunStatusResponse struct {
-	RequestID string         `json:"requestId"`
-	Status    AgentRunStatus `json:"status"`
-}
-
 // CreateImageUploadRequest asks Go to reserve one image and issue its short
 // lived COS upload URL. userId is injected by the BFF.
 type CreateImageUploadRequest struct {
@@ -225,69 +196,3 @@ type AssistantContentBlock struct {
 	Status    ToolStatus `json:"status,omitempty"`
 	Result    string     `json:"result,omitempty"`
 }
-
-type StreamEventType string
-
-const (
-	StreamEventTypeAssistantStarted StreamEventType = "assistant.started"
-	StreamEventTypeContentDelta     StreamEventType = "assistant.content.delta"
-	StreamEventTypeToolStarted      StreamEventType = "tool.started"
-	StreamEventTypeToolFinished     StreamEventType = "tool.finished"
-	StreamEventTypeError            StreamEventType = "error"
-	StreamEventTypeDone             StreamEventType = "done"
-)
-
-// StreamEvent 是 Web SSE 推给浏览器的 JSON 事件。
-type StreamEvent interface {
-	isStreamEvent()
-}
-
-type AssistantStartedEvent struct {
-	Type      StreamEventType `json:"type"`
-	Assistant AssistantBlock  `json:"assistant"`
-}
-
-func (AssistantStartedEvent) isStreamEvent() {}
-
-type ContentDeltaEvent struct {
-	Type        StreamEventType           `json:"type"`
-	AssistantID string                    `json:"assistantId"`
-	BlockID     string                    `json:"blockId"`
-	BlockType   AssistantContentBlockType `json:"blockType"`
-	Delta       string                    `json:"delta"`
-}
-
-func (ContentDeltaEvent) isStreamEvent() {}
-
-type ToolStartedEvent struct {
-	Type        StreamEventType       `json:"type"`
-	AssistantID string                `json:"assistantId"`
-	Tool        AssistantContentBlock `json:"tool"`
-}
-
-func (ToolStartedEvent) isStreamEvent() {}
-
-type ToolFinishedEvent struct {
-	Type        StreamEventType `json:"type"`
-	AssistantID string          `json:"assistantId"`
-	ToolCallID  string          `json:"toolCallId"`
-	Status      ToolStatus      `json:"status"`
-	Result      string          `json:"result,omitempty"`
-}
-
-func (ToolFinishedEvent) isStreamEvent() {}
-
-type ErrorEvent struct {
-	Type  StreamEventType `json:"type"`
-	Error ErrorBlock      `json:"error"`
-}
-
-func (ErrorEvent) isStreamEvent() {}
-
-type DoneEvent struct {
-	Type         StreamEventType `json:"type"`
-	RequestID    string          `json:"requestId"`
-	SessionUsage *usage.Summary  `json:"sessionUsage,omitempty"`
-}
-
-func (DoneEvent) isStreamEvent() {}

@@ -27,7 +27,7 @@ export async function GET(
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { requestId } = await params;
-  return forward(`/internal/agent-runs/${encodeURIComponent(requestId)}`, userId);
+  return forward(`/internal/gateway/runs/${encodeURIComponent(requestId)}`, userId);
 }
 
 export async function POST(
@@ -38,5 +38,5 @@ export async function POST(
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { requestId } = await params;
-  return forward(`/internal/agent-runs/${encodeURIComponent(requestId)}/cancel`, userId, "POST");
+  return forward(`/internal/gateway/runs/${encodeURIComponent(requestId)}/cancel`, userId, "POST");
 }

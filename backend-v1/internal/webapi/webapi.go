@@ -8,7 +8,6 @@ import (
 	"edith/backend-v1/internal/images"
 	"edith/backend-v1/internal/userconfig"
 
-	"trpc.group/trpc-go/trpc-agent-go/runner"
 	"trpc.group/trpc-go/trpc-agent-go/session"
 )
 
@@ -17,19 +16,14 @@ import (
 // the handler that uses them.
 type Server struct {
 	AppName  string
-	Runner   runner.Runner
 	Users    *userconfig.Store
 	Images   *images.Service
 	Sessions session.Service
 	UsageDB  *sql.DB
-	ActiveRuns *ActiveSessionRuns
 }
 
 // Register attaches Web BFF routes to mux.
 func (s Server) Register(mux *http.ServeMux) {
-	mux.HandleFunc("POST /internal/agent-runs", s.runAgent)
-	mux.HandleFunc("GET /internal/agent-runs/{requestID}", s.getAgentRunStatus)
-	mux.HandleFunc("POST /internal/agent-runs/{requestID}/cancel", s.cancelAgentRun)
 	mux.HandleFunc("GET /internal/models", s.listModels)
 	mux.HandleFunc("GET /internal/available-models", s.listAvailableModels)
 	mux.HandleFunc("GET /internal/user-settings", s.getUserSettings)

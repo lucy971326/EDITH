@@ -38,15 +38,22 @@ export async function readChatStream(
 
 // applyStreamEvent is the single bridge from an SSE event to visible state.
 export function applyStreamEvent(timeline: Timeline, event: ChatStreamEvent): Timeline {
-  if (event.type === "assistant.started") {
-    return { blocks: [...timeline.blocks, event.assistant] };
+  if (event.type === "run.started") {
+    return {
+      blocks: [...timeline.blocks, {
+        type: "assistant",
+        id: event.assistantId,
+        createdAt: new Date().toISOString(),
+        blocks: [],
+      }],
+    };
   }
 
-  if (event.type === "error") {
-    return { blocks: [...timeline.blocks, event.error] };
+  if (event.type === "run.error") {
+    return { blocks: [...timeline.blocks, errorTimelineEvent(event.error.message)] };
   }
 
-  if (event.type === "assistant.content.delta") {
+  if (event.type === "reasoning.delta" || event.type === "message.delta") {
     return updateAssistant(timeline, event.assistantId, (assistant) => {
       const index = assistant.blocks.findIndex((block) => block.id === event.blockId);
       if (index < 0) {
@@ -72,7 +79,13 @@ export function applyStreamEvent(timeline: Timeline, event: ChatStreamEvent): Ti
   if (event.type === "tool.started") {
     return updateAssistant(timeline, event.assistantId, (assistant) => ({
       ...assistant,
-      blocks: [...assistant.blocks, event.tool],
+      blocks: [...assistant.blocks, {
+        type: "tool",
+        id: event.toolCallId,
+        toolName: event.toolName,
+        arguments: event.arguments ?? "",
+        status: event.toolStatus,
+      }],
     }));
   }
 
@@ -81,7 +94,7 @@ export function applyStreamEvent(timeline: Timeline, event: ChatStreamEvent): Ti
       ...assistant,
       blocks: assistant.blocks.map((block) =>
         block.id === event.toolCallId
-          ? { ...block, status: event.status, result: event.result }
+          ? { ...block, status: event.toolStatus, result: event.toolResult }
           : block,
       ),
     }));
