@@ -27,6 +27,7 @@ func Build(config Config) []agent.RunOption {
 		agent.WithRequestID(config.RequestID),
 		agent.WithStream(config.Stream),
 		agent.WithModelName(config.ModelName),
+		//TODO: 当前假设所有的供应商都接受OPENAI风格的Bearer Token，后期需要设计更适合扩展的模式
 		agent.WithModelRequestHeaders(map[string]string{
 			"Authorization": "Bearer " + config.APIKey,
 		}),
