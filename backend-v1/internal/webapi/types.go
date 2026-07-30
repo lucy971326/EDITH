@@ -19,9 +19,21 @@ type AgentRunRequest struct {
 	ReasoningOptionID string   `json:"reasoningOptionId"`
 }
 
+// AgentRunStatus is the browser-facing state of a Run managed by
+// runner.ManagedRunner. Terminal Runs are intentionally not represented here:
+// once a Run ends, the status endpoint returns 404 and the browser restores
+// the Session history instead.
+type AgentRunStatus string
+
+const (
+	AgentRunStatusRunning AgentRunStatus = "running"
+)
+
+// AgentRunStatusResponse is returned only while ManagedRunner still owns the
+// requestID. Cancellation returns HTTP 204 with no response body.
 type AgentRunStatusResponse struct {
-	RequestID string `json:"requestId"`
-	Status    string `json:"status"`
+	RequestID string         `json:"requestId"`
+	Status    AgentRunStatus `json:"status"`
 }
 
 // CreateImageUploadRequest asks Go to reserve one image and issue its short

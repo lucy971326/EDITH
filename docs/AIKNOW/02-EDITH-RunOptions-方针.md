@@ -112,7 +112,10 @@ Web 由浏览器在请求前生成 `RequestID`，IM 由对应渠道适配层生�
 - 运维中止；
 - 状态追踪。
 
-用户主动停止、配额或运维中止，未来通过 `ManagedRunner.Cancel(requestID)` 实现；不能由浏览器断线隐式触发。任何情况下都要 drain / 消费 Event channel，并让 MCP ToolSet 和 EDITH 临时资源走同一条收尾路径。`DetachedCancel` 和 `MaxRunDuration` 暂不启用：任务 ctx 已由 EDITH 业务代码明确创建和拥有。
+用户主动停止已通过 `ManagedRunner.Cancel(requestID)` 实现；浏览器断线绝不能隐式触发
+取消。取消信号发出后，服务端仍必须 drain / 消费 Event channel，并让 MCP ToolSet 和
+EDITH 临时资源走同一条收尾路径。配额和运维中止将复用相同的 requestID 入口。
+`DetachedCancel` 和 `MaxRunDuration` 暂不启用：任务 ctx 已由 EDITH 业务代码明确创建和拥有。
 
 ## 9. 现在明确不用的东西
 
@@ -125,7 +128,7 @@ Web 由浏览器在请求前生成 `RequestID`，IM 由对应渠道适配层生�
 | `CodeExecutor` / Artifact / 框架 Skills | 是本地 Agent 语义，不是 EDITH 平台边界 |
 | GraphAgent / 多 Agent 编排 | 1.0 不需要复杂流程 |
 
-未来需求出现时再考虑 `MaxRunDuration`、`ManagedRunner.Cancel`、Tool Permission、Knowledge Filter、Tracing 等字段。
+未来需求出现时再考虑 `MaxRunDuration`、Tool Permission、Knowledge Filter、Tracing 等字段。
 
 ## 10. 新代码的自检
 

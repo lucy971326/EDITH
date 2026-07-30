@@ -41,7 +41,7 @@ func (s Server) getAgentRunStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, AgentRunStatusResponse{RequestID: requestID, Status: "running"})
+	writeJSON(w, AgentRunStatusResponse{RequestID: requestID, Status: AgentRunStatusRunning})
 }
 
 // cancelAgentRun cancels a running Agent Run by requestID. It verifies the
