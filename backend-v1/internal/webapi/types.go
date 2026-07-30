@@ -10,12 +10,18 @@ import (
 // AgentRunRequest is the Next BFF → Go Runtime request body for one Agent run.
 // userId comes from Clerk on the BFF, never from browser JSON.
 type AgentRunRequest struct {
+	RequestID         string   `json:"requestId"`
 	UserID            string   `json:"userId"`
 	SessionID         string   `json:"sessionId"`
 	Message           string   `json:"message"`
 	ImageIDs          []string `json:"imageIds"`
 	ModelID           string   `json:"modelId"`
 	ReasoningOptionID string   `json:"reasoningOptionId"`
+}
+
+type AgentRunStatusResponse struct {
+	RequestID string `json:"requestId"`
+	Status    string `json:"status"`
 }
 
 // CreateImageUploadRequest asks Go to reserve one image and issue its short

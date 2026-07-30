@@ -18,6 +18,11 @@ const (
 	statusFailed    = "failed"
 )
 
+var (
+	ErrRunAlreadyExists = errors.New("agent run already exists")
+	ErrRunNotFound      = errors.New("agent run not found")
+)
+
 // Run identifies one framework Invocation. RequestID is the framework's
 // request identity; EDITH does not introduce a second run ID.
 type Run struct {
@@ -78,15 +83,36 @@ func Start(db *sql.DB, ctx context.Context, run Run) error {
 	if run.RequestID == "" || run.UserID == "" || run.SessionID == "" || run.ModelID == "" {
 		return errors.New("requestID, userID, sessionID, and modelID are required")
 	}
-	_, err := db.ExecContext(ctx, `INSERT INTO agent_runs (
+	result, err := db.ExecContext(ctx, `INSERT INTO agent_runs (
 		request_id, user_id, session_id, model_id, status
-	) VALUES (?, ?, ?, ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?)
+	ON CONFLICT(request_id) DO NOTHING`,
 		run.RequestID, run.UserID, run.SessionID, run.ModelID, statusRunning,
 	)
 	if err != nil {
 		return fmt.Errorf("start agent run %q: %w", run.RequestID, err)
 	}
+	if changed, _ := result.RowsAffected(); changed != 1 {
+		return ErrRunAlreadyExists
+	}
 	return nil
+}
+
+// Status returns one user's durable Agent Run status.
+func Status(db *sql.DB, ctx context.Context, userID, requestID string) (string, error) {
+	var status string
+	err := db.QueryRowContext(ctx, `SELECT status
+		FROM agent_runs
+		WHERE user_id = ? AND request_id = ?`,
+		strings.TrimSpace(userID), strings.TrimSpace(requestID),
+	).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrRunNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("load agent run %q status: %w", requestID, err)
+	}
+	return status, nil
 }
 
 // Finish stores one completed Run and returns the conversation Usage summary.

@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -77,6 +78,30 @@ func TestSessionSummaryCalculatesCacheMetrics(t *testing.T) {
 	}
 	if summary.CacheHitRate == nil || *summary.CacheHitRate != 0.75 {
 		t.Fatalf("rate = %+v", summary.CacheHitRate)
+	}
+}
+
+func TestStartRejectsDuplicateRequestIDAndStatusIsUserScoped(t *testing.T) {
+	db := openTestDatabase(t)
+	run := Run{RequestID: "request-1", UserID: "user-1", SessionID: "session-1", ModelID: "model-1"}
+	if err := Start(db, context.Background(), run); err != nil {
+		t.Fatal(err)
+	}
+	if err := Start(db, context.Background(), run); !errors.Is(err, ErrRunAlreadyExists) {
+		t.Fatalf("duplicate start error = %v, want ErrRunAlreadyExists", err)
+	}
+
+	status, err := Status(db, context.Background(), "user-1", run.RequestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != statusRunning {
+		t.Fatalf("status = %q, want %q", status, statusRunning)
+	}
+
+	_, err = Status(db, context.Background(), "user-2", run.RequestID)
+	if !errors.Is(err, ErrRunNotFound) {
+		t.Fatalf("other user status error = %v, want ErrRunNotFound", err)
 	}
 }
 

@@ -26,6 +26,9 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	taskContext, cancelTask := context.WithCancel(context.Background())
+	defer cancelTask()
+
 	if s.UsageDB == nil {
 		http.Error(w, "usage service is unavailable", http.StatusServiceUnavailable)
 		return
@@ -42,25 +45,25 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	apiKey, err := s.Users.LoadProviderAPIKey(r.Context(), request.UserID, definition.ProviderID)
+	apiKey, err := s.Users.LoadProviderAPIKey(taskContext, request.UserID, definition.ProviderID)
 	if err != nil {
 		http.Error(w, "load model credential: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	personality, err := s.Users.LoadPersonality(r.Context(), request.UserID)
+	personality, err := s.Users.LoadPersonality(taskContext, request.UserID)
 	if err != nil {
 		http.Error(w, "load user personality: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	message := model.NewUserMessage(request.Message)
-	runContext := images.WithHydratedSession(r.Context())
+	taskContext = images.WithHydratedSession(taskContext)
 	if len(request.ImageIDs) > 0 {
 		if s.Images == nil {
 			http.Error(w, "image service is unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		runContext, err = s.Images.AddMessageImages(
-			runContext,
+		taskContext, err = s.Images.AddMessageImages(
+			taskContext,
 			request.UserID,
 			request.SessionID,
 			request.ImageIDs,
@@ -72,19 +75,19 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	mcpServers, err := s.Users.LoadEnabledMCPServers(r.Context(), request.UserID)
+	mcpServers, err := s.Users.LoadEnabledMCPServers(taskContext, request.UserID)
 	if err != nil {
 		http.Error(w, "load MCP servers: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	mcpTools, closeMCP, err := mcp.OpenTools(r.Context(), mcpServers)
+	mcpTools, closeMCP, err := mcp.OpenTools(taskContext, mcpServers)
 	if err != nil {
 		http.Error(w, "open MCP tools: "+err.Error(), http.StatusBadGateway)
 		return
 	}
 	defer closeMCP()
 
-	requestID := uuid.NewString()
+	requestID := request.RequestID
 	opts := runopts.Build(runopts.Config{
 		RequestID: requestID,
 		Stream:    true,
@@ -96,25 +99,18 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		AdditionalTools: mcpTools,
 	})
 
-	eventsCh, err := s.Runner.Run(
-		runContext,
-		request.UserID,
-		request.SessionID,
-		message,
-		opts...,
-	)
-	if err != nil {
-		http.Error(w, "start agent run: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
 	run := usage.Run{
 		RequestID: requestID,
 		UserID:    request.UserID,
 		SessionID: request.SessionID,
 		ModelID:   request.ModelID,
 	}
-	err = usage.Start(s.UsageDB, r.Context(), run)
+	err = usage.Start(s.UsageDB, taskContext, run)
 	if err != nil {
+		if errors.Is(err, usage.ErrRunAlreadyExists) {
+			http.Error(w, "agent run already exists", http.StatusConflict)
+			return
+		}
 		http.Error(w, "start usage record: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -124,7 +120,7 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		failErr := usage.Fail(s.UsageDB, context.Background(), requestID)
+		failErr := usage.Fail(s.UsageDB, taskContext, requestID)
 		if failErr == nil {
 			return
 		}
@@ -132,7 +128,20 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		log.Printf("mark agent run %q failed: %v", requestID, failErr)
 	}()
 
+	eventsCh, err := s.Runner.Run(
+		taskContext,
+		request.UserID,
+		request.SessionID,
+		message,
+		opts...,
+	)
+	if err != nil {
+		http.Error(w, "start agent run: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	writeSSEHeaders(w)
+	clientConnected := true
 	assistantID := "assistant_" + requestID
 	startedEvent := AssistantStartedEvent{
 		Type: StreamEventTypeAssistantStarted,
@@ -143,9 +152,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 			Blocks:    []AssistantContentBlock{},
 		},
 	}
-	err = writeSSE(w, startedEvent)
-	if err != nil {
-		return
+	if clientConnected {
+		writeErr := writeSSE(w, startedEvent)
+		if writeErr != nil {
+			clientConnected = false
+		}
 	}
 
 	var (
@@ -171,9 +182,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 					CreatedAt: eventTime(rawEvent),
 				},
 			}
-			writeErr := writeSSE(w, errorEvent)
-			if writeErr != nil {
-				return
+			if clientConnected {
+				writeErr := writeSSE(w, errorEvent)
+				if writeErr != nil {
+					clientConnected = false
+				}
 			}
 			if !rawEvent.IsRunnerCompletion() {
 				continue
@@ -181,14 +194,16 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if rawEvent.IsRunnerCompletion() {
-			summary, finishErr := usage.Finish(s.UsageDB, r.Context(), run, tokens)
+			summary, finishErr := usage.Finish(s.UsageDB, taskContext, run, tokens)
 			if finishErr != nil {
 				log.Printf("finish agent run %q usage: %v", requestID, finishErr)
 				doneEvent := DoneEvent{
 					Type:      StreamEventTypeDone,
 					RequestID: requestID,
 				}
-				_ = writeSSE(w, doneEvent)
+				if clientConnected {
+					_ = writeSSE(w, doneEvent)
+				}
 				return
 			}
 			runFinished = true
@@ -198,9 +213,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 				RequestID:    requestID,
 				SessionUsage: &summary,
 			}
-			writeErr := writeSSE(w, doneEvent)
-			if writeErr != nil {
-				log.Printf("write agent run %q done event: %v", requestID, writeErr)
+			if clientConnected {
+				writeErr := writeSSE(w, doneEvent)
+				if writeErr != nil {
+					log.Printf("write agent run %q done event: %v", requestID, writeErr)
+				}
 			}
 			return
 		}
@@ -224,9 +241,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 					BlockType:   AssistantContentBlockTypeReasoning,
 					Delta:       choice.Delta.ReasoningContent,
 				}
-				writeErr := writeSSE(w, deltaEvent)
-				if writeErr != nil {
-					return
+				if clientConnected {
+					writeErr := writeSSE(w, deltaEvent)
+					if writeErr != nil {
+						clientConnected = false
+					}
 				}
 			}
 
@@ -244,9 +263,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 					BlockType:   AssistantContentBlockTypeText,
 					Delta:       choice.Delta.Content,
 				}
-				writeErr := writeSSE(w, deltaEvent)
-				if writeErr != nil {
-					return
+				if clientConnected {
+					writeErr := writeSSE(w, deltaEvent)
+					if writeErr != nil {
+						clientConnected = false
+					}
 				}
 			}
 
@@ -263,9 +284,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 						AssistantID: assistantID,
 						Tool:        tool,
 					}
-					writeErr := writeSSE(w, startedEvent)
-					if writeErr != nil {
-						return
+					if clientConnected {
+						writeErr := writeSSE(w, startedEvent)
+						if writeErr != nil {
+							clientConnected = false
+						}
 					}
 					startedTools[choice.Message.ToolID] = true
 					lastBlockType = AssistantContentBlockTypeTool
@@ -283,9 +306,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 					Status:      status,
 					Result:      choice.Message.Content,
 				}
-				writeErr := writeSSE(w, finishedEvent)
-				if writeErr != nil {
-					return
+				if clientConnected {
+					writeErr := writeSSE(w, finishedEvent)
+					if writeErr != nil {
+						clientConnected = false
+					}
 				}
 				continue
 			}
@@ -311,9 +336,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 					AssistantID: assistantID,
 					Tool:        tool,
 				}
-				writeErr := writeSSE(w, startedEvent)
-				if writeErr != nil {
-					return
+				if clientConnected {
+					writeErr := writeSSE(w, startedEvent)
+					if writeErr != nil {
+						clientConnected = false
+					}
 				}
 				startedTools[call.ID] = true
 				lastBlockType = AssistantContentBlockTypeTool
@@ -343,11 +370,16 @@ func decodeAgentRunRequest(w http.ResponseWriter, r *http.Request) (AgentRunRequ
 	}
 
 	request.UserID = strings.TrimSpace(request.UserID)
+	request.RequestID = strings.TrimSpace(request.RequestID)
 	request.SessionID = strings.TrimSpace(request.SessionID)
 	request.Message = strings.TrimSpace(request.Message)
 	request.ModelID = strings.TrimSpace(request.ModelID)
 	for index := range request.ImageIDs {
 		request.ImageIDs[index] = strings.TrimSpace(request.ImageIDs[index])
+	}
+	if _, err := uuid.Parse(request.RequestID); err != nil {
+		http.Error(w, "requestId must be a UUID", http.StatusBadRequest)
+		return AgentRunRequest{}, errors.New("invalid requestId")
 	}
 	if request.UserID == "" {
 		http.Error(w, "userId, sessionId, modelId, and either message or imageIds are required", http.StatusBadRequest)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -8,7 +8,8 @@ import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { emptySessionUsage } from "@/lib/chat/type";
 import { applyStreamEvent, errorTimelineEvent, readChatStream } from "@/lib/chat/stream";
 import type {
-  ConversationListResponse,
+  AgentRunStatus,
+	ConversationListResponse,
   ConversationResponse,
   SessionUsage,
   Timeline,
@@ -28,6 +29,39 @@ type ChatSession = {
 };
 
 const emptyTimeline: Timeline = { blocks: [] };
+const pendingRunsKey = "edith.pending-agent-runs";
+
+type PendingRun = {
+  requestId: string;
+  sessionId: string;
+};
+
+function loadPendingRuns(): PendingRun[] {
+  const value = sessionStorage.getItem(pendingRunsKey);
+  if (!value) return [];
+
+  try {
+    const pendingRuns = JSON.parse(value) as unknown;
+    if (!Array.isArray(pendingRuns)) return [];
+    return pendingRuns.filter((run): run is PendingRun =>
+      typeof run === "object" && run !== null &&
+      "requestId" in run && typeof run.requestId === "string" &&
+      "sessionId" in run && typeof run.sessionId === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function savePendingRun(pendingRun: PendingRun) {
+  const pendingRuns = loadPendingRuns().filter((run) => run.requestId !== pendingRun.requestId);
+  sessionStorage.setItem(pendingRunsKey, JSON.stringify([...pendingRuns, pendingRun]));
+}
+
+function removePendingRun(requestId: string) {
+  const pendingRuns = loadPendingRuns().filter((run) => run.requestId !== requestId);
+  sessionStorage.setItem(pendingRunsKey, JSON.stringify(pendingRuns));
+}
 
 export function ChatPage() {
   const [isRunning, setIsRunning] = useState(false);
@@ -40,6 +74,8 @@ export function ChatPage() {
   const [modelID, setModelID] = useState("");
   const [reasoningOptionID, setReasoningOptionID] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [backgroundRunSessionID, setBackgroundRunSessionID] = useState<string | null>(null);
+  const liveStreamSessionIDs = useRef(new Set<string>());
 
   const activeSession = sessions.find((session) => session.id === activeSessionID) ?? sessions[0];
   const selectedModel = models.find((model) => model.id === modelID);
@@ -53,6 +89,69 @@ export function ChatPage() {
       setModelID((current) => current || catalog.models[0]?.id || "");
     }
     loadAvailableModels();
+  }, []);
+
+  useEffect(() => {
+    let stopped = false;
+    const requestIDsOnPageLoad = new Set(loadPendingRuns().map((run) => run.requestId));
+
+    async function recoverCompletedRuns() {
+      for (const pendingRun of loadPendingRuns()) {
+        let statusResponse: Response;
+        try {
+          statusResponse = await fetch(`/api/agent-runs/${encodeURIComponent(pendingRun.requestId)}`);
+        } catch {
+          continue;
+        }
+        if (statusResponse.status === 404) {
+          removePendingRun(pendingRun.requestId);
+          setBackgroundRunSessionID((current) => current === pendingRun.sessionId ? null : current);
+          continue;
+        }
+        if (!statusResponse.ok) {
+          continue;
+        }
+
+        const run = await statusResponse.json() as AgentRunStatus;
+        if (run.status === "running") {
+          if (requestIDsOnPageLoad.has(pendingRun.requestId)) {
+            setBackgroundRunSessionID(pendingRun.sessionId);
+          }
+          continue;
+        }
+
+        let conversationResponse: Response;
+        try {
+          conversationResponse = await fetch(`/api/conversations/${encodeURIComponent(pendingRun.sessionId)}`);
+        } catch {
+          continue;
+        }
+        if (!conversationResponse.ok) {
+          continue;
+        }
+        const conversation = await conversationResponse.json() as ConversationResponse;
+        if (stopped) {
+          return;
+        }
+
+        setSessions((current) => current.map((session) =>
+          session.id === pendingRun.sessionId
+            ? { ...session, timeline: conversation.timeline, usage: conversation.usage }
+            : session,
+        ));
+        removePendingRun(pendingRun.requestId);
+        setBackgroundRunSessionID((current) => current === pendingRun.sessionId ? null : current);
+      }
+    }
+
+    void recoverCompletedRuns();
+    const intervalID = window.setInterval(() => void recoverCompletedRuns(), 3_000);
+    window.addEventListener("online", recoverCompletedRuns);
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalID);
+      window.removeEventListener("online", recoverCompletedRuns);
+    };
   }, []);
 
   useEffect(() => {
@@ -92,9 +191,17 @@ export function ChatPage() {
 
   async function selectSession(sessionID: string) {
     setActiveSessionID(sessionID);
+    if (liveStreamSessionIDs.current.has(sessionID)) {
+      return;
+    }
+
     const response = await fetch(`/api/conversations/${encodeURIComponent(sessionID)}`);
     if (!response.ok) return;
     const responseBody = await response.json() as ConversationResponse;
+    if (liveStreamSessionIDs.current.has(sessionID)) {
+      return;
+    }
+
     setSessions((current) => current.map((session) =>
       session.id === sessionID ? { ...session, timeline: responseBody.timeline, usage: responseBody.usage } : session,
     ));
@@ -111,6 +218,8 @@ export function ChatPage() {
     }
 
     const sessionID = activeSession.id;
+    const requestID = crypto.randomUUID();
+    savePendingRun({ requestId: requestID, sessionId: sessionID });
     const now = new Date().toISOString();
     const userBlock: UserBlock = {
       type: "user",
@@ -135,11 +244,15 @@ export function ChatPage() {
       }),
     );
     setIsRunning(true);
+    liveStreamSessionIDs.current.add(sessionID);
+    let streamCompleted = false;
+    let taskContinues = true;
     try {
       const response = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requestId: requestID,
           sessionId: sessionID,
           message: content,
           imageIds: imageIDs,
@@ -148,10 +261,18 @@ export function ChatPage() {
         }),
       });
       if (!response.ok) {
+        if (response.status !== 409) {
+          removePendingRun(requestID);
+          taskContinues = false;
+        }
         throw new Error(await response.text());
       }
 
       await readChatStream(response, (event) => {
+        if (event.type === "done") {
+          streamCompleted = true;
+          removePendingRun(requestID);
+        }
         setSessions((current) =>
           current.map((session) =>
             session.id === sessionID
@@ -164,8 +285,15 @@ export function ChatPage() {
           ),
         );
       });
+      if (!streamCompleted) {
+        throw new Error("网络连接已断开，任务仍在后台继续。");
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "EDITH 运行失败";
+      const message = error instanceof Error ? error.message : "网络连接已断开，任务仍在后台继续。";
+      if (taskContinues) {
+        setBackgroundRunSessionID(sessionID);
+        return;
+      }
       setSessions((current) =>
         current.map((session) =>
           session.id === sessionID
@@ -179,6 +307,7 @@ export function ChatPage() {
         ),
       );
     } finally {
+      liveStreamSessionIDs.current.delete(sessionID);
       setIsRunning(false);
     }
   }
@@ -203,7 +332,10 @@ export function ChatPage() {
           </div>
         </header>
 
-        <TimelineView timeline={activeSession.timeline} />
+        <TimelineView
+          backgroundTaskRunning={backgroundRunSessionID === activeSession.id}
+          timeline={activeSession.timeline}
+        />
 
         <ChatComposer
           key={activeSession.id}
