@@ -88,7 +88,11 @@ MCP ToolSet 有连接生命周期：每个 Run 创建的 ToolSet 必须在**该 
 
 `context.Context` 是任务调用链的取消信号。EDITH 的 Web HTTP 请求和 Agent 任务使用不同的 ctx：浏览器断线只停止 SSE 推送；任务 ctx 继续传给 Runner、模型 HTTP 请求、MCP HTTP 请求和 EDITH 自己实现的工具。
 
-每个 Run 都有 `RequestID`：当前用于追踪；未来可通过 `ManagedRunner.Cancel(requestID)` 实现用户停止、配额或运维取消。任何长耗时 EDITH 工具都必须尊重任务 ctx 的 `Done()`。
+每个 Run 都有 `RequestID`。EDITH 已通过 `ManagedRunner` 用它实现用户主动停止和活跃
+状态查询：`RunStatus(requestID)` 存在即仍在执行，`Cancel(requestID)` 发送取消信号。
+RunStatus 不存在表示 Runner 已不再管理该 Run；浏览器随后从 Session 历史恢复 Timeline。
+配额和运维中止将复用同一取消入口。任何长耗时 EDITH 工具都必须尊重任务 ctx 的
+`Done()`。
 
 ## 8. 框架边界：不要误用本地 Agent 能力
 
