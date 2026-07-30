@@ -95,6 +95,7 @@ func main() {
 		Images:   chatImages,
 		Sessions: rawSessions,
 		UsageDB:  appDB,
+		ActiveRuns: webapi.NewActiveSessionRuns(),
 	}
 	mux := http.NewServeMux()
 	webapi.Register(mux)
