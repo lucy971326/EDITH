@@ -80,7 +80,7 @@ export type ChatRequest = {
 
 export type AgentRunStatus = {
   requestId: string;
-  status: "running" | "completed" | "failed";
+  status: "running";
 };
 
 export type CreateImageUploadRequest = {

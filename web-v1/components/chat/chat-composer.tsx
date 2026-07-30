@@ -14,12 +14,14 @@ import { SessionUsageView } from "./session-usage";
 type ChatComposerProps = {
   isLoading: boolean;
   isRunning: boolean;
+  isCancelling: boolean;
   sessionID: string;
   modelID: string;
   models: ModelInfo[];
   reasoningOptionID: string;
   selectedModel?: ModelInfo;
   sessionUsage: SessionUsage;
+  onCancel: () => void;
   onModelChange: (modelID: string) => void;
   onReasoningOptionChange: (reasoningOptionID: string) => void;
   onSend: (message: string, imageIDs: string[]) => void;
@@ -36,12 +38,14 @@ type SelectedImage = {
 export function ChatComposer({
   isLoading,
   isRunning,
+  isCancelling,
   sessionID,
   modelID,
   models,
   reasoningOptionID,
   selectedModel,
   sessionUsage,
+  onCancel,
   onModelChange,
   onReasoningOptionChange,
   onSend,
@@ -165,14 +169,26 @@ export function ChatComposer({
               {selectedModel.reasoningOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
             </select>
           </>}
-          <button
-            aria-label="发送"
-            className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-lg text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
-            disabled={(!message.trim() && readyImageIDs.length === 0) || !modelID || isLoading || isRunning || hasUploadingImage || (hasImageInput && !canUseVision)}
-            type="submit"
-          >
-            {isRunning ? "…" : "↑"}
-          </button>
+          {isRunning ? (
+            <button
+              aria-label="停止"
+              className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl bg-red-500 text-lg text-white transition-colors hover:bg-red-600 disabled:cursor-wait disabled:bg-red-300"
+              disabled={isCancelling}
+              onClick={(event) => { event.preventDefault(); onCancel(); }}
+              type="button"
+            >
+              {isCancelling ? "…" : "■"}
+            </button>
+          ) : (
+            <button
+              aria-label="发送"
+              className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-lg text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+              disabled={(!message.trim() && readyImageIDs.length === 0) || !modelID || isLoading || hasUploadingImage || (hasImageInput && !canUseVision)}
+              type="submit"
+            >
+              ↑
+            </button>
+          )}
         </div>
       </div>
     </form>
