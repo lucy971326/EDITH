@@ -80,6 +80,16 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "load MCP servers: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if s.ActiveRuns == nil {
+		http.Error(w, "active session run service is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if !s.ActiveRuns.TryAcquire(request.UserID, request.SessionID, request.RequestID) {
+		http.Error(w, "an agent run is already active for this session", http.StatusConflict)
+		return
+	}
+	defer s.ActiveRuns.Release(request.UserID, request.SessionID, request.RequestID)
+
 	mcpTools, closeMCP, err := mcp.OpenTools(taskContext, mcpServers)
 	if err != nil {
 		http.Error(w, "open MCP tools: "+err.Error(), http.StatusBadGateway)

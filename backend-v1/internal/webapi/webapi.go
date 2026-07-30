@@ -22,6 +22,7 @@ type Server struct {
 	Images   *images.Service
 	Sessions session.Service
 	UsageDB  *sql.DB
+	ActiveRuns *ActiveSessionRuns
 }
 
 // Register attaches Web BFF routes to mux.

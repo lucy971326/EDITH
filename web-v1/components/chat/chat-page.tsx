@@ -19,7 +19,7 @@ import type { AvailableModelCatalogResponse, ModelInfo } from "@/lib/models/type
 
 import { ChatComposer } from "./chat-composer";
 import { ConversationList } from "./conversation-list";
-import { TimelineView } from "./timeline";
+import { TimelineView, type TimelineRunNotice } from "./timeline";
 
 type ChatSession = {
   id: string;
@@ -34,6 +34,11 @@ const pendingRunsKey = "edith.pending-agent-runs";
 type PendingRun = {
   requestId: string;
   sessionId: string;
+};
+
+type SessionRunNotice = {
+  sessionID: string;
+  reason: TimelineRunNotice;
 };
 
 function loadPendingRuns(): PendingRun[] {
@@ -76,7 +81,7 @@ export function ChatPage() {
   const [modelID, setModelID] = useState("");
   const [reasoningOptionID, setReasoningOptionID] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [backgroundRunSessionID, setBackgroundRunSessionID] = useState<string | null>(null);
+  const [sessionRunNotice, setSessionRunNotice] = useState<SessionRunNotice | null>(null);
   const liveStreamSessionIDs = useRef(new Set<string>());
   const abortRef = useRef<AbortController | null>(null);
   const activeRequestIDRef = useRef<string | null>(null);
@@ -90,6 +95,10 @@ export function ChatPage() {
     setActiveRequestID(null);
     setIsRunning(false);
     setIsCancelling(false);
+  }
+
+  function clearSessionRunNotice(sessionID: string) {
+    setSessionRunNotice((current) => current?.sessionID === sessionID ? null : current);
   }
 
   useEffect(() => {
@@ -125,7 +134,7 @@ export function ChatPage() {
             continue;
           }
           if (requestIDsOnPageLoad.has(pendingRun.requestId)) {
-            setBackgroundRunSessionID(pendingRun.sessionId);
+            setSessionRunNotice({ sessionID: pendingRun.sessionId, reason: "stream_disconnected" });
           }
           continue;
         }
@@ -150,7 +159,7 @@ export function ChatPage() {
             : session,
         ));
         removePendingRun(pendingRun.requestId);
-        setBackgroundRunSessionID((current) => current === pendingRun.sessionId ? null : current);
+        clearSessionRunNotice(pendingRun.sessionId);
         finishActiveRun(pendingRun.requestId);
       }
     }
@@ -234,7 +243,7 @@ export function ChatPage() {
       }
     } catch {
       setIsCancelling(false);
-      setBackgroundRunSessionID(activeSessionID);
+      setSessionRunNotice({ sessionID: activeSessionID, reason: "stream_disconnected" });
       return; // 服务端是否收到取消请求未知，保留 pending 并继续查询后端状态
     }
     // 204 只表示 Runner 已收到取消信号。继续保留 pending，直到
@@ -295,11 +304,24 @@ export function ChatPage() {
         }),
       });
       if (!response.ok) {
-        if (response.status !== 409) {
+        if (response.status === 409) {
+          // The server rejected this new request because this session already
+          // has a Run. That existing Run, not this requestID, is background work.
+          setSessions((current) => current.map((session) =>
+            session.id === sessionID
+              ? { ...session, timeline: { blocks: session.timeline.blocks.filter((block) => block.id !== userBlock.id) } }
+              : session,
+          ));
           removePendingRun(requestID);
+          setSessionRunNotice({ sessionID, reason: "session_busy" });
           taskContinues = false;
           finishActiveRun(requestID);
+          return;
         }
+
+        removePendingRun(requestID);
+        taskContinues = false;
+        finishActiveRun(requestID);
         throw new Error(await response.text());
       }
 
@@ -330,7 +352,7 @@ export function ChatPage() {
       }
       const message = error instanceof Error ? error.message : "网络连接已断开，任务仍在后台继续。";
       if (taskContinues) {
-        setBackgroundRunSessionID(sessionID);
+        setSessionRunNotice({ sessionID, reason: "stream_disconnected" });
         return;
       }
       setSessions((current) =>
@@ -377,7 +399,7 @@ export function ChatPage() {
         </header>
 
         <TimelineView
-          backgroundTaskRunning={backgroundRunSessionID === activeSession.id}
+          runNotice={sessionRunNotice?.sessionID === activeSession.id ? sessionRunNotice.reason : undefined}
           timeline={activeSession.timeline}
         />
 
