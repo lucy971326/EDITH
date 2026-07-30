@@ -65,6 +65,8 @@ function removePendingRun(requestId: string) {
 
 export function ChatPage() {
   const [isRunning, setIsRunning] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [activeRequestID, setActiveRequestID] = useState<string | null>(null);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([
     { id: "new-session", title: "新对话", timeline: emptyTimeline, usage: emptySessionUsage },
@@ -76,9 +78,19 @@ export function ChatPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [backgroundRunSessionID, setBackgroundRunSessionID] = useState<string | null>(null);
   const liveStreamSessionIDs = useRef(new Set<string>());
+  const abortRef = useRef<AbortController | null>(null);
+  const activeRequestIDRef = useRef<string | null>(null);
 
   const activeSession = sessions.find((session) => session.id === activeSessionID) ?? sessions[0];
   const selectedModel = models.find((model) => model.id === modelID);
+
+  function finishActiveRun(requestID: string) {
+    if (activeRequestIDRef.current !== requestID) return;
+    activeRequestIDRef.current = null;
+    setActiveRequestID(null);
+    setIsRunning(false);
+    setIsCancelling(false);
+  }
 
   useEffect(() => {
     async function loadAvailableModels() {
@@ -103,17 +115,15 @@ export function ChatPage() {
         } catch {
           continue;
         }
-        if (statusResponse.status === 404) {
-          removePendingRun(pendingRun.requestId);
-          setBackgroundRunSessionID((current) => current === pendingRun.sessionId ? null : current);
-          continue;
-        }
-        if (!statusResponse.ok) {
+        if (!statusResponse.ok && statusResponse.status !== 404) {
           continue;
         }
 
-        const run = await statusResponse.json() as AgentRunStatus;
-        if (run.status === "running") {
+        if (statusResponse.ok) {
+          const run = await statusResponse.json() as AgentRunStatus;
+          if (run.status !== "running") {
+            continue;
+          }
           if (requestIDsOnPageLoad.has(pendingRun.requestId)) {
             setBackgroundRunSessionID(pendingRun.sessionId);
           }
@@ -141,6 +151,7 @@ export function ChatPage() {
         ));
         removePendingRun(pendingRun.requestId);
         setBackgroundRunSessionID((current) => current === pendingRun.sessionId ? null : current);
+        finishActiveRun(pendingRun.requestId);
       }
     }
 
@@ -212,6 +223,24 @@ export function ChatPage() {
     setReasoningOptionID("");
   }
 
+  async function cancelRun() {
+    if (!activeRequestID || isCancelling) return;
+    abortRef.current?.abort();
+    setIsCancelling(true);
+    try {
+      const response = await fetch(`/api/agent-runs/${encodeURIComponent(activeRequestID)}`, { method: "POST" });
+      if (!response.ok) {
+        throw new Error("取消请求未被服务端接受");
+      }
+    } catch {
+      setIsCancelling(false);
+      setBackgroundRunSessionID(activeSessionID);
+      return; // 服务端是否收到取消请求未知，保留 pending 并继续查询后端状态
+    }
+    // 204 只表示 Runner 已收到取消信号。继续保留 pending，直到
+    // ManagedRunner 不再报告该 requestID 为运行中，才能确认已结束。
+  }
+
   async function sendMessage(content: string, imageIDs: string[]) {
     if (!modelID || isRunning) {
       return;
@@ -219,6 +248,8 @@ export function ChatPage() {
 
     const sessionID = activeSession.id;
     const requestID = crypto.randomUUID();
+    activeRequestIDRef.current = requestID;
+    setActiveRequestID(requestID);
     savePendingRun({ requestId: requestID, sessionId: sessionID });
     const now = new Date().toISOString();
     const userBlock: UserBlock = {
@@ -245,10 +276,13 @@ export function ChatPage() {
     );
     setIsRunning(true);
     liveStreamSessionIDs.current.add(sessionID);
+    const abort = new AbortController();
+    abortRef.current = abort;
     let streamCompleted = false;
     let taskContinues = true;
     try {
       const response = await fetch("/api/chat/stream", {
+        signal: abort.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -264,6 +298,7 @@ export function ChatPage() {
         if (response.status !== 409) {
           removePendingRun(requestID);
           taskContinues = false;
+          finishActiveRun(requestID);
         }
         throw new Error(await response.text());
       }
@@ -272,6 +307,7 @@ export function ChatPage() {
         if (event.type === "done") {
           streamCompleted = true;
           removePendingRun(requestID);
+          finishActiveRun(requestID);
         }
         setSessions((current) =>
           current.map((session) =>
@@ -289,6 +325,9 @@ export function ChatPage() {
         throw new Error("网络连接已断开，任务仍在后台继续。");
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return; // 用户主动取消，不发错误提示
+      }
       const message = error instanceof Error ? error.message : "网络连接已断开，任务仍在后台继续。";
       if (taskContinues) {
         setBackgroundRunSessionID(sessionID);
@@ -308,7 +347,12 @@ export function ChatPage() {
       );
     } finally {
       liveStreamSessionIDs.current.delete(sessionID);
-      setIsRunning(false);
+      if (!abort.signal.aborted) {
+        setIsRunning(false);
+      }
+      if (!taskContinues) {
+        finishActiveRun(requestID);
+      }
     }
   }
 
@@ -341,12 +385,14 @@ export function ChatPage() {
           key={activeSession.id}
           isLoading={isLoadingConversations}
           isRunning={isRunning}
+          isCancelling={isCancelling}
           sessionID={activeSession.id}
           modelID={modelID}
           models={models}
           reasoningOptionID={reasoningOptionID}
           selectedModel={selectedModel}
           sessionUsage={activeSession.usage}
+          onCancel={cancelRun}
           onModelChange={selectModel}
           onReasoningOptionChange={setReasoningOptionID}
           onSend={(content, imageIDs) => void sendMessage(content, imageIDs)}

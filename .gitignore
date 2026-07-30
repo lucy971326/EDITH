@@ -56,3 +56,5 @@ edith.db
 /backend-v1/*.db-wal
 
 .idea/
+edith-architecture-3d.html
+.tmp-go-cache

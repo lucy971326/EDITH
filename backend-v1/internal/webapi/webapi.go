@@ -28,6 +28,7 @@ type Server struct {
 func (s Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /internal/agent-runs", s.runAgent)
 	mux.HandleFunc("GET /internal/agent-runs/{requestID}", s.getAgentRunStatus)
+	mux.HandleFunc("POST /internal/agent-runs/{requestID}/cancel", s.cancelAgentRun)
 	mux.HandleFunc("GET /internal/models", s.listModels)
 	mux.HandleFunc("GET /internal/available-models", s.listAvailableModels)
 	mux.HandleFunc("GET /internal/user-settings", s.getUserSettings)
