@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"edith/backend-v1/internal/images"
 	"edith/backend-v1/internal/mcp"
 	"edith/backend-v1/internal/models"
 	"edith/backend-v1/internal/runopts"
-	"edith/backend-v1/internal/timeline"
 	"edith/backend-v1/internal/usage"
 
 	"github.com/google/uuid"
@@ -25,7 +26,7 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	if s.Usage == nil {
+	if s.UsageDB == nil {
 		http.Error(w, "usage service is unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -35,9 +36,11 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unsupported modelId", http.StatusBadRequest)
 		return
 	}
-	if len(request.ImageIDs) > 0 && !definition.Info.Capabilities.Vision {
-		http.Error(w, "selected model does not support image input", http.StatusBadRequest)
-		return
+	if len(request.ImageIDs) > 0 {
+		if !definition.Info.Capabilities.Vision {
+			http.Error(w, "selected model does not support image input", http.StatusBadRequest)
+			return
+		}
 	}
 	apiKey, err := s.Users.LoadProviderAPIKey(r.Context(), request.UserID, definition.ProviderID)
 	if err != nil {
@@ -79,7 +82,7 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "open MCP tools: "+err.Error(), http.StatusBadGateway)
 		return
 	}
-	defer func() { _ = closeMCP() }()
+	defer closeMCP()
 
 	requestID := uuid.NewString()
 	opts := runopts.Build(runopts.Config{
@@ -93,7 +96,7 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		AdditionalTools: mcpTools,
 	})
 
-	events, err := s.Runner.Run(
+	eventsCh, err := s.Runner.Run(
 		runContext,
 		request.UserID,
 		request.SessionID,
@@ -110,64 +113,219 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		SessionID: request.SessionID,
 		ModelID:   request.ModelID,
 	}
-	err = s.Usage.Start(r.Context(), run)
+	err = usage.Start(s.UsageDB, r.Context(), run)
 	if err != nil {
 		http.Error(w, "start usage record: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	runFinished := false
 	defer func() {
-		if !runFinished {
-			if err := s.Usage.Fail(context.Background(), requestID); err != nil {
-				log.Printf("mark agent run %q failed: %v", requestID, err)
-			}
+		if runFinished {
+			return
 		}
+
+		failErr := usage.Fail(s.UsageDB, context.Background(), requestID)
+		if failErr == nil {
+			return
+		}
+
+		log.Printf("mark agent run %q failed: %v", requestID, failErr)
 	}()
 
 	writeSSEHeaders(w)
-	builder := timeline.NewBuilder(requestID)
-	if err := writeSSE(w, builder.Started()); err != nil {
+	assistantID := "assistant_" + requestID
+	startedEvent := AssistantStartedEvent{
+		Type: StreamEventTypeAssistantStarted,
+		Assistant: AssistantBlock{
+			Type:      BlockTypeAssistant,
+			ID:        assistantID,
+			CreatedAt: time.Now(),
+			Blocks:    []AssistantContentBlock{},
+		},
+	}
+	err = writeSSE(w, startedEvent)
+	if err != nil {
 		return
 	}
 
-	var tokens usage.Tokens
-	for rawEvent := range events {
-		if rawEvent.Response != nil && !rawEvent.Response.IsPartial &&
-			!rawEvent.IsRunnerCompletion() {
-			tokens.Add(rawEvent.Response.Usage, !definition.DoesNotReportCachedPromptTokens)
+	var (
+		tokens        usage.Tokens
+		nextBlockID   int
+		lastBlockType AssistantContentBlockType
+		lastBlockID   string
+		startedTools  = map[string]bool{}
+	)
+
+	for rawEvent := range eventsCh {
+		if rawEvent == nil {
+			continue
 		}
 
-		for _, streamEvent := range builder.Add(rawEvent) {
-			if err := writeSSE(w, streamEvent); err != nil {
+		if rawEvent.IsError() {
+			errorEvent := ErrorEvent{
+				Type: StreamEventTypeError,
+				Error: ErrorBlock{
+					Type:      BlockTypeError,
+					ID:        eventID(rawEvent, "error"),
+					Message:   errorMessage(rawEvent),
+					CreatedAt: eventTime(rawEvent),
+				},
+			}
+			writeErr := writeSSE(w, errorEvent)
+			if writeErr != nil {
 				return
 			}
+			if !rawEvent.IsRunnerCompletion() {
+				continue
+			}
 		}
+
 		if rawEvent.IsRunnerCompletion() {
-			if err := s.Usage.Complete(r.Context(), requestID, tokens); err != nil {
-				log.Printf("complete agent run %q usage: %v", requestID, err)
-				_ = writeSSE(w, timeline.DoneEvent{
-					Type:      timeline.StreamEventTypeDone,
+			summary, finishErr := usage.Finish(s.UsageDB, r.Context(), run, tokens)
+			if finishErr != nil {
+				log.Printf("finish agent run %q usage: %v", requestID, finishErr)
+				doneEvent := DoneEvent{
+					Type:      StreamEventTypeDone,
 					RequestID: requestID,
-				})
+				}
+				_ = writeSSE(w, doneEvent)
 				return
 			}
 			runFinished = true
 
-			var summary *usage.Summary
-			if result, err := s.Usage.SessionSummary(r.Context(), request.UserID, request.SessionID); err != nil {
-				log.Printf("summarize agent run %q usage: %v", requestID, err)
-			} else {
-				summary = &result
-			}
-			if err := writeSSE(w, timeline.DoneEvent{
-				Type:         timeline.StreamEventTypeDone,
+			doneEvent := DoneEvent{
+				Type:         StreamEventTypeDone,
 				RequestID:    requestID,
-				SessionUsage: summary,
-			}); err != nil {
-				log.Printf("write agent run %q done event: %v", requestID, err)
+				SessionUsage: &summary,
+			}
+			writeErr := writeSSE(w, doneEvent)
+			if writeErr != nil {
+				log.Printf("write agent run %q done event: %v", requestID, writeErr)
 			}
 			return
 		}
+
+		if rawEvent.Response == nil {
+			continue
+		}
+
+		for _, choice := range rawEvent.Response.Choices {
+			if choice.Delta.ReasoningContent != "" {
+				if lastBlockType != AssistantContentBlockTypeReasoning {
+					nextBlockID++
+					lastBlockType = AssistantContentBlockTypeReasoning
+					lastBlockID = assistantID + "_reasoning_" + strconv.Itoa(nextBlockID)
+				}
+
+				deltaEvent := ContentDeltaEvent{
+					Type:        StreamEventTypeContentDelta,
+					AssistantID: assistantID,
+					BlockID:     lastBlockID,
+					BlockType:   AssistantContentBlockTypeReasoning,
+					Delta:       choice.Delta.ReasoningContent,
+				}
+				writeErr := writeSSE(w, deltaEvent)
+				if writeErr != nil {
+					return
+				}
+			}
+
+			if choice.Delta.Content != "" {
+				if lastBlockType != AssistantContentBlockTypeText {
+					nextBlockID++
+					lastBlockType = AssistantContentBlockTypeText
+					lastBlockID = assistantID + "_text_" + strconv.Itoa(nextBlockID)
+				}
+
+				deltaEvent := ContentDeltaEvent{
+					Type:        StreamEventTypeContentDelta,
+					AssistantID: assistantID,
+					BlockID:     lastBlockID,
+					BlockType:   AssistantContentBlockTypeText,
+					Delta:       choice.Delta.Content,
+				}
+				writeErr := writeSSE(w, deltaEvent)
+				if writeErr != nil {
+					return
+				}
+			}
+
+			if choice.Message.ToolID != "" {
+				if !startedTools[choice.Message.ToolID] {
+					tool := AssistantContentBlock{
+						Type:     AssistantContentBlockTypeTool,
+						ID:       choice.Message.ToolID,
+						ToolName: choice.Message.ToolName,
+						Status:   ToolStatusRunning,
+					}
+					startedEvent := ToolStartedEvent{
+						Type:        StreamEventTypeToolStarted,
+						AssistantID: assistantID,
+						Tool:        tool,
+					}
+					writeErr := writeSSE(w, startedEvent)
+					if writeErr != nil {
+						return
+					}
+					startedTools[choice.Message.ToolID] = true
+					lastBlockType = AssistantContentBlockTypeTool
+					lastBlockID = choice.Message.ToolID
+				}
+
+				status := ToolStatusCompleted
+				if rawEvent.Error != nil {
+					status = ToolStatusFailed
+				}
+				finishedEvent := ToolFinishedEvent{
+					Type:        StreamEventTypeToolFinished,
+					AssistantID: assistantID,
+					ToolCallID:  choice.Message.ToolID,
+					Status:      status,
+					Result:      choice.Message.Content,
+				}
+				writeErr := writeSSE(w, finishedEvent)
+				if writeErr != nil {
+					return
+				}
+				continue
+			}
+
+			if rawEvent.Response.IsPartial {
+				continue
+			}
+
+			for _, call := range choice.Message.ToolCalls {
+				if call.ID == "" || startedTools[call.ID] {
+					continue
+				}
+
+				tool := AssistantContentBlock{
+					Type:      AssistantContentBlockTypeTool,
+					ID:        call.ID,
+					ToolName:  call.Function.Name,
+					Arguments: string(call.Function.Arguments),
+					Status:    ToolStatusRunning,
+				}
+				startedEvent := ToolStartedEvent{
+					Type:        StreamEventTypeToolStarted,
+					AssistantID: assistantID,
+					Tool:        tool,
+				}
+				writeErr := writeSSE(w, startedEvent)
+				if writeErr != nil {
+					return
+				}
+				startedTools[call.ID] = true
+				lastBlockType = AssistantContentBlockTypeTool
+				lastBlockID = call.ID
+			}
+		}
+
+		if rawEvent.Response.IsPartial {
+			continue
+		}
+
+		usage.AddTokens(&tokens, rawEvent.Response.Usage, !definition.DoesNotReportCachedPromptTokens)
 	}
 }
 
@@ -178,7 +336,8 @@ func decodeAgentRunRequest(w http.ResponseWriter, r *http.Request) (AgentRunRequ
 	var request AgentRunRequest
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&request); err != nil {
+	err := decoder.Decode(&request)
+	if err != nil {
 		http.Error(w, "invalid agent run request", http.StatusBadRequest)
 		return AgentRunRequest{}, err
 	}
@@ -190,12 +349,27 @@ func decodeAgentRunRequest(w http.ResponseWriter, r *http.Request) (AgentRunRequ
 	for index := range request.ImageIDs {
 		request.ImageIDs[index] = strings.TrimSpace(request.ImageIDs[index])
 	}
-	if request.UserID == "" || request.SessionID == "" || request.ModelID == "" ||
-		(request.Message == "" && len(request.ImageIDs) == 0) {
+	if request.UserID == "" {
 		http.Error(w, "userId, sessionId, modelId, and either message or imageIds are required", http.StatusBadRequest)
 		return AgentRunRequest{}, errors.New("missing required agent run fields")
 	}
-	return request, nil
+	if request.SessionID == "" {
+		http.Error(w, "userId, sessionId, modelId, and either message or imageIds are required", http.StatusBadRequest)
+		return AgentRunRequest{}, errors.New("missing required agent run fields")
+	}
+	if request.ModelID == "" {
+		http.Error(w, "userId, sessionId, modelId, and either message or imageIds are required", http.StatusBadRequest)
+		return AgentRunRequest{}, errors.New("missing required agent run fields")
+	}
+	if request.Message != "" {
+		return request, nil
+	}
+	if len(request.ImageIDs) > 0 {
+		return request, nil
+	}
+
+	http.Error(w, "userId, sessionId, modelId, and either message or imageIds are required", http.StatusBadRequest)
+	return AgentRunRequest{}, errors.New("missing required agent run fields")
 }
 
 func writeSSEHeaders(w http.ResponseWriter) {
@@ -204,7 +378,7 @@ func writeSSEHeaders(w http.ResponseWriter) {
 	w.Header().Set("X-Accel-Buffering", "no")
 }
 
-func writeSSE(w http.ResponseWriter, event timeline.StreamEvent) error {
+func writeSSE(w http.ResponseWriter, event StreamEvent) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("encode SSE event: %w", err)
@@ -215,7 +389,8 @@ func writeSSE(w http.ResponseWriter, event timeline.StreamEvent) error {
 		return fmt.Errorf("write SSE event: %w", err)
 	}
 
-	if flusher, ok := w.(http.Flusher); ok {
+	flusher, ok := w.(http.Flusher)
+	if ok {
 		flusher.Flush()
 	}
 	return nil

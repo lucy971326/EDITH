@@ -1,8 +1,9 @@
 package webapi
 
 import (
+	"time"
+
 	"edith/backend-v1/internal/models"
-	"edith/backend-v1/internal/timeline"
 	"edith/backend-v1/internal/usage"
 )
 
@@ -126,6 +127,149 @@ type ConversationListResponse struct {
 }
 
 type ConversationResponse struct {
-	Timeline timeline.Timeline `json:"timeline"`
-	Usage    usage.Summary     `json:"usage"`
+	Timeline Timeline      `json:"timeline"`
+	Usage    usage.Summary `json:"usage"`
 }
+
+// Timeline 是浏览器按时间顺序展示的一段对话。
+type Timeline struct {
+	Blocks []TimelineBlock `json:"blocks"`
+}
+
+// TimelineBlock 是用户消息、AI 回复或错误卡片。
+type TimelineBlock interface {
+	isTimelineBlock()
+}
+
+type BlockType string
+
+const (
+	BlockTypeUser      BlockType = "user"
+	BlockTypeAssistant BlockType = "assistant"
+	BlockTypeError     BlockType = "error"
+)
+
+type UserBlock struct {
+	Type      BlockType   `json:"type"`
+	ID        string      `json:"id"`
+	Content   string      `json:"content"`
+	Images    []UserImage `json:"images"`
+	CreatedAt time.Time   `json:"createdAt"`
+}
+
+func (UserBlock) isTimelineBlock() {}
+
+type UserImage struct {
+	ID string `json:"id"`
+}
+
+type AssistantBlock struct {
+	Type      BlockType               `json:"type"`
+	ID        string                  `json:"id"`
+	CreatedAt time.Time               `json:"createdAt"`
+	Blocks    []AssistantContentBlock `json:"blocks"`
+}
+
+func (AssistantBlock) isTimelineBlock() {}
+
+type ErrorBlock struct {
+	Type      BlockType `json:"type"`
+	ID        string    `json:"id"`
+	Message   string    `json:"message"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+func (ErrorBlock) isTimelineBlock() {}
+
+type AssistantContentBlockType string
+
+const (
+	AssistantContentBlockTypeReasoning AssistantContentBlockType = "reasoning"
+	AssistantContentBlockTypeText      AssistantContentBlockType = "text"
+	AssistantContentBlockTypeTool      AssistantContentBlockType = "tool"
+)
+
+type ToolStatus string
+
+const (
+	ToolStatusRunning   ToolStatus = "running"
+	ToolStatusCompleted ToolStatus = "completed"
+	ToolStatusFailed    ToolStatus = "failed"
+)
+
+type AssistantContentBlock struct {
+	Type    AssistantContentBlockType `json:"type"`
+	ID      string                    `json:"id"`
+	Content string                    `json:"content,omitempty"`
+
+	ToolName  string     `json:"toolName,omitempty"`
+	Arguments string     `json:"arguments,omitempty"`
+	Status    ToolStatus `json:"status,omitempty"`
+	Result    string     `json:"result,omitempty"`
+}
+
+type StreamEventType string
+
+const (
+	StreamEventTypeAssistantStarted StreamEventType = "assistant.started"
+	StreamEventTypeContentDelta     StreamEventType = "assistant.content.delta"
+	StreamEventTypeToolStarted      StreamEventType = "tool.started"
+	StreamEventTypeToolFinished     StreamEventType = "tool.finished"
+	StreamEventTypeError            StreamEventType = "error"
+	StreamEventTypeDone             StreamEventType = "done"
+)
+
+// StreamEvent 是 Web SSE 推给浏览器的 JSON 事件。
+type StreamEvent interface {
+	isStreamEvent()
+}
+
+type AssistantStartedEvent struct {
+	Type      StreamEventType `json:"type"`
+	Assistant AssistantBlock  `json:"assistant"`
+}
+
+func (AssistantStartedEvent) isStreamEvent() {}
+
+type ContentDeltaEvent struct {
+	Type        StreamEventType           `json:"type"`
+	AssistantID string                    `json:"assistantId"`
+	BlockID     string                    `json:"blockId"`
+	BlockType   AssistantContentBlockType `json:"blockType"`
+	Delta       string                    `json:"delta"`
+}
+
+func (ContentDeltaEvent) isStreamEvent() {}
+
+type ToolStartedEvent struct {
+	Type        StreamEventType       `json:"type"`
+	AssistantID string                `json:"assistantId"`
+	Tool        AssistantContentBlock `json:"tool"`
+}
+
+func (ToolStartedEvent) isStreamEvent() {}
+
+type ToolFinishedEvent struct {
+	Type        StreamEventType `json:"type"`
+	AssistantID string          `json:"assistantId"`
+	ToolCallID  string          `json:"toolCallId"`
+	Status      ToolStatus      `json:"status"`
+	Result      string          `json:"result,omitempty"`
+}
+
+func (ToolFinishedEvent) isStreamEvent() {}
+
+type ErrorEvent struct {
+	Type  StreamEventType `json:"type"`
+	Error ErrorBlock      `json:"error"`
+}
+
+func (ErrorEvent) isStreamEvent() {}
+
+type DoneEvent struct {
+	Type         StreamEventType `json:"type"`
+	RequestID    string          `json:"requestId"`
+	SessionUsage *usage.Summary  `json:"sessionUsage,omitempty"`
+}
+
+func (DoneEvent) isStreamEvent() {}

@@ -18,11 +18,6 @@ const (
 	statusFailed    = "failed"
 )
 
-// Service owns the agent_runs table and its per-session aggregates.
-type Service struct {
-	db *sql.DB
-}
-
 // Run identifies one framework Invocation. RequestID is the framework's
 // request identity; EDITH does not introduce a second run ID.
 type Run struct {
@@ -41,22 +36,22 @@ type Tokens struct {
 	TotalTokens        int
 }
 
-// Add includes one complete model response. Partial streaming chunks must not
-// reach this method because their usage values can be cumulative.
-func (t *Tokens) Add(source *model.Usage, reportsCachedPromptTokens bool) {
+// AddTokens includes one complete model response. Partial streaming chunks
+// must not reach this function because their usage values can be cumulative.
+func AddTokens(tokens *Tokens, source *model.Usage, reportsCachedPromptTokens bool) {
 	if source == nil {
 		return
 	}
-	t.PromptTokens += source.PromptTokens
-	t.CompletionTokens += source.CompletionTokens
-	t.TotalTokens += source.TotalTokens
+	tokens.PromptTokens += source.PromptTokens
+	tokens.CompletionTokens += source.CompletionTokens
+	tokens.TotalTokens += source.TotalTokens
 	if !reportsCachedPromptTokens {
 		return
 	}
-	if t.CachedPromptTokens == nil {
-		t.CachedPromptTokens = new(int)
+	if tokens.CachedPromptTokens == nil {
+		tokens.CachedPromptTokens = new(int)
 	}
-	*t.CachedPromptTokens += int(source.PromptTokensDetails.CachedTokens)
+	*tokens.CachedPromptTokens += int(source.PromptTokensDetails.CachedTokens)
 }
 
 // Summary is the browser-facing usage aggregate for one conversation.
@@ -69,25 +64,21 @@ type Summary struct {
 	CacheHitRate         *float64 `json:"cacheHitRate"`
 }
 
-// Open creates the accounting table on EDITH's caller-owned SQLite database.
-func Open(db *sql.DB) (*Service, error) {
+// CreateTable creates Usage tables on EDITH's caller-owned SQLite database.
+func CreateTable(db *sql.DB) error {
 	if db == nil {
-		return nil, errors.New("usage database is required")
+		return errors.New("usage database is required")
 	}
-	service := &Service{db: db}
-	if err := service.createTable(context.Background()); err != nil {
-		return nil, err
-	}
-	return service, nil
+	return createTable(db, context.Background())
 }
 
 // Start records one accepted Agent Run before its event stream is consumed.
-func (s *Service) Start(ctx context.Context, run Run) error {
+func Start(db *sql.DB, ctx context.Context, run Run) error {
 	run = normalizeRun(run)
 	if run.RequestID == "" || run.UserID == "" || run.SessionID == "" || run.ModelID == "" {
 		return errors.New("requestID, userID, sessionID, and modelID are required")
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO agent_runs (
+	_, err := db.ExecContext(ctx, `INSERT INTO agent_runs (
 		request_id, user_id, session_id, model_id, status
 	) VALUES (?, ?, ?, ?, ?)`,
 		run.RequestID, run.UserID, run.SessionID, run.ModelID, statusRunning,
@@ -98,15 +89,15 @@ func (s *Service) Start(ctx context.Context, run Run) error {
 	return nil
 }
 
-// Complete stores the final provider-reported usage for one Agent Run.
-func (s *Service) Complete(ctx context.Context, requestID string, tokens Tokens) error {
-	requestID = strings.TrimSpace(requestID)
+// Finish stores one completed Run and returns the conversation Usage summary.
+func Finish(db *sql.DB, ctx context.Context, run Run, tokens Tokens) (Summary, error) {
+	requestID := strings.TrimSpace(run.RequestID)
 	cacheReported := tokens.CachedPromptTokens != nil
 	var cached any
 	if cacheReported {
 		cached = *tokens.CachedPromptTokens
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE agent_runs
+	result, err := db.ExecContext(ctx, `UPDATE agent_runs
 		SET prompt_tokens = ?, cached_prompt_tokens = ?, cache_reported = ?,
 			completion_tokens = ?, total_tokens = ?, status = ?, completed_at = CURRENT_TIMESTAMP
 		WHERE request_id = ? AND status = ?`,
@@ -114,18 +105,18 @@ func (s *Service) Complete(ctx context.Context, requestID string, tokens Tokens)
 		tokens.TotalTokens, statusCompleted, requestID, statusRunning,
 	)
 	if err != nil {
-		return fmt.Errorf("complete agent run %q: %w", requestID, err)
+		return Summary{}, fmt.Errorf("finish agent run %q: %w", requestID, err)
 	}
 	if changed, _ := result.RowsAffected(); changed != 1 {
-		return fmt.Errorf("complete agent run %q: run not found", requestID)
+		return Summary{}, fmt.Errorf("finish agent run %q: run not found", requestID)
 	}
-	return nil
+	return SessionSummary(db, ctx, run.UserID, run.SessionID)
 }
 
 // Fail marks an unfinished Agent Run as failed without contributing it to
 // conversation totals.
-func (s *Service) Fail(ctx context.Context, requestID string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE agent_runs
+func Fail(db *sql.DB, ctx context.Context, requestID string) error {
+	_, err := db.ExecContext(ctx, `UPDATE agent_runs
 		SET status = ?, completed_at = CURRENT_TIMESTAMP
 		WHERE request_id = ? AND status = ?`,
 		statusFailed, strings.TrimSpace(requestID), statusRunning,
@@ -135,7 +126,7 @@ func (s *Service) Fail(ctx context.Context, requestID string) error {
 
 // SessionSummary returns the durable, server-calculated token aggregate for
 // one conversation. Failed runs are deliberately excluded.
-func (s *Service) SessionSummary(ctx context.Context, userID, sessionID string) (Summary, error) {
+func SessionSummary(db *sql.DB, ctx context.Context, userID, sessionID string) (Summary, error) {
 	var row struct {
 		Count      int
 		Total      int
@@ -144,7 +135,7 @@ func (s *Service) SessionSummary(ctx context.Context, userID, sessionID string) 
 		CacheKnown int
 		Cached     sql.NullInt64
 	}
-	err := s.db.QueryRowContext(ctx, `SELECT
+	err := db.QueryRowContext(ctx, `SELECT
 		COUNT(*),
 		COALESCE(SUM(total_tokens), 0),
 		COALESCE(SUM(completion_tokens), 0),

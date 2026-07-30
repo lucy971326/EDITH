@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"edith/backend-v1/internal/timeline"
+	"edith/backend-v1/internal/usage"
 
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
@@ -60,17 +60,17 @@ func (s Server) getConversation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "conversation not found", http.StatusNotFound)
 		return
 	}
-	if s.Usage == nil {
+	if s.UsageDB == nil {
 		http.Error(w, "usage service is unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	usageSummary, err := s.Usage.SessionSummary(r.Context(), userID, sessionID)
+	usageSummary, err := usage.SessionSummary(s.UsageDB, r.Context(), userID, sessionID)
 	if err != nil {
 		http.Error(w, "summarize conversation usage: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(w, ConversationResponse{Timeline: timeline.BuildHistory(sess.GetEvents()), Usage: usageSummary})
+	writeJSON(w, ConversationResponse{Timeline: buildHistory(sess.GetEvents()), Usage: usageSummary})
 }
 
 func conversationTitle(events []event.Event) string {
