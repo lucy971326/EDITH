@@ -104,12 +104,14 @@ func (s Server) runAgent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "start agent run: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := s.Usage.Start(r.Context(), usage.Run{
+	run := usage.Run{
 		RequestID: requestID,
 		UserID:    request.UserID,
 		SessionID: request.SessionID,
 		ModelID:   request.ModelID,
-	}); err != nil {
+	}
+	err = s.Usage.Start(r.Context(), run)
+	if err != nil {
 		http.Error(w, "start usage record: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

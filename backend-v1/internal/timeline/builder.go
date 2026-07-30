@@ -6,16 +6,18 @@ import (
 	"time"
 
 	"edith/backend-v1/internal/images"
+
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 )
 
 // Builder holds only the short-lived state required to turn one Runner.Run
 // event stream into one AssistantBlock.
+// 不是长期Service，也不组合外部能力，只是一次AgentRun里临时存在的回复拼装器
 type Builder struct {
-	assistant AssistantBlock
-	toolIndex map[string]int
-	nextID    int
+	assistant AssistantBlock // 当前这轮 Assistant 回复的完整草稿
+	toolIndex map[string]int // ToolCall.ID → 这张工具卡片在 assistant.Blocks 中的位置用来让工具结果回来时更新正确的卡片
+	nextID    int            // 生成 text / reasoning 子块的本地 ID
 
 	sawPartialReasoning bool
 	sawPartialText      bool
