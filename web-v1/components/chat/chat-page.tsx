@@ -326,7 +326,7 @@ export function ChatPage() {
       }
 
       await readChatStream(response, (event) => {
-        if (event.type === "done") {
+        if (event.type === "run.completed" || event.type === "run.canceled") {
           streamCompleted = true;
           removePendingRun(requestID);
           finishActiveRun(requestID);
@@ -337,7 +337,7 @@ export function ChatPage() {
               ? {
                   ...session,
                   timeline: applyStreamEvent(session.timeline, event),
-                  usage: event.type === "done" && event.sessionUsage ? event.sessionUsage : session.usage,
+                  usage: (event.type === "run.completed" || event.type === "run.canceled") && event.sessionUsage ? event.sessionUsage : session.usage,
                 }
               : session,
           ),

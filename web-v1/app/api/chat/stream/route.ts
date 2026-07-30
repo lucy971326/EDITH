@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 
-import type { AgentRunRequest, ChatRequest } from "@/lib/chat/type";
+import type { ChatRequest, GatewayMessageRequest } from "@/lib/chat/type";
 
 const runtimeURL = process.env.EDITH_RUNTIME_URL ?? "http://127.0.0.1:8080";
 
@@ -20,14 +20,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const agentRequest: AgentRunRequest = {
+  const agentRequest: GatewayMessageRequest = {
     ...chatRequest,
     userId,
   };
 
   let response: Response;
   try {
-    response = await fetch(`${runtimeURL}/internal/agent-runs`, {
+    response = await fetch(`${runtimeURL}/internal/gateway/messages:stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(agentRequest),

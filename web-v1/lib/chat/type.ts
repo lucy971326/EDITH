@@ -125,27 +125,31 @@ export const emptySessionUsage: SessionUsage = {
   cacheHitRate: null,
 };
 
-// Next BFF → internal Go Runtime. userId comes from Clerk on the BFF.
-export type AgentRunRequest = ChatRequest & {
+// Next BFF → Agent Gateway. userId comes from Clerk on the BFF.
+export type GatewayMessageRequest = ChatRequest & {
   userId: string;
 };
 
-// The JSON payload carried by one EDITH SSE event.
+// Channel-neutral Agent Gateway events. Browser code projects these into its
+// Timeline; IM adapters can render the same events as cards or messages.
 export type ChatStreamEvent =
-  | AssistantStartedEvent
+  | RunStartedEvent
   | ContentDeltaEvent
   | ToolStartedEvent
   | ToolFinishedEvent
-  | ErrorEvent
-  | DoneEvent;
+  | RunErrorEvent
+  | RunCompletedEvent
+  | RunCanceledEvent;
 
-export type AssistantStartedEvent = {
-  type: "assistant.started";
-  assistant: AssistantBlock;
+export type RunStartedEvent = {
+  type: "run.started";
+  sessionId: string;
+  requestId: string;
+  assistantId: string;
 };
 
 export type ContentDeltaEvent = {
-  type: "assistant.content.delta";
+  type: "reasoning.delta" | "message.delta";
   assistantId: string;
   blockId: string;
   blockType: "reasoning" | "text";
@@ -155,24 +159,39 @@ export type ContentDeltaEvent = {
 export type ToolStartedEvent = {
   type: "tool.started";
   assistantId: string;
-  tool: ToolBlock;
+  toolCallId: string;
+  toolName: string;
+  arguments?: string;
+  toolStatus: "running";
 };
 
 export type ToolFinishedEvent = {
   type: "tool.finished";
   assistantId: string;
   toolCallId: string;
-  status: "completed" | "failed";
-  result?: string;
+  toolStatus: "completed" | "failed";
+  toolResult?: string;
 };
 
-export type ErrorEvent = {
-  type: "error";
-  error: ErrorBlock;
+export type GatewayError = {
+  type: string;
+  message: string;
 };
 
-export type DoneEvent = {
-  type: "done";
+export type RunErrorEvent = {
+  type: "run.error";
+  requestId: string;
+  error: GatewayError;
+};
+
+export type RunCompletedEvent = {
+  type: "run.completed";
+  requestId: string;
+  sessionUsage?: SessionUsage;
+};
+
+export type RunCanceledEvent = {
+  type: "run.canceled";
   requestId: string;
   sessionUsage?: SessionUsage;
 };

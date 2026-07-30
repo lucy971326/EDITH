@@ -13,20 +13,6 @@ import (
 	"edith/backend-v1/internal/userconfig"
 )
 
-func TestAgentRunOnlyAcceptsPost(t *testing.T) {
-	var server Server
-	mux := http.NewServeMux()
-	server.Register(mux)
-
-	request := httptest.NewRequest(http.MethodGet, "/internal/agent-runs", nil)
-	response := httptest.NewRecorder()
-	mux.ServeHTTP(response, request)
-
-	if response.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("status = %d, want %d", response.Code, http.StatusMethodNotAllowed)
-	}
-}
-
 func TestModelsReturnsCatalog(t *testing.T) {
 	var server Server
 	mux := http.NewServeMux()
@@ -46,24 +32,6 @@ func TestModelsReturnsCatalog(t *testing.T) {
 	}
 	if len(responseBody.Models) != len(models.Catalog) {
 		t.Fatalf("catalog length = %d, want %d", len(responseBody.Models), len(models.Catalog))
-	}
-}
-
-func TestAgentRunRejectsInvalidJSONBeforeLoadingDependencies(t *testing.T) {
-	var server Server
-	mux := http.NewServeMux()
-	server.Register(mux)
-
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/internal/agent-runs",
-		strings.NewReader(`{"sessionId":"session-1"}`),
-	)
-	response := httptest.NewRecorder()
-	mux.ServeHTTP(response, request)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
 	}
 }
 
