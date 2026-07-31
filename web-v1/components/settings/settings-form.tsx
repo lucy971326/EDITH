@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from "react";
 
-import type { ModelCatalogResponse, ProviderInfo } from "@/lib/models/type";
+import type { ModelCatalogResponse, ModelInfo, ProviderInfo } from "@/lib/models/type";
 import type { UserSettingsResponse } from "@/lib/userconfig/type";
 
 import { MCPServers } from "./mcp-servers";
 
 export function SettingsForm() {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [configured, setConfigured] = useState<Record<string, boolean>>({});
   const [personality, setPersonality] = useState("");
+  const [defaultModelId, setDefaultModelId] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -28,7 +30,9 @@ export function SettingsForm() {
       const catalog = await modelsResponse.json() as ModelCatalogResponse;
       const settings = await settingsResponse.json() as UserSettingsResponse;
       setProviders(catalog.providers);
+      setModels(catalog.models);
       setPersonality(settings.personality);
+      setDefaultModelId(settings.defaultModelId);
       setConfigured(Object.fromEntries(
         settings.providers.map((provider) => [provider.providerId, provider.hasApiKey]),
       ));
@@ -46,7 +50,7 @@ export function SettingsForm() {
     const response = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ personality, providers: providerKeys }),
+      body: JSON.stringify({ personality, defaultModelId, providers: providerKeys }),
     });
     if (!response.ok) {
       setMessage((await response.text()) || "保存设置失败。");
@@ -57,6 +61,7 @@ export function SettingsForm() {
     setConfigured(Object.fromEntries(
       saved.providers.map((provider) => [provider.providerId, provider.hasApiKey]),
     ));
+    setDefaultModelId(saved.defaultModelId);
     setKeys({});
     setMessage("已保存。");
   }
@@ -83,6 +88,19 @@ export function SettingsForm() {
 
       <section className="rounded-xl border border-zinc-200 bg-white p-5">
         <h2 className="text-base font-medium">Agent</h2>
+        <label className="mt-5 block text-sm font-medium">
+          默认模型
+          <select
+            className="mt-2 h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-500"
+            value={defaultModelId}
+            onChange={(event) => setDefaultModelId(event.target.value)}
+          >
+            {models.map((model) => (
+              <option key={model.id} value={model.id}>{model.name}</option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-zinc-500">IM 和定时任务使用此模型；聊天页可临时选择其他模型。</span>
+        </label>
         <label className="mt-5 block text-sm font-medium">
           personality
           <textarea
