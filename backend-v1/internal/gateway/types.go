@@ -1,11 +1,11 @@
-// Package gateway exposes EDITH's channel-neutral Agent message protocol.
+// Package gateway 对外提供 EDITH 渠道无关的 Agent 消息协议。
 package gateway
 
 import "edith/backend-v1/internal/usage"
 
-// MessageRequest is one trusted request to run EDITH for a user session.
-// Web's BFF and future channel adapters authenticate the user before calling
-// the gateway.
+// MessageRequest 是一次已完成鉴权的 Agent 运行输入。
+// 输入包含用户、会话、请求身份和消息内容；Web BFF 与未来渠道适配器负责在进入
+// Gateway 前确认 UserID 可信，Gateway 不从浏览器直接接收未鉴权的 UserID。
 type MessageRequest struct {
 	RequestID         string   `json:"requestId"`
 	UserID            string   `json:"userId"`
@@ -16,13 +16,15 @@ type MessageRequest struct {
 	ReasoningOptionID string   `json:"reasoningOptionId,omitempty"`
 }
 
+// APIError 是 Gateway 在请求未能启动或运行过程中输出的错误数据。
 type APIError struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
 }
 
-// StreamEvent describes Agent progress without choosing a browser, IM card,
-// or GitHub rendering. Every channel projects these events into its own UI.
+// StreamEvent 是一次 Agent Run 的渠道无关进度输出。
+// Gateway 只输出事实事件，不决定浏览器 Timeline、IM 卡片或 GitHub 评论的展示形式；
+// 每个渠道自行将这些事件投影为自己的 UI。
 type StreamEvent struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId,omitempty"`
@@ -43,6 +45,7 @@ type StreamEvent struct {
 	Error *APIError      `json:"error,omitempty"`
 }
 
+// RunStatusResponse 是活跃任务查询的输出。只有 ManagedRunner 仍管理该任务时才返回。
 type RunStatusResponse struct {
 	RequestID string `json:"requestId"`
 	Status    string `json:"status"`

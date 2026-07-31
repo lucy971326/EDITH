@@ -29,7 +29,7 @@ func TestGatewayStreamRejectsInvalidJSONBeforeUsingDependencies(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/internal/gateway/messages:stream",
-		strings.NewReader(`{"sessionId":`),
+		strings.NewReader(`{"unexpected":true}`),
 	)
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, request)

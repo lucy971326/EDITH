@@ -2,8 +2,8 @@ package gateway
 
 import "sync"
 
-// sessionLanes is a process-local single-execution guard. One user session
-// may have one active Run; different sessions remain independent.
+// sessionLanes 是进程内的同会话单实例规则。
+// 输入是用户、会话和请求 ID；同一用户的同一会话只允许一个活跃 Run，其他会话互不影响。
 type sessionLanes struct {
 	mu     sync.Mutex
 	active map[sessionKey]string

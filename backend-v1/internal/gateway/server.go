@@ -11,15 +11,16 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 )
 
-// Server owns EDITH's long-lived Agent execution capabilities. Per-message
-// data stays in MessageRequest and local variables in run.go.
+// Server 持有 Gateway 的长期执行能力。
+// 输入中的消息、会话、用户等单次 Run 数据不放在这里，而是只存在于 MessageRequest
+// 和 message.go 的局部变量中，避免不同请求共享临时状态。
 type Server struct {
-	runner   runner.ManagedRunner
-	users    *userconfig.Store
-	images   *images.Service
-	usageDB  *sql.DB
-	lanes    *sessionLanes
-	canceled *cancelTracker
+	runner          runner.ManagedRunner
+	users           *userconfig.Store
+	images          *images.Service
+	usageDB         *sql.DB
+	lanes           *sessionLanes
+	userCancelMarks *userCancelMarks
 }
 
 func New(
@@ -41,16 +42,17 @@ func New(
 		return nil, errors.New("gateway usage database is required")
 	}
 	return &Server{
-		runner:   runner,
-		users:    users,
-		images:   images,
-		usageDB:  usageDB,
-		lanes:    newSessionLanes(),
-		canceled: newCancelTracker(),
+		runner:          runner,
+		users:           users,
+		images:          images,
+		usageDB:         usageDB,
+		lanes:           newSessionLanes(),
+		userCancelMarks: newUserCancelMarks(),
 	}, nil
 }
 
-// Register attaches the Agent Gateway HTTP protocol to the application mux.
+// Register 将 Gateway 的三个 HTTP 接口注册到应用路由：
+// 消息执行、活跃状态查询、主动取消。
 func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /internal/gateway/messages:stream", s.handleStreamMessage)
 	mux.HandleFunc("GET /internal/gateway/runs/{requestID}", s.handleRunStatus)
