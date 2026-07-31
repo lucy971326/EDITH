@@ -146,6 +146,11 @@ export function ChatPage() {
           continue;
         }
         if (!conversationResponse.ok) {
+          if (conversationResponse.status === 404) {
+            // Runner 和会话都不存在时，这条 pending 记录已经失效，停止轮询。
+            removePendingRun(pendingRun.requestId);
+            finishActiveRun(pendingRun.requestId);
+          }
           continue;
         }
         const conversation = await conversationResponse.json() as ConversationResponse;
@@ -188,7 +193,11 @@ export function ChatPage() {
           usage: emptySessionUsage,
         }));
         setSessions(history);
-        void selectSession(history[0].id);
+        const requestedSessionID = new URLSearchParams(window.location.search).get("sessionId");
+        const initialSessionID = history.some((session) => session.id === requestedSessionID)
+          ? requestedSessionID!
+          : history[0].id;
+        void selectSession(initialSessionID);
       } finally {
         setIsLoadingConversations(false);
       }

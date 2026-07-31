@@ -19,6 +19,7 @@ type ProviderStatus struct {
 type Settings struct {
 	Personality    string
 	DefaultModelID string
+	Timezone       string
 	Providers      []ProviderCredential
 }
 

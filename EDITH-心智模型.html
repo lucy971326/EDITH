@@ -1,0 +1,184 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>EDITH 心智模型 · 配置四面八方汇聚</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f8fafc; font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; padding: 30px 20px; }
+  h1 { font-size: 21px; color: #0f172a; text-align: center; }
+  .sub { text-align: center; color: #64748b; font-size: 12.5px; margin-top: 5px; }
+
+  .stage { position: relative; width: 1080px; height: 1100px; margin: 24px auto 0; }
+  svg.arrows { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+  .node { position: absolute; z-index: 2; border-radius: 12px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(15,23,42,.07); }
+  .node .t { font-size: 13px; font-weight: 600; }
+  .node .c { font-size: 10.5px; font-family: Consolas, monospace; margin-top: 3px; opacity: .85; }
+  .node .s { font-size: 10.5px; margin-top: 3px; opacity: .7; }
+
+  .src { width: 188px; background: #fff; border: 1px solid #dbeafe; border-top: 3px solid #60a5fa; }
+  .src .t { color: #1e40af; }
+  .src .c { color: #3b82f6; }
+  .src .s { color: #64748b; }
+
+  .core { width: 320px; background: linear-gradient(135deg, #10b981, #059669); border: none; text-align: center; padding: 18px 14px; box-shadow: 0 8px 24px rgba(5,150,105,.28); }
+  .core .t { font-size: 16px; color: #fff; }
+  .core .c { color: #d1fae5; font-size: 11px; }
+  .core .s { color: #ecfdf5; font-size: 11px; }
+
+  .runner { width: 340px; background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; text-align: center; padding: 16px 14px; box-shadow: 0 8px 24px rgba(124,58,237,.28); }
+  .runner .t { font-size: 15px; color: #fff; }
+  .runner .c { color: #ddd6fe; }
+  .runner .s { color: #ede9fe; }
+
+  .out { width: 360px; background: #fff; border: 1px solid #fde68a; border-top: 3px solid #f59e0b; text-align: center; }
+  .out .t { color: #92400e; }
+  .out .c { color: #d97706; }
+  .out .s { color: #78350f; }
+
+  .entry { width: 300px; background: #fff; border: 1px solid #e2e8f0; border-top: 3px solid #94a3b8; text-align: center; }
+  .entry .t { color: #1e293b; }
+  .entry .c { color: #64748b; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 8px; }
+  .chip { font-size: 10px; font-family: Consolas, monospace; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 999px; padding: 2px 7px; }
+  .legend { width: 1080px; margin: 10px auto 0; font-size: 12px; color: #475569; line-height: 1.8; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 18px; }
+  .legend b { color: #0f172a; }
+  .tag { display: inline-block; font-size: 10.5px; font-family: Consolas, monospace; background: #f1f5f9; border-radius: 4px; padding: 1px 5px; color: #475569; }
+</style>
+</head>
+<body>
+  <h1>EDITH 心智模型：请求进来 → 四面八方配置汇聚 → Options → Runner.Run → 中性事件</h1>
+  <p class="sub">蓝色小卡片是配置来源，全部汇入中心绿色 Options；旁路锁不打断这条链</p>
+
+  <div class="stage" id="stage">
+    <svg class="arrows" id="arrows" width="1080" height="1100" viewBox="0 0 1080 1100">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/>
+        </marker>
+        <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#10b981"/>
+        </marker>
+        <marker id="arrowPurple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#8b5cf6"/>
+        </marker>
+      </defs>
+    </svg>
+
+    <!-- 入口 -->
+    <div class="node entry" id="entry" style="left:390px; top:10px;">
+      <div class="t">请求进来（渠道适配器）</div>
+      <div class="c">webadapter / cronjob / IM(未来)</div>
+    </div>
+
+    <!-- 四面八方配置来源 -->
+    <div class="node src" id="s1" style="left:40px;  top:180px;">
+      <div class="t">模型定义</div>
+      <div class="c">models.Lookup</div>
+      <div class="s">能力：Vision 等</div>
+    </div>
+    <div class="node src" id="s2" style="left:300px; top:150px;">
+      <div class="t">默认模型 / 时区</div>
+      <div class="c">user_agents</div>
+      <div class="s">userconfig 用户设置</div>
+    </div>
+    <div class="node src" id="s3" style="left:600px; top:150px;">
+      <div class="t">人格</div>
+      <div class="c">user_agents.personality</div>
+      <div class="s">LoadPersonality</div>
+    </div>
+    <div class="node src" id="s4" style="left:860px; top:180px;">
+      <div class="t">API Key</div>
+      <div class="c">user_providers</div>
+      <div class="s">LoadProviderAPIKey</div>
+    </div>
+    <div class="node src" id="s5" style="left:10px;  top:450px;">
+      <div class="t">MCP 服务器配置</div>
+      <div class="c">user_mcp_servers</div>
+      <div class="s">URL / Header / 启用</div>
+    </div>
+    <div class="node src" id="s6" style="left:880px; top:450px;">
+      <div class="t">图片</div>
+      <div class="c">images 服务</div>
+      <div class="s">多模态注入</div>
+    </div>
+    <div class="node src" id="s7" style="left:40px;  top:700px;">
+      <div class="t">MCP 工具连接</div>
+      <div class="c">mcp.OpenTools</div>
+      <div class="s">列工具 · SSRF 校验</div>
+    </div>
+    <div class="node src" id="s8" style="left:300px; top:740px;">
+      <div class="t">沙箱</div>
+      <div class="c">sandbox 服务</div>
+      <div class="s">文件 / 命令能力</div>
+    </div>
+    <div class="node src" id="s9" style="left:600px; top:740px;">
+      <div class="t">工具集</div>
+      <div class="c">tools.Default</div>
+      <div class="s">内建工具</div>
+    </div>
+    <div class="node src" id="s10" style="left:860px; top:700px;">
+      <div class="t">用量统计</div>
+      <div class="c">usage</div>
+      <div class="s">token 落库</div>
+    </div>
+
+    <!-- 中心：配置聚集 -->
+    <div class="node core" id="core" style="left:380px; top:425px;">
+      <div class="t">Options 组装（OnlyRun.Run）</div>
+      <div class="c">runopts 包 · 全部配置收进一份 Options</div>
+      <div class="s">并发锁 lanes / 取消标记 / 用量 贴着它走（旁路）</div>
+    </div>
+
+    <!-- Runner -->
+    <div class="node runner" id="runner" style="left:370px; top:830px;">
+      <div class="t">Runner.Run(requestID, options)</div>
+      <div class="c">ManagedRunner（trpc-agent-go）</div>
+    </div>
+
+    <!-- 输出 -->
+    <div class="node out" id="out" style="left:360px; top:980px;">
+      <div class="t">中性事件流 StreamEvent</div>
+      <div class="chips">
+        <span class="chip">run.started</span><span class="chip">message.delta</span><span class="chip">tool.*</span>
+        <span class="chip">run.completed</span><span class="chip">run.canceled</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <b>读图方式：</b>任何请求先落到 OnlyRun，它从 <span class="tag">models</span> <span class="tag">userconfig</span> <span class="tag">images</span> <span class="tag">mcp</span> <span class="tag">sandbox</span> <span class="tag">tools</span> <span class="tag">usage</span> 四面八方取配置，拼成一份 <span class="tag">Options</span>，然后只做一件事：<b>Runner.Run</b>。<br>
+    之后 ManagedRunner 吐出框架事件，OnlyRun 翻译成中性 StreamEvent，渠道各自消费（Web→SSE、定时→收尾、IM→拼文本）。
+  </div>
+
+<script>
+  const arrows = document.getElementById("arrows");
+  function line(x1, y1, x2, y2, color) {
+    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    l.setAttribute("x1", x1); l.setAttribute("y1", y1);
+    l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+    l.setAttribute("stroke", color); l.setAttribute("stroke-width", "1.6");
+    l.setAttribute("marker-end", color === "#10b981" ? "url(#arrowGreen)" : color === "#8b5cf6" ? "url(#arrowPurple)" : "url(#arrow)");
+    arrows.appendChild(l);
+  }
+  function connect(fromId, toId, color) {
+    const f = document.getElementById(fromId).getBoundingClientRect();
+    const t = document.getElementById(toId).getBoundingClientRect();
+    const s = arrows.getBoundingClientRect();
+    let cx1 = f.left + f.width/2 - s.left, cy1 = f.top + f.height/2 - s.top;
+    let cx2 = t.left + t.width/2 - s.left, cy2 = t.top + t.height/2 - s.top;
+    const dx = cx2 - cx1, dy = cy2 - cy1;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx/len, uy = dy/len;
+    const pad1 = Math.min(f.width, f.height)/2 + 4;
+    const pad2 = Math.min(t.width, t.height)/2 + 6;
+    line(cx1 + ux*pad1, cy1 + uy*pad1, cx2 - ux*pad2, cy2 - uy*pad2, color);
+  }
+  ["s1","s2","s3","s4","s5","s6","s7","s8","s9","s10"].forEach(id => connect(id, "core", "#93c5fd"));
+  connect("entry", "core", "#94a3b8");
+  connect("core", "runner", "#10b981");
+  connect("runner", "out", "#8b5cf6");
+</script>
+</body>
+</html>

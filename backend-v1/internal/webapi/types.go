@@ -49,6 +49,7 @@ type UserSettingsRequest struct {
 	UserID         string                    `json:"userId"`
 	Personality    string                    `json:"personality"`
 	DefaultModelID string                    `json:"defaultModelId"`
+	Timezone       string                    `json:"timezone"`
 	Providers      []ProviderCredentialInput `json:"providers"`
 }
 
@@ -62,6 +63,7 @@ type ProviderCredentialInput struct {
 type UserSettingsResponse struct {
 	Personality    string                    `json:"personality"`
 	DefaultModelID string                    `json:"defaultModelId"`
+	Timezone       string                    `json:"timezone"`
 	Providers      []ProviderCredentialState `json:"providers"`
 }
 
@@ -197,4 +199,33 @@ type AssistantContentBlock struct {
 	Arguments string     `json:"arguments,omitempty"`
 	Status    ToolStatus `json:"status,omitempty"`
 	Result    string     `json:"result,omitempty"`
+}
+
+// CronJobRequest 是 Next BFF → Go Runtime 的定时任务请求。
+// userId 由 BFF 从 Clerk 注入；timezone 可选，创建时若提供则同时写入用户设置。
+type CronJobRequest struct {
+	UserID   string `json:"userId"`
+	Name     string `json:"name"`
+	TaskType string `json:"taskType"`
+	Schedule string `json:"schedule"`
+	Prompt   string `json:"prompt"`
+	Timezone string `json:"timezone"`
+}
+
+// CronJobResponse 是返回给浏览器的任务定义。时间统一为 RFC3339 字符串。
+type CronJobResponse struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	TaskType  string  `json:"taskType"`
+	Schedule  string  `json:"schedule"`
+	Prompt    string  `json:"prompt"`
+	Enabled   bool    `json:"enabled"`
+	NextRunAt *string `json:"nextRunAt"`
+	Running   bool    `json:"running"`
+	CreatedAt string  `json:"createdAt"`
+}
+
+// CronJobListResponse 保持 JSON 数组稳定：无任务时返回 []，而不是 null。
+type CronJobListResponse struct {
+	Jobs []CronJobResponse `json:"jobs"`
 }

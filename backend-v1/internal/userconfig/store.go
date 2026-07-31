@@ -36,10 +36,11 @@ func (s *Store) LoadSettings(ctx context.Context, userID string) (Settings, []Pr
 	}
 
 	settings := Settings{}
-	err := s.db.QueryRowContext(ctx, `SELECT personality, default_model_id FROM user_agents WHERE user_id = ?`, userID).Scan(&settings.Personality, &settings.DefaultModelID)
+	err := s.db.QueryRowContext(ctx, `SELECT personality, default_model_id, timezone FROM user_agents WHERE user_id = ?`, userID).Scan(&settings.Personality, &settings.DefaultModelID, &settings.Timezone)
 	if errors.Is(err, sql.ErrNoRows) {
 		settings.Personality = ""
 		settings.DefaultModelID = ""
+		settings.Timezone = ""
 	} else if err != nil {
 		return Settings{}, nil, fmt.Errorf("load user agent settings %q: %w", userID, err)
 	}
@@ -79,12 +80,13 @@ func (s *Store) SaveSettings(ctx context.Context, userID string, settings Settin
 		return fmt.Errorf("ensure user %q: %w", userID, err)
 	}
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO user_agents (user_id, personality, default_model_id)
-		VALUES (?, ?, ?)
+		INSERT INTO user_agents (user_id, personality, default_model_id, timezone)
+		VALUES (?, ?, ?, ?)
 		ON CONFLICT(user_id) DO UPDATE SET
 			personality = excluded.personality,
-			default_model_id = excluded.default_model_id
-	`, userID, settings.Personality, settings.DefaultModelID); err != nil {
+			default_model_id = excluded.default_model_id,
+			timezone = excluded.timezone
+	`, userID, settings.Personality, settings.DefaultModelID, settings.Timezone); err != nil {
 		return fmt.Errorf("save user agent config %q: %w", userID, err)
 	}
 
@@ -203,7 +205,8 @@ func (s *Store) createTables(ctx context.Context) error {
 		`CREATE TABLE IF NOT EXISTS user_agents (
 			user_id TEXT PRIMARY KEY,
 			personality TEXT NOT NULL DEFAULT '',
-			default_model_id TEXT NOT NULL DEFAULT ''
+			default_model_id TEXT NOT NULL DEFAULT '',
+			timezone TEXT NOT NULL DEFAULT ''
 		)`,
 		`CREATE TABLE IF NOT EXISTS user_providers (
 			user_id TEXT NOT NULL,
@@ -246,6 +249,37 @@ func (s *Store) createTables(ctx context.Context) error {
 }
 
 // ensureDefaultModelColumn 为已有 SQLite 数据库补齐新增字段。
+// LoadTimezone 读取用户保存的时区。
+// 输出为空表示用户尚未设置，调用方应兜底 Asia/Shanghai。
+func (s *Store) LoadTimezone(ctx context.Context, userID string) (string, error) {
+	var timezone string
+	err := s.db.QueryRowContext(ctx, `SELECT timezone FROM user_agents WHERE user_id = ?`, userID).Scan(&timezone)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("load user timezone %q: %w", userID, err)
+	}
+	return strings.TrimSpace(timezone), nil
+}
+
+// SaveTimezone 单独保存用户时区，供定时任务等需要本地时间语义的功能使用。
+func (s *Store) SaveTimezone(ctx context.Context, userID, timezone string) error {
+	timezone = strings.TrimSpace(timezone)
+	if userID == "" {
+		return errors.New("user id is required")
+	}
+	if timezone == "" {
+		return errors.New("timezone is required")
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO user_agents (user_id, personality, default_model_id, timezone)
+		VALUES (?, '', '', ?)
+		ON CONFLICT(user_id) DO UPDATE SET timezone = excluded.timezone`, userID, timezone); err != nil {
+		return fmt.Errorf("save user timezone %q: %w", userID, err)
+	}
+	return nil
+}
+
 func (s *Store) ensureDefaultModelColumn(ctx context.Context) error {
 	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(user_agents)`)
 	if err != nil {

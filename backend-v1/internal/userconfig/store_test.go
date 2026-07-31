@@ -60,10 +60,10 @@ func TestOpenMigratesDefaultModelColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	if _, err := db.Exec(`CREATE TABLE user_agents (user_id TEXT PRIMARY KEY, personality TEXT NOT NULL DEFAULT '')`); err != nil {
+	if _, err := db.Exec(`CREATE TABLE user_agents (user_id TEXT PRIMARY KEY, personality TEXT NOT NULL DEFAULT '', timezone TEXT NOT NULL DEFAULT '')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO user_agents (user_id, personality) VALUES ('alice', '简洁。')`); err != nil {
+	if _, err := db.Exec(`INSERT INTO user_agents (user_id, personality, timezone) VALUES ('alice', '简洁。', '')`); err != nil {
 		t.Fatal(err)
 	}
 	store, err := Open(db)

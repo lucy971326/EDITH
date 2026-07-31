@@ -73,7 +73,7 @@ func TestLoadEnabledMCPServersSkipsDisabledServers(t *testing.T) {
 	store := openTestStore(t)
 
 	for _, input := range []MCPServerInput{
-		{Name: "Enabled", URL: "https://enabled.example.com/mcp", Transport: "streamable", Enabled: true},
+		{Name: "Enabled", URL: "https://enabled.example.com/mcp", Transport: "streamable", Enabled: true, Headers: []MCPHeaderInput{{Name: "Authorization", Value: stringPtr("secret")}}},
 		{Name: "Disabled", URL: "https://disabled.example.com/mcp", Transport: "sse", Enabled: false},
 	} {
 		if _, err := store.CreateMCPServer(context.Background(), "alice", input); err != nil {
@@ -96,6 +96,8 @@ func openTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	t.Cleanup(func() { db.Close() })
 
 	store, err := Open(db)
@@ -103,4 +105,8 @@ func openTestStore(t *testing.T) *Store {
 		t.Fatal(err)
 	}
 	return store
+}
+
+func stringPtr(value string) *string {
+	return &value
 }

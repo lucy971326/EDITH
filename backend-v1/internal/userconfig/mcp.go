@@ -83,23 +83,30 @@ func (s *Store) loadMCPServers(ctx context.Context, userID string, enabledOnly b
 	if err != nil {
 		return nil, fmt.Errorf("list MCP servers %q: %w", userID, err)
 	}
-	defer rows.Close()
 
 	servers := []MCPServer{}
 	for rows.Next() {
 		var server MCPServer
 		if err := rows.Scan(&server.ID, &server.Name, &server.URL, &server.Transport, &server.Enabled); err != nil {
+			rows.Close()
 			return nil, fmt.Errorf("scan MCP server %q: %w", userID, err)
 		}
-		headers, err := s.loadMCPHeaders(ctx, server.ID)
-		if err != nil {
-			return nil, err
-		}
-		server.Headers = headers
 		servers = append(servers, server)
 	}
 	if err := rows.Err(); err != nil {
+		rows.Close()
 		return nil, fmt.Errorf("iterate MCP servers %q: %w", userID, err)
+	}
+	// 先关闭列表查询释放唯一 SQLite 连接，再逐个读取 Header。
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close MCP servers %q: %w", userID, err)
+	}
+	for index := range servers {
+		headers, err := s.loadMCPHeaders(ctx, servers[index].ID)
+		if err != nil {
+			return nil, err
+		}
+		servers[index].Headers = headers
 	}
 	return servers, nil
 }

@@ -64,3 +64,29 @@ func newUserStore(t *testing.T) *userconfig.Store {
 	}
 	return store
 }
+func TestGatewayResolvesCronChannelMessage(t *testing.T) {
+	store := newUserStore(t)
+	gateway := &Gateway{users: store}
+	request, apiError := gateway.resolveMessage(IncomingMessage{
+		Channel:        "cron",
+		ExternalUserID: "clerk_123",
+		SessionKey:     "cron:job-1",
+		RequestID:      "request-1",
+		Message:        "生成日报",
+	})
+	if apiError != nil {
+		t.Fatal(apiError)
+	}
+	// cron 是信任渠道：ExternalUserID 直接就是 Clerk 用户 ID，不查绑定表。
+	if request.UserID != "clerk_123" || request.SessionID != "cron:job-1" || request.ModelID != models.DefaultModelID {
+		t.Fatalf("request = %#v", request)
+	}
+}
+
+func TestGatewayRejectsUnknownChannelWithoutBinding(t *testing.T) {
+	gateway := &Gateway{users: newUserStore(t)}
+	_, apiError := gateway.resolveMessage(IncomingMessage{Channel: "telegram", ExternalUserID: "tg_123"})
+	if apiError == nil || apiError.Type != "identity_not_bound" {
+		t.Fatalf("error = %#v", apiError)
+	}
+}

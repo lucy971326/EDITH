@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"time"
 
+	"edith/backend-v1/internal/cronjob"
 	"edith/backend-v1/internal/gateway"
 	"edith/backend-v1/internal/images"
 	"edith/backend-v1/internal/models"
@@ -102,9 +103,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("create web adapter: %v", err)
 	}
+	cronStore, err := cronjob.New(appDB, users)
+	if err != nil {
+		log.Fatalf("create cron job store: %v", err)
+	}
+	cronAdapter, err := cronjob.NewAdapter(agentGateway)
+	if err != nil {
+		log.Fatalf("create cron job adapter: %v", err)
+	}
+	cronScheduler := cronjob.NewScheduler(cronStore, cronAdapter)
+
 	webapi := webapi.Server{
 		AppName:  appName,
 		Users:    users,
+		CronJobs: cronStore,
 		Images:   chatImages,
 		Sessions: rawSessions,
 		UsageDB:  appDB,
@@ -119,6 +131,9 @@ func main() {
 	httpServer := http.Server{Addr: address, Handler: mux}
 	shutdown, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+
+	// 定时任务调度器随进程启动，收到退出信号时停止轮询。
+	go cronScheduler.Run(shutdown)
 	go func() {
 		<-shutdown.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
