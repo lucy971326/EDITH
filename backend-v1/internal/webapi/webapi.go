@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"edith/backend-v1/internal/cronjob"
 	"edith/backend-v1/internal/images"
 	"edith/backend-v1/internal/userconfig"
 
@@ -17,6 +18,7 @@ import (
 type Server struct {
 	AppName  string
 	Users    *userconfig.Store
+	CronJobs *cronjob.Store
 	Images   *images.Service
 	Sessions session.Service
 	UsageDB  *sql.DB
@@ -37,4 +39,9 @@ func (s Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /internal/images", s.createImageUpload)
 	mux.HandleFunc("POST /internal/images/{imageID}/complete", s.completeImageUpload)
 	mux.HandleFunc("GET /internal/images/{imageID}", s.openImage)
+	mux.HandleFunc("GET /internal/cron-jobs", s.listCronJobs)
+	mux.HandleFunc("POST /internal/cron-jobs", s.createCronJob)
+	mux.HandleFunc("PUT /internal/cron-jobs/{jobID}", s.updateCronJob)
+	mux.HandleFunc("DELETE /internal/cron-jobs/{jobID}", s.deleteCronJob)
+	mux.HandleFunc("POST /internal/cron-jobs/{jobID}/toggle", s.toggleCronJob)
 }

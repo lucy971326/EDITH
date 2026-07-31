@@ -24,6 +24,7 @@ func (s Server) getUserSettings(w http.ResponseWriter, r *http.Request) {
 	response := UserSettingsResponse{
 		Personality:    settings.Personality,
 		DefaultModelID: defaultModelID(settings.DefaultModelID),
+		Timezone:       settings.Timezone,
 		Providers:      []ProviderCredentialState{},
 	}
 	for _, status := range statuses {
@@ -41,7 +42,7 @@ func (s Server) saveUserSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unsupported defaultModelId", http.StatusBadRequest)
 		return
 	}
-	settings := userconfig.Settings{Personality: request.Personality, DefaultModelID: request.DefaultModelID}
+	settings := userconfig.Settings{Personality: request.Personality, DefaultModelID: request.DefaultModelID, Timezone: request.Timezone}
 	for _, provider := range request.Providers {
 		if !isKnownProvider(provider.ProviderID) {
 			http.Error(w, "unsupported providerId", http.StatusBadRequest)
@@ -61,6 +62,7 @@ func (s Server) saveUserSettings(w http.ResponseWriter, r *http.Request) {
 	response := UserSettingsResponse{
 		Personality:    loaded.Personality,
 		DefaultModelID: defaultModelID(loaded.DefaultModelID),
+		Timezone:       loaded.Timezone,
 		Providers:      []ProviderCredentialState{},
 	}
 	for _, status := range statuses {
@@ -85,6 +87,7 @@ func decodeUserSettingsRequest(w http.ResponseWriter, r *http.Request) (UserSett
 	request.UserID = strings.TrimSpace(request.UserID)
 	request.Personality = strings.TrimSpace(request.Personality)
 	request.DefaultModelID = strings.TrimSpace(request.DefaultModelID)
+	request.Timezone = strings.TrimSpace(request.Timezone)
 	if request.UserID == "" || request.DefaultModelID == "" {
 		http.Error(w, "userId and defaultModelId are required", http.StatusBadRequest)
 		return UserSettingsRequest{}, errors.New("missing userId")

@@ -1,4 +1,4 @@
-import type { ProviderCredentialInput, SaveUserSettingsRequest } from "./type";
+﻿import type { ProviderCredentialInput, SaveUserSettingsRequest } from "./type";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -24,5 +24,11 @@ export function parseSaveUserSettingsRequest(value: unknown): SaveUserSettingsRe
       ...(typeof provider.apiKey === "string" ? { apiKey: provider.apiKey } : {}),
     });
   }
-  return { personality: value.personality, defaultModelId: value.defaultModelId.trim(), providers };
+  return {
+    personality: value.personality,
+    defaultModelId: value.defaultModelId.trim(),
+    ...(typeof value.timezone === "string" ? { timezone: value.timezone.trim() } : {}),
+    providers,
+  };
 }
+

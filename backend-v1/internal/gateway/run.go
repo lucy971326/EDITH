@@ -7,6 +7,13 @@ import (
 	"edith/backend-v1/internal/models"
 )
 
+// trustedChannels 是平台内部可信任的渠道：ExternalUserID 直接就是 Clerk 用户 ID，
+// 不需要经过渠道账号绑定表解析。
+var trustedChannels = map[string]bool{
+	WebChannel: true,
+	"cron":     true,
+}
+
 // Run 将渠道事实映射为 EDITH 用户、会话和模型，再交给唯一执行入口。
 // 输入：渠道名、外部用户标识、会话定位信息与消息。
 // 输出：OnlyRun 的中性事件流；未绑定的外部账号不会启动 Agent。
@@ -31,7 +38,7 @@ func (g *Gateway) resolveMessage(input IncomingMessage) (MessageRequest, *APIErr
 
 	userID := input.ExternalUserID
 	sessionID := input.SessionKey
-	if input.Channel != WebChannel {
+	if !trustedChannels[input.Channel] {
 		boundUserID, found, err := g.users.LookupChannelUser(context.Background(), input.Channel, input.ExternalUserID)
 		if err != nil {
 			return MessageRequest{}, &APIError{Type: "internal_error", Message: err.Error()}

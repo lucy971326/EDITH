@@ -1,6 +1,29 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
+
+// browserTimezone 是用户浏览器的本地时区，首次设置时作为默认值。
+function browserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
+  } catch {
+    return "Asia/Shanghai";
+  }
+}
+
+// commonTimezones 是常见 IANA 时区，保持列表精简。
+const commonTimezones = [
+  "Asia/Shanghai",
+  "Asia/Hong_Kong",
+  "Asia/Tokyo",
+  "Asia/Singapore",
+  "Europe/London",
+  "Europe/Paris",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Australia/Sydney",
+  "UTC",
+];
 
 import type { ModelCatalogResponse, ModelInfo, ProviderInfo } from "@/lib/models/type";
 import type { UserSettingsResponse } from "@/lib/userconfig/type";
@@ -14,6 +37,7 @@ export function SettingsForm() {
   const [configured, setConfigured] = useState<Record<string, boolean>>({});
   const [personality, setPersonality] = useState("");
   const [defaultModelId, setDefaultModelId] = useState("");
+  const [timezone, setTimezone] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -33,6 +57,7 @@ export function SettingsForm() {
       setModels(catalog.models);
       setPersonality(settings.personality);
       setDefaultModelId(settings.defaultModelId);
+      setTimezone(settings.timezone || browserTimezone());
       setConfigured(Object.fromEntries(
         settings.providers.map((provider) => [provider.providerId, provider.hasApiKey]),
       ));
@@ -50,7 +75,7 @@ export function SettingsForm() {
     const response = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ personality, defaultModelId, providers: providerKeys }),
+      body: JSON.stringify({ personality, defaultModelId, timezone, providers: providerKeys }),
     });
     if (!response.ok) {
       setMessage((await response.text()) || "保存设置失败。");
@@ -100,6 +125,19 @@ export function SettingsForm() {
             ))}
           </select>
           <span className="mt-1 block text-xs text-zinc-500">IM 和定时任务使用此模型；聊天页可临时选择其他模型。</span>
+        </label>
+        <label className="mt-5 block text-sm font-medium">
+          时区
+          <select
+            className="mt-2 h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-500"
+            value={timezone}
+            onChange={(event) => setTimezone(event.target.value)}
+          >
+            {commonTimezones.map((zone) => (
+              <option key={zone} value={zone}>{zone}</option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-zinc-500">定时任务按此时区解释 cron 表达式；默认跟随浏览器时区。</span>
         </label>
         <label className="mt-5 block text-sm font-medium">
           personality
