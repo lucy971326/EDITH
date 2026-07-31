@@ -17,6 +17,15 @@ type ProviderStatus struct {
 // Settings is the editable user-level configuration. It contains data only;
 // MCP, Skills, and Sandbox behavior belong to their own packages.
 type Settings struct {
-	Personality string
-	Providers   []ProviderCredential
+	Personality    string
+	DefaultModelID string
+	Providers      []ProviderCredential
+}
+
+// ChannelBinding 将一个渠道账号绑定到唯一的 Clerk 用户。
+// 外部渠道永远不是 EDITH 的第二套用户系统，只是 Clerk 用户的消息入口。
+type ChannelBinding struct {
+	Channel        string
+	ExternalUserID string
+	UserID         string
 }

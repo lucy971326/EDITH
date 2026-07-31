@@ -46,9 +46,10 @@ type ModelCatalogResponse struct {
 // UserSettingsRequest is the Next BFF → Go Runtime save request. An omitted
 // apiKey preserves the existing key; userId is injected by the BFF.
 type UserSettingsRequest struct {
-	UserID      string                    `json:"userId"`
-	Personality string                    `json:"personality"`
-	Providers   []ProviderCredentialInput `json:"providers"`
+	UserID         string                    `json:"userId"`
+	Personality    string                    `json:"personality"`
+	DefaultModelID string                    `json:"defaultModelId"`
+	Providers      []ProviderCredentialInput `json:"providers"`
 }
 
 type ProviderCredentialInput struct {
@@ -59,8 +60,9 @@ type ProviderCredentialInput struct {
 // UserSettingsResponse is the safe Go Runtime → Next BFF settings response.
 // API keys never leave the Go Runtime after being stored.
 type UserSettingsResponse struct {
-	Personality string                    `json:"personality"`
-	Providers   []ProviderCredentialState `json:"providers"`
+	Personality    string                    `json:"personality"`
+	DefaultModelID string                    `json:"defaultModelId"`
+	Providers      []ProviderCredentialState `json:"providers"`
 }
 
 type ProviderCredentialState struct {

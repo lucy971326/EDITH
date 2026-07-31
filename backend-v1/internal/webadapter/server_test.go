@@ -1,4 +1,4 @@
-package gateway
+package webadapter
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestGatewayStreamOnlyAcceptsPost(t *testing.T) {
+func TestStreamOnlyAcceptsPost(t *testing.T) {
 	server := &Server{}
 	mux := http.NewServeMux()
 	server.Register(mux)
@@ -21,16 +21,12 @@ func TestGatewayStreamOnlyAcceptsPost(t *testing.T) {
 	}
 }
 
-func TestGatewayStreamRejectsInvalidJSONBeforeUsingDependencies(t *testing.T) {
+func TestStreamRejectsInvalidJSONBeforeUsingGateway(t *testing.T) {
 	server := &Server{}
 	mux := http.NewServeMux()
 	server.Register(mux)
 
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/internal/gateway/messages:stream",
-		strings.NewReader(`{"unexpected":true}`),
-	)
+	request := httptest.NewRequest(http.MethodPost, "/internal/gateway/messages:stream", strings.NewReader(`{"unexpected":true}`))
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, request)
 

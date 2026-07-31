@@ -7,7 +7,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // parseSaveUserSettingsRequest is the browser-facing settings boundary before
 // Clerk's userId is added by the BFF route.
 export function parseSaveUserSettingsRequest(value: unknown): SaveUserSettingsRequest | null {
-  if (!isRecord(value) || typeof value.personality !== "string" || !Array.isArray(value.providers)) {
+  if (!isRecord(value) || typeof value.personality !== "string" || typeof value.defaultModelId !== "string" || !value.defaultModelId.trim() || !Array.isArray(value.providers)) {
     return null;
   }
 
@@ -24,5 +24,5 @@ export function parseSaveUserSettingsRequest(value: unknown): SaveUserSettingsRe
       ...(typeof provider.apiKey === "string" ? { apiKey: provider.apiKey } : {}),
     });
   }
-  return { personality: value.personality, providers };
+  return { personality: value.personality, defaultModelId: value.defaultModelId.trim(), providers };
 }

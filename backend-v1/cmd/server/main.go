@@ -18,6 +18,7 @@ import (
 	"edith/backend-v1/internal/tools"
 	"edith/backend-v1/internal/usage"
 	"edith/backend-v1/internal/userconfig"
+	"edith/backend-v1/internal/webadapter"
 	"edith/backend-v1/internal/webapi"
 
 	"github.com/joho/godotenv"
@@ -75,7 +76,7 @@ func main() {
 	}
 
 	defaultTools := tools.Default(sandboxes)
-	chat := llmagent.New(
+	edithAgent := llmagent.New(
 		"edith-chat",
 		llmagent.WithModels(models.Registered),
 		llmagent.WithModel(models.Registered[models.DefaultModelID]),
@@ -85,7 +86,7 @@ func main() {
 
 	edithRunner := runner.NewRunner(
 		appName,
-		chat,
+		edithAgent,
 		runner.WithSessionService(imageSessions),
 	)
 
@@ -97,6 +98,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("create agent gateway: %v", err)
 	}
+	webAdapter, err := webadapter.New(agentGateway)
+	if err != nil {
+		log.Fatalf("create web adapter: %v", err)
+	}
 	webapi := webapi.Server{
 		AppName:  appName,
 		Users:    users,
@@ -105,7 +110,7 @@ func main() {
 		UsageDB:  appDB,
 	}
 	mux := http.NewServeMux()
-	agentGateway.Register(mux)
+	webAdapter.Register(mux)
 	webapi.Register(mux)
 
 	address := runtimeAddress()

@@ -22,8 +22,9 @@ func (s Server) getUserSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response := UserSettingsResponse{
-		Personality: settings.Personality,
-		Providers:   []ProviderCredentialState{},
+		Personality:    settings.Personality,
+		DefaultModelID: defaultModelID(settings.DefaultModelID),
+		Providers:      []ProviderCredentialState{},
 	}
 	for _, status := range statuses {
 		response.Providers = append(response.Providers, ProviderCredentialState{ProviderID: status.ProviderID, HasAPIKey: status.HasAPIKey})
@@ -36,7 +37,11 @@ func (s Server) saveUserSettings(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	settings := userconfig.Settings{Personality: request.Personality}
+	if !isKnownModel(request.DefaultModelID) {
+		http.Error(w, "unsupported defaultModelId", http.StatusBadRequest)
+		return
+	}
+	settings := userconfig.Settings{Personality: request.Personality, DefaultModelID: request.DefaultModelID}
 	for _, provider := range request.Providers {
 		if !isKnownProvider(provider.ProviderID) {
 			http.Error(w, "unsupported providerId", http.StatusBadRequest)
@@ -54,8 +59,9 @@ func (s Server) saveUserSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response := UserSettingsResponse{
-		Personality: loaded.Personality,
-		Providers:   []ProviderCredentialState{},
+		Personality:    loaded.Personality,
+		DefaultModelID: defaultModelID(loaded.DefaultModelID),
+		Providers:      []ProviderCredentialState{},
 	}
 	for _, status := range statuses {
 		response.Providers = append(response.Providers, ProviderCredentialState{
@@ -78,8 +84,9 @@ func decodeUserSettingsRequest(w http.ResponseWriter, r *http.Request) (UserSett
 	}
 	request.UserID = strings.TrimSpace(request.UserID)
 	request.Personality = strings.TrimSpace(request.Personality)
-	if request.UserID == "" {
-		http.Error(w, "userId is required", http.StatusBadRequest)
+	request.DefaultModelID = strings.TrimSpace(request.DefaultModelID)
+	if request.UserID == "" || request.DefaultModelID == "" {
+		http.Error(w, "userId and defaultModelId are required", http.StatusBadRequest)
 		return UserSettingsRequest{}, errors.New("missing userId")
 	}
 	for index := range request.Providers {
@@ -103,6 +110,18 @@ func isKnownProvider(providerID string) bool {
 		}
 	}
 	return false
+}
+
+func isKnownModel(modelID string) bool {
+	_, ok := models.Lookup(modelID)
+	return ok
+}
+
+func defaultModelID(modelID string) string {
+	if strings.TrimSpace(modelID) == "" {
+		return models.DefaultModelID
+	}
+	return modelID
 }
 
 func writeJSON(w http.ResponseWriter, value any) {
