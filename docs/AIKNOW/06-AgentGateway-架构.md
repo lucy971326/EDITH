@@ -5,7 +5,7 @@ Gateway 是 EDITH 唯一执行 Agent Run 的入口。它借鉴 OpenClaw 的双�
 ```text
 Web BFF HTTP ─┐
 飞书 / GitHub ├→ Gateway → ManagedRunner.Run
-              └← Gateway StreamEvent ← framework eventCh
+              └← Gateway 按渠道输出 ← framework eventCh
 ```
 
 ## 职责
@@ -29,7 +29,7 @@ POST /internal/gateway/runs/{requestID}/cancel
 ## 代码阅读顺序
 
 1. `gateway/server.go`：长期能力与路由；
-2. `gateway/run.go`：一次 Run 的完整生命周期；
+2. `gateway/message.go`：一次 Run 的完整生命周期与 SSE 输出；
 3. `gateway/session_lanes.go`：同会话单实例规则；
-4. `gateway/control.go`：ManagedRunner 控制面；
+4. `gateway/status.go`、`gateway/cancel.go`：ManagedRunner 控制面；
 5. `gateway/types.go`：跨渠道契约。
