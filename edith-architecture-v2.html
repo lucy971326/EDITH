@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EDITH Backend-v2 · 架构认知地图</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--panel:rgba(8,11,30,.9);--line:rgba(255,255,255,.1);--muted:#a8b0c7}
+  body{overflow:hidden;background:#050719;color:#dbe4ff;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  #scene{position:fixed;inset:0}
+  .panel{position:fixed;z-index:10;background:var(--panel);border:1px solid var(--line);border-radius:16px;backdrop-filter:blur(16px);box-shadow:0 12px 42px rgba(0,0,0,.45);pointer-events:auto}
+  #intro{left:20px;top:20px;width:330px;padding:17px 19px}
+  #intro h1{font-size:21px;color:#fff;letter-spacing:.02em}
+  #intro .sub{margin-top:3px;color:#8f9ab9;font-size:11px}
+  #intro .idea{margin-top:12px;color:#ced7f1;font-size:12px;line-height:1.65}
+  #intro .idea strong{color:#fff}
+  #intro .facts{border-top:1px solid rgba(255,255,255,.08);margin-top:12px;padding-top:9px}
+  #intro .fact{display:flex;justify-content:space-between;color:#8f9ab9;font-size:10px;padding:2px 0}
+  #intro .fact b{font-weight:500;color:#d5def4}
+  #legend{left:20px;bottom:24px;padding:12px 15px;min-width:145px}
+  #legend h3{font-size:10px;color:#dbe4ff;margin-bottom:6px}
+  #legend .item{display:flex;align-items:center;gap:7px;color:#9faac4;font-size:10px;line-height:1.7}
+  #legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  #controls{right:20px;bottom:20px;width:430px;padding:13px 15px}
+  #controls .tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+  #controls button{font:inherit;cursor:pointer;color:#aab5ce;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:5px 8px;font-size:10px;transition:.2s}
+  #controls button:hover{color:#fff;border-color:rgba(255,255,255,.32)}
+  #controls button.active{color:#fff;background:rgba(115,154,255,.2);border-color:#82a8ff}
+  #controls .step-row{display:flex;align-items:center;gap:6px}
+  #controls .count{min-width:59px;text-align:center;color:#fff;font-size:12px}
+  #controls .current{margin-top:7px;min-height:31px;color:#b5c0db;font-size:10px;line-height:1.5}
+  #controls .hint{margin-top:5px;color:#71809f;font-size:9px}
+  #detail{right:22px;top:50%;transform:translateY(-50%);width:340px;max-height:68vh;overflow:auto;padding:0;opacity:0;pointer-events:none;transition:opacity .2s}
+  #detail.open{opacity:1;pointer-events:auto}
+  #detail .head{padding:15px 17px 11px;border-bottom:1px solid rgba(255,255,255,.08)}
+  #detail .head h2{font-size:16px;color:#fff;padding-right:23px}
+  #detail .head span{display:inline-block;margin-top:5px;padding:2px 7px;border-radius:99px;font-size:9px}
+  #detail .body{padding:13px 17px;color:#aeb8ce;font-size:11px;line-height:1.6}
+  #detail .body h4{color:#f0f4ff;font-size:10px;margin:10px 0 3px}
+  #detail .body h4:first-child{margin-top:0}
+  #detail .body code{display:block;color:#99c5ff;background:rgba(255,255,255,.05);padding:5px 7px;border-radius:6px;word-break:break-word;font-family:"Cascadia Code","Fira Code",monospace;font-size:9px}
+  #detail .close{position:absolute;right:11px;top:9px;background:none;border:0;color:#7d89a6;font-size:20px;cursor:pointer}
+  .domain-label{color:rgba(255,255,255,.34);font-size:9px;letter-spacing:.3em;pointer-events:none}
+  .room-label{color:#f8fbff;font-weight:650;font-size:10px;letter-spacing:.01em;text-shadow:0 1px 8px #030514;pointer-events:none}
+  .sub-label{color:#dbe5f7;background:rgba(5,8,24,.56);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:2px 4px;font-size:7.5px;line-height:1.2;text-align:center;text-shadow:0 1px 5px #030514;pointer-events:none;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<section id="intro" class="panel">
+  <h1>EDITH Backend-v2</h1>
+  <div class="sub">显式模块化 Agent 运行时 · 交互式心智模型</div>
+  <div class="idea"><strong>一句话：</strong>所有渠道先翻译成统一请求，Gateway 只负责入口与身份，AgentRun 聚合配置，ManagedRunner 负责真正执行。</div>
+  <div class="facts">
+    <div class="fact"><span>唯一执行入口</span><b>AgentRun.Service</b></div>
+    <div class="fact"><span>运行真相</span><b>ManagedRunner</b></div>
+    <div class="fact"><span>事件出口</span><b>AgentStream Decoder</b></div>
+    <div class="fact"><span>组合根</span><b>cmd/server/main.go</b></div>
+  </div>
+</section>
+<section id="legend" class="panel">
+  <h3>功能域（颜色仅表示亲近关系）</h3>
+  <div class="item"><i style="background:#55c8ff"></i>入口与协议</div>
+  <div class="item"><i style="background:#ffbe62"></i>运行编排</div>
+  <div class="item"><i style="background:#7ee28d"></i>Agent 能力</div>
+  <div class="item"><i style="background:#bd83f5"></i>框架执行</div>
+  <div class="item"><i style="background:#93a5bb"></i>数据与持久化</div>
+  <div class="item"><i style="background:#ef6370"></i>外部系统</div>
+</section>
+<section id="controls" class="panel">
+  <div id="tabs" class="tabs"></div>
+  <div class="step-row">
+    <button id="prev">◀ 上一步</button>
+    <span id="counter" class="count">0 / 0</span>
+    <button id="next">下一步 ▶</button>
+    <button id="reset">↺ 重置</button>
+  </div>
+  <div id="current" class="current">选择一条线路，再按“下一步”追踪数据如何流动。</div>
+  <div class="hint">快捷键：←/→ 前后 · R 重置 · 1-7 切换线路 · 点击方块查看职责</div>
+</section>
+<aside id="detail" class="panel">
+  <button id="close" class="close">×</button>
+  <div class="head"><h2 id="detail-name"></h2><span id="detail-tag"></span></div>
+  <div id="detail-body" class="body"></div>
+</aside>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {CSS2DRenderer,CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
+
+// 这里描述的是业务能力，不是文件依赖；点击模块可查看对应代码位置。
+const DOMAINS=[
+  {id:'entry',name:'入口与协议',y:12,color:'#55c8ff'},
+  {id:'orchestration',name:'运行编排',y:6,color:'#ffbe62'},
+  {id:'capability',name:'Agent 能力',y:0,color:'#7ee28d'},
+  {id:'framework',name:'框架执行',y:-6,color:'#bd83f5'},
+  {id:'data',name:'数据与持久化',y:-12,color:'#93a5bb'}
+];
+
+const rooms=[
+  {id:'web',domain:'entry',cx:-10,cz:-1,color:'#55c8ff',name:'WebAdapter',tag:'HTTP + SSE',
+   summary:'把浏览器 HTTP 请求翻译成 Gateway 请求，并把中性事件转换成 SSE。',
+   code:'backend-v2/internal/webadapter/{adapter,stream,control,types}.go',
+   subs:[
+    {id:'web-request',rx:-2.5,rz:-.9,name:'消息请求',desc:'解析 userID、sessionID、message、模型与图片引用。'},
+    {id:'web-sse',rx:0,rz:-.9,name:'SSE 输出',desc:'读取 AgentStream，按中性事件写入浏览器。'},
+    {id:'web-control',rx:2.5,rz:-.9,name:'状态/取消',desc:'把查询与取消请求交给 Gateway，不直接碰 Runner。'},
+    {id:'web-register',rx:0,rz:1,name:'路由注册',desc:'WebAdapter 自己 Register 路由，main 只决定是否启用。'}
+   ]},
+  {id:'cron-http',domain:'entry',cx:8,cz:7,color:'#55c8ff',name:'CronJob HTTP',tag:'任务 CRUD',
+   summary:'定时任务模块自己的 HTTP 输入输出，负责任务定义的增删改查与启停。',
+   code:'backend-v2/internal/cronjob/{http,routes,types}.go',
+   subs:[
+    {id:'cron-api',rx:-2,rz:0,name:'任务接口',desc:'创建、列表、更新、删除任务。'},
+    {id:'cron-toggle',rx:0,rz:0,name:'启停接口',desc:'修改 enabled，不触碰运行中的 Agent。'},
+    {id:'cron-register',rx:2,rz:0,name:'模块注册',desc:'CronJob.HTTP.Register(mux) 显式注册自己的路由。'}
+   ]},
+  {id:'gateway',domain:'orchestration',cx:-8,cz:2,color:'#ffbe62',name:'Gateway',tag:'唯一入口',
+   summary:'所有渠道的统一入口：确认身份、生成统一请求、委托 AgentRun。',
+   code:'backend-v2/internal/gateway/service.go · types.go',
+   subs:[
+    {id:'gw-input',rx:-2.3,rz:-.8,name:'统一请求',desc:'IncomingMessage：channel、user、session、message。'},
+    {id:'gw-identity',rx:0,rz:-.8,name:'身份翻译',desc:'IM 外部用户映射为 Clerk 用户；web/cron 是信任渠道。'},
+    {id:'gw-delegate',rx:2.3,rz:-.8,name:'委托 AgentRun',desc:'只调用 AgentRun.Service，不组装模型和工具配置。'},
+    {id:'gw-status',rx:0,rz:1,name:'运行控制',desc:'状态查询和取消沿 requestID 交给 AgentRun。'}
+   ]},
+  {id:'agentrun',domain:'orchestration',cx:2,cz:-2,color:'#ffbe62',name:'AgentRun',tag:'唯一执行入口',
+   summary:'把四面八方的配置聚合成一次完整 Run，然后调用 ManagedRunner。',
+   code:'backend-v2/internal/agentrun/{service,configuration,run_options,execution}.go',
+   subs:[
+    {id:'ar-config',rx:-3.2,rz:-1,name:'配置聚合',desc:'读取 Models、Settings、Providers、MCP、Images、Usage。'},
+    {id:'ar-options',rx:0,rz:-1,name:'构建 RunOptions',desc:'显式组装模型、密钥、指令、工具、流式开关。'},
+    {id:'ar-lane',rx:3.2,rz:-1,name:'会话并发',desc:'session lane 防止同一会话重叠运行。'},
+    {id:'ar-run',rx:-1.6,rz:1.2,name:'ManagedRunner.Run',desc:'唯一真正启动 Agent 的地方。'},
+    {id:'ar-events',rx:1.6,rz:1.2,name:'事件流包装',desc:'保存 Stream、状态和用户主动停止标记。'}
+   ]},
+  {id:'cron-scheduler',domain:'orchestration',cx:9,cz:-5,color:'#ffbe62',name:'Cron Scheduler',tag:'后台守护',
+   summary:'按 next_run_at 轮询、原子抢占任务，再交给 CronAdapter 执行。',
+   code:'backend-v2/internal/cronjob/{scheduler,schedule_store,schedule_rules}.go',
+   subs:[
+    {id:'cron-tick',rx:-2,rz:-.8,name:'轮询到期',desc:'定期查询 enabled 且 next_run_at 已到的任务。'},
+    {id:'cron-claim',rx:0,rz:-.8,name:'原子抢占',desc:'running=0 → running=1，避免同一任务双跑。'},
+    {id:'cron-finish',rx:2,rz:-.8,name:'计算下次',desc:'周期任务算下一次；一次性任务关闭。'},
+    {id:'cron-adapter',rx:0,rz:1,name:'调用 CronAdapter',desc:'以 cron:jobID 作为会话交给 Gateway。'}
+   ]},
+  {id:'config',domain:'capability',cx:-10,cz:6,color:'#7ee28d',name:'Models + UserConfig',tag:'配置能力',
+   summary:'用户配置与模型目录由各自模块拥有，AgentRun 通过具名能力读取。',
+   code:'backend-v2/internal/{models,userconfig}/',
+   subs:[
+    {id:'config-models',rx:-2.4,rz:-.9,name:'模型目录',desc:'ProviderInfo、Definition、Catalog：浏览器视图与 Runner 视图。'},
+    {id:'config-user',rx:0,rz:-.9,name:'用户设置',desc:'默认模型、人格、时区与供应商凭据。'},
+    {id:'config-mcp',rx:2.4,rz:-.9,name:'MCP 配置',desc:'用户自己的远程 MCP 服务器及密钥。'},
+    {id:'config-http',rx:0,rz:1,name:'配置 HTTP',desc:'模块自己处理 HTTP DTO 与路由注册。'}
+   ]},
+  {id:'tools',domain:'capability',cx:1,cz:7,color:'#7ee28d',name:'Tools Registry',tag:'工具集合',
+   summary:'main 显式聚合系统工具、Sandbox ToolSet 与 CronJob ToolSet。',
+   code:'backend-v2/internal/tools/registry.go · sandbox/tools.go · cronjob/tools.go',
+   subs:[
+    {id:'tool-registry',rx:-2.3,rz:-.9,name:'工具注册表',desc:'把 Tool 与 ToolSet 汇总给 llmagent。'},
+    {id:'tool-sandbox',rx:0,rz:-.9,name:'Sandbox ToolSet',desc:'工具通过 Invocation Context 找到当前用户会话的工作区。'},
+    {id:'tool-cron',rx:2.3,rz:-.9,name:'CronJob ToolSet',desc:'Agent 使用当前调用的 userID 创建属于自己的任务。'},
+    {id:'tool-time',rx:0,rz:1,name:'系统时间工具',desc:'提供当前时间，帮助 Agent 构建时间表达式。'}
+   ]},
+  {id:'stream',domain:'framework',cx:-1,cz:4,color:'#bd83f5',name:'AgentStream Decoder',tag:'事件解释',
+   summary:'每次 Run 创建一个独立 Decoder，把框架 Event 解释为稳定的中性事件。',
+   code:'backend-v2/internal/agentstream/{decoder,types}.go',
+   subs:[
+    {id:'stream-decode',rx:-2.2,rz:-.8,name:'DecodeFrameworkEvent',desc:'一个框架事件可解释为零个或多个中性事件。'},
+    {id:'stream-blocks',rx:0,rz:-.8,name:'Block 顺序',desc:'按 reasoning、text、tool 维护 BlockID 与块边界。'},
+    {id:'stream-terminal',rx:2.2,rz:-.8,name:'终止事件',desc:'输出 run.completed、run.canceled 或 run.error。'},
+    {id:'stream-usage',rx:0,rz:1,name:'Usage 汇总',desc:'缓存最新 Usage，直到 Runner 完成时交给 AgentRun。'}
+   ]},
+  {id:'runner',domain:'framework',cx:9,cz:1,color:'#bd83f5',name:'ManagedRunner + Agent',tag:'框架核心',
+   summary:'框架负责事件驱动的 Agent 循环、工具调用、会话事件持久化与任务控制。',
+   code:'trpc-agent-go runner.ManagedRunner · llmagent',
+   subs:[
+    {id:'runner-run',rx:-2.4,rz:-.9,name:'Run()',desc:'接收 user/session/message/options，返回事件通道。'},
+    {id:'runner-agent',rx:0,rz:-.9,name:'LLM Agent Loop',desc:'模型回答 → 工具调用 → 工具结果 → 继续推理。'},
+    {id:'runner-events',rx:2.4,rz:-.9,name:'Event Channel',desc:'输出中性 Event；最终事件进入会话服务。'},
+    {id:'runner-control',rx:0,rz:1,name:'Status / Cancel',desc:'按 requestID 查询和停止当前运行。'}
+   ]},
+  {id:'conversation',domain:'data',cx:-10,cz:-2,color:'#93a5bb',name:'Conversation',tag:'历史投影',
+   summary:'从框架 Session 事件生成 Web Timeline，不改变核心事件模型。',
+   code:'backend-v2/internal/conversation/{history,timeline_projection,http}.go',
+   subs:[
+    {id:'conv-list',rx:-2.2,rz:-.9,name:'会话列表',desc:'按 userID 找到用户拥有的会话摘要。'},
+    {id:'conv-get',rx:0,rz:-.9,name:'读取 Session',desc:'加载完整事件与服务器计算用量。'},
+    {id:'conv-timeline',rx:2.2,rz:-.9,name:'Timeline 投影',desc:'把中性事件投影成前端可展示的 Timeline。'},
+    {id:'conv-http',rx:0,rz:1,name:'历史 HTTP',desc:'Conversation 模块自己注册列表和详情路由。'}
+   ]},
+  {id:'images',domain:'data',cx:0,cz:-8,color:'#93a5bb',name:'Images',tag:'图片生命周期',
+   summary:'图片引用在会话里持久化为 edith-image://，运行时再水合成临时 URL。',
+   code:'backend-v2/internal/images/',
+   subs:[
+    {id:'img-http',rx:-2,rz:-.9,name:'上传 HTTP',desc:'预留、完成确认、读取图片并验证归属。'},
+    {id:'img-session',rx:0,rz:-.9,name:'Session 包装',desc:'Runner 读写事件时负责水合与脱水。'},
+    {id:'img-input',rx:2,rz:-.9,name:'AgentInput',desc:'把用户图片引用转换成模型可用输入。'},
+    {id:'img-store',rx:0,rz:1,name:'Store + COS',desc:'SQLite 元数据 + COS 对象存储。'}
+   ]},
+  {id:'usage',domain:'data',cx:9,cz:-8,color:'#93a5bb',name:'Usage',tag:'用量记录',
+   summary:'记录每次 Run 的状态与 token，用于会话用量汇总。',
+   code:'backend-v2/internal/usage/',
+   subs:[
+    {id:'usage-start',rx:-1.7,rz:-.8,name:'开始记录',desc:'Run 启动时写入 requestID、用户和会话。'},
+    {id:'usage-record',rx:1.7,rz:-.8,name:'累计 Token',desc:'消费事件中的 Usage 并持续累加。'},
+    {id:'usage-summary',rx:0,rz:1,name:'历史汇总',desc:'Conversation 读取会话用量展示给 Web。'}
+   ]},
+  {id:'sqlite',domain:'data',cx:-6,cz:7,color:'#93a5bb',name:'SQLite',tag:'业务存储',
+   summary:'各模块拥有自己的表与 Store，main 只提供数据库连接。',
+   code:'backend-v2/cmd/server/database.go + 各模块 schema/store',
+   subs:[
+    {id:'db-config',rx:-2,rz:-.8,name:'配置表',desc:'user_agents、provider_keys、mcp_servers。'},
+    {id:'db-cron',rx:0,rz:-.8,name:'任务表',desc:'cron_jobs：定义、启停、next_run_at、running。'},
+    {id:'db-usage',rx:2,rz:-.8,name:'用量表',desc:'agent_runs：运行状态与 token 统计。'},
+    {id:'db-sessions',rx:0,rz:1,name:'Session 表',desc:'框架会话服务持久化消息事件。'}
+   ]}
+];
+
+const externals=[
+  {id:'next',name:'Next.js BFF',desc:'Clerk 鉴权与浏览器 API 转发',pos:[0,19,14],color:'#ef6370'},
+  {id:'llm',name:'LLM Provider',desc:'DeepSeek / MiniMax / 其他模型 API',pos:[14,19,-3],color:'#ef6370'},
+  {id:'e2b',name:'E2B',desc:'每个用户与会话隔离的 Sandbox',pos:[-14,19,-4],color:'#ef6370'},
+  {id:'cos',name:'腾讯云 COS',desc:'私有对象存储与临时签名 URL',pos:[14,19,8],color:'#ef6370'}
+];
+
+const flows={
+ 'chat':{name:'Web 对话',desc:'WebAdapter → Gateway → AgentRun → ManagedRunner → SSE',
+  steps:[
+   {from:'next',to:'web-request',label:'1. Next.js BFF 通过 HTTP 转发消息'},
+   {from:'web-request',to:'gw-input',label:'2. WebAdapter 解析为 IncomingMessage'},
+   {from:'gw-input',to:'gw-identity',label:'3. Gateway 确认 Clerk userID 与 sessionID'},
+   {from:'gw-identity',to:'ar-config',label:'4. Gateway 把统一请求交给 AgentRun'},
+   {from:'ar-config',to:'ar-options',label:'5. 聚合模型、用户、MCP、图片与用量配置'},
+   {from:'ar-options',to:'ar-lane',label:'6. 检查 session lane，拒绝重叠运行'},
+   {from:'ar-lane',to:'ar-run',label:'7. 构建 RunOptions，调用 ManagedRunner.Run'},
+   {from:'ar-run',to:'runner-run',label:'8. ManagedRunner.Run 返回框架事件通道'},
+   {from:'runner-run',to:'runner-agent',label:'9. 框架驱动 LLM 与工具循环'},
+   {from:'runner-agent',to:'tool-registry',label:'10. Agent 需要工具时进入统一 ToolSet'},
+   {from:'runner-agent',to:'llm',label:'11. 模型适配器访问 LLM Provider'},
+   {from:'runner-agent',to:'runner-events',label:'12. 框架事件进入 Event Channel'},
+   {from:'runner-events',to:'stream-decode',label:'13. AgentRun 创建 Decoder 解释框架事件'},
+   {from:'stream-decode',to:'stream-blocks',label:'14. 生成 reasoning/text/tool 中性事件'},
+   {from:'stream-blocks',to:'stream-terminal',label:'15. 识别完成、取消或错误'},
+   {from:'stream-terminal',to:'ar-events',label:'16. AgentRun 写入 Stream 并收尾用量'},
+   {from:'ar-events',to:'web-sse',label:'17. WebAdapter 只负责写 SSE，不再解释框架事件'},
+   {from:'web-sse',to:'next',label:'18. 浏览器收到 delta、tool、done'}
+  ]},
+ 'cron-run':{name:'定时执行',desc:'Scheduler → CronAdapter → Gateway，仍走唯一 AgentRun',
+  steps:[
+   {from:'cron-tick',to:'cron-claim',label:'1. Scheduler 发现已到期任务'},
+   {from:'cron-claim',to:'cron-adapter',label:'2. 原子抢占成功，running=1'},
+   {from:'cron-adapter',to:'gw-input',label:'3. CronAdapter 生成 channel=cron 的统一请求'},
+   {from:'gw-input',to:'gw-identity',label:'4. Gateway 信任内部 cron，直接使用 Clerk userID'},
+   {from:'gw-identity',to:'ar-config',label:'5. 进入 AgentRun，读取该用户配置'},
+   {from:'ar-config',to:'ar-run',label:'6. 组装选项并调用 ManagedRunner.Run'},
+   {from:'ar-run',to:'runner-agent',label:'7. Agent 以 cron:jobID 会话执行'},
+   {from:'runner-agent',to:'runner-events',label:'8. 事件写入会话历史并进入 Event Channel'},
+   {from:'runner-events',to:'stream-decode',label:'9. AgentRun 解码为中性事件'},
+   {from:'stream-decode',to:'cron-finish',label:'10. CronAdapter 消费完毕，running=0 并计算下次时间'}
+  ]},
+ 'cron-tool':{name:'Agent 创建任务',desc:'Agent Tool → 当前调用身份 → cron_jobs',
+  steps:[
+   {from:'runner-agent',to:'tool-cron',label:'1. Agent 调用 cronjob_create_cron_job'},
+   {from:'tool-cron',to:'gw-identity',label:'2. Tool 从 Invocation Context 读取当前 userID'},
+   {from:'gw-identity',to:'cron-api',label:'3. 任务输入只包含可编辑字段，不允许 AI 填 userID'},
+   {from:'cron-api',to:'db-cron',label:'4. Store 用当前用户身份写入 cron_jobs'},
+   {from:'db-cron',to:'tool-cron',label:'5. 返回任务 ID 与下次执行时间'}
+  ]},
+ 'control':{name:'状态与取消',desc:'requestID 控制运行，ManagedRunner 是真相源',
+  steps:[
+   {from:'next',to:'web-control',label:'1. 浏览器 GET 状态或 POST 取消'},
+   {from:'web-control',to:'gw-status',label:'2. WebAdapter 委托 Gateway 控制请求'},
+   {from:'gw-status',to:'ar-events',label:'3. AgentRun 按 userID + requestID 查运行'},
+   {from:'ar-events',to:'runner-control',label:'4. 调用 ManagedRunner.Status / Cancel'},
+   {from:'runner-control',to:'next',label:'5. 返回后端真实状态，不靠前端猜测'}
+  ]},
+ 'history':{name:'历史会话',desc:'框架事件 → Conversation Timeline',
+  steps:[
+   {from:'next',to:'conv-http',label:'1. Web 请求会话列表或详情'},
+   {from:'conv-http',to:'conv-get',label:'2. Conversation 读取 Session 事件'},
+   {from:'conv-get',to:'conv-timeline',label:'3. 中性 Event 投影成 Timeline'},
+   {from:'conv-get',to:'usage-summary',label:'4. 读取该会话的用量汇总'},
+   {from:'conv-timeline',to:'next',label:'5. 返回历史消息与用量'}
+  ]},
+ 'settings':{name:'配置管理',desc:'模块拥有自己的 HTTP、Store 与数据表',
+  steps:[
+   {from:'next',to:'config-http',label:'1. BFF 请求模型、设置或 MCP 配置'},
+   {from:'config-http',to:'config-user',label:'2. UserConfig 处理 DTO 与业务规则'},
+   {from:'config-user',to:'db-config',label:'3. Store 读写用户配置表'},
+   {from:'config-models',to:'next',label:'4. Models HTTP 返回可选模型目录'}
+  ]},
+ 'image':{name:'图片链路',desc:'浏览器直传 COS，Agent 运行时按需水合',
+  steps:[
+   {from:'next',to:'img-http',label:'1. 请求图片预留 / 完成 / 读取'},
+   {from:'img-http',to:'img-store',label:'2. 校验用户归属并写入图片元数据'},
+   {from:'img-store',to:'cos',label:'3. 签发临时 URL 或验证对象'},
+   {from:'img-input',to:'ar-config',label:'4. AgentRun 把图片引用加入输入'},
+   {from:'img-session',to:'runner-events',label:'5. Session 持久化时脱水，读取时水合'}
+  ]}
+};
+
+const root=document.getElementById('scene');
+const scene=new THREE.Scene(); scene.background=new THREE.Color('#050719'); scene.fog=new THREE.Fog('#050719',34,86);
+const camera=new THREE.PerspectiveCamera(43,innerWidth/innerHeight,.5,120); camera.position.set(24,25,36);
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15; root.appendChild(renderer.domElement);
+const labels=new CSS2DRenderer(); labels.setSize(innerWidth,innerHeight); labels.domElement.style.position='fixed'; labels.domElement.style.top='0'; labels.domElement.style.pointerEvents='none'; root.appendChild(labels.domElement);
+scene.add(new THREE.AmbientLight('#405070',2.3)); const sun=new THREE.DirectionalLight('#fff',4); sun.position.set(12,25,12); sun.castShadow=true; scene.add(sun); scene.add(new THREE.PointLight('#849bff',30,55));
+const controls=new OrbitControls(camera,renderer.domElement); controls.target.set(0,0,0); controls.enableDamping=true; controls.dampingFactor=.065; controls.minDistance=9; controls.maxDistance=72; controls.maxPolarAngle=Math.PI*.82; controls.update();
+
+const blocks=new Map(),groups=[];
+function addLabel(text,cls,parent,pos){const d=document.createElement('div');d.className=cls;d.textContent=text;const l=new CSS2DObject(d);l.position.set(...pos);parent.add(l);return l}
+DOMAINS.forEach(d=>{
+  const plane=new THREE.Mesh(new THREE.PlaneGeometry(32,25),new THREE.MeshStandardMaterial({color:d.color,transparent:true,opacity:.055,depthWrite:false})); plane.rotation.x=-Math.PI/2; plane.position.set(0,d.y-1.15,0); scene.add(plane);
+  const grid=new THREE.GridHelper(31,13,d.color,d.color); grid.position.y=d.y-1.12; grid.material.opacity=.028; grid.material.depthWrite=false; scene.add(grid);
+  const label=document.createElement('div'); label.className='domain-label'; label.textContent=d.name; const l=new CSS2DObject(label); l.position.set(-15,d.y-.55,-11.8); scene.add(l);
+});
+rooms.forEach(room=>{
+  const d=DOMAINS.find(x=>x.id===room.domain), y=d.y, xs=room.subs.map(x=>x.rx), zs=room.subs.map(x=>x.rz), pad=1.15;
+  const minX=Math.min(...xs)-pad,maxX=Math.max(...xs)+pad,minZ=Math.min(...zs)-pad,maxZ=Math.max(...zs)+pad;
+  const sizeX=maxX-minX,sizeZ=maxZ-minZ,center=new THREE.Vector3(room.cx+(minX+maxX)/2,y,room.cz+(minZ+maxZ)/2);
+  const boxGeo=new THREE.BoxGeometry(sizeX,3.8,sizeZ), box=new THREE.Mesh(boxGeo,new THREE.MeshStandardMaterial({color:room.color,transparent:true,opacity:.065,depthWrite:false})); box.position.copy(center); scene.add(box);
+  const edge=new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo),new THREE.LineBasicMaterial({color:room.color,transparent:true,opacity:.2})); edge.position.copy(center); scene.add(edge);
+  addLabel(room.name,'room-label',scene,[center.x,y+2.7,center.z]);
+  room.subs.forEach(sub=>{
+    const g=new THREE.Group(); g.position.set(room.cx+sub.rx,y,room.cz+sub.rz); g.userData={id:sub.id,sub,room}; const geo=new THREE.BoxGeometry(1.55,1.05,1.32);
+    const mat=new THREE.MeshStandardMaterial({color:room.color,emissive:room.color,emissiveIntensity:.16,roughness:.3,metalness:.25}); const mesh=new THREE.Mesh(geo,mat); mesh.castShadow=true; g.add(mesh);
+    g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:'#fff',transparent:true,opacity:.22}))); const subLabel=addLabel(sub.name,'sub-label',g,[0,.82,0]);
+    scene.add(g); blocks.set(sub.id,{group:g,sub,room,label:subLabel.element}); groups.push(g);
+  });
+});
+externals.forEach(x=>{
+  const g=new THREE.Group(); g.position.set(...x.pos); g.userData={external:x}; const mat=new THREE.MeshStandardMaterial({color:x.color,emissive:x.color,emissiveIntensity:.5,metalness:.35,roughness:.2}); g.add(new THREE.Mesh(new THREE.SphereGeometry(.62,28,28),mat)); g.add(new THREE.Mesh(new THREE.TorusGeometry(.86,.06,16,32),new THREE.MeshBasicMaterial({color:x.color,transparent:true,opacity:.55}))); addLabel(x.name,'room-label',g,[0,1.35,0]); scene.add(g);
+});
+function pos(id){if(blocks.has(id))return blocks.get(id).group.position.clone();const ext=externals.find(x=>x.id===id);return ext?new THREE.Vector3(...ext.pos):null}
+const key=(a,b)=>a+'→'+b, lineMap=new Map();
+Object.entries(flows).forEach(([fid,flow])=>flow.steps.forEach(s=>{const k=key(s.from,s.to);if(!lineMap.has(k))lineMap.set(k,{from:s.from,to:s.to,flowIds:new Set(),label:s.label});lineMap.get(k).flowIds.add(fid)}));
+const lines=[]; lineMap.forEach(x=>{const a=pos(x.from),b=pos(x.to);if(!a||!b)return;const mid=a.clone().add(b).multiplyScalar(.5);mid.y+=a.distanceTo(b)*.11;const curve=new THREE.QuadraticBezierCurve3(a,mid,b), tube=new THREE.Mesh(new THREE.TubeGeometry(curve,28,.055,6,false),new THREE.MeshStandardMaterial({color:'#344358',transparent:true,opacity:.055,depthWrite:false}));scene.add(tube);lines.push({from:x.from,to:x.to,flowIds:x.flowIds,curve,tube})});
+const stars=new THREE.BufferGeometry(),starPos=new Float32Array(1000*3);for(let i=0;i<1000;i++){starPos[i*3]=(Math.random()-.5)*70;starPos[i*3+1]=(Math.random()-.5)*48;starPos[i*3+2]=(Math.random()-.5)*70}stars.setAttribute('position',new THREE.BufferAttribute(starPos,3));scene.add(new THREE.Points(stars,new THREE.PointsMaterial({color:'#6075a8',size:.035,transparent:true,opacity:.5,depthWrite:false})));
+
+let active='chat',step=-1; const particles=[],pgeo=new THREE.SphereGeometry(.13,8,8);
+function updateLabels(){
+  const visible=new Set();
+  flows[active].steps.forEach(s=>{visible.add(s.from);visible.add(s.to)});
+  blocks.forEach(b=>{b.label.style.opacity=visible.has(b.sub.id)?'.95':'.24'});
+  if(step>=0){
+    const s=flows[active].steps[step];
+    [s.from,s.to].forEach(id=>{const b=blocks.get(id);if(b)b.label.style.opacity='1'});
+  }
+}
+function resetLines(){lines.forEach(l=>{l.tube.material.opacity=.035;l.tube.material.color.set('#344358')})}
+function showFlow(){resetLines();lines.forEach(l=>{if(l.flowIds.has(active)){l.tube.material.opacity=.14;l.tube.material.color.set('#8798b5')}}); document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.id===active)); updateLabels(); updateUI()}
+function clearParticles(){particles.forEach(p=>{scene.remove(p);p.material.dispose()});particles.length=0}
+function burst(a,b,color){const l=lines.find(x=>x.from===a&&x.to===b);if(!l)return;for(let i=0;i<5;i++){setTimeout(()=>{const p=new THREE.Mesh(pgeo,new THREE.MeshBasicMaterial({color,transparent:true,opacity:.9,depthWrite:false}));p.userData={curve:l.curve,t:0,speed:.9+Math.random()*.65};scene.add(p);particles.push(p)},i*65)}}
+function glow(id){const b=blocks.get(id);if(!b)return;b.group.children.forEach(x=>{if(x.isMesh&&x.material.emissiveIntensity!==undefined)x.material.emissiveIntensity=.72});setTimeout(()=>b.group.children.forEach(x=>{if(x.isMesh&&x.material.emissiveIntensity!==undefined)x.material.emissiveIntensity=.16}),900)}
+function advance(){const ss=flows[active].steps;if(step>=ss.length-1)return;step++;const s=ss[step],l=lines.find(x=>x.from===s.from&&x.to===s.to);if(l){l.tube.material.opacity=1;l.tube.material.color.set('#fff')}burst(s.from,s.to,blocks.get(s.from)?.room.color||'#ef6370');glow(s.from);glow(s.to);updateLabels();updateUI()}
+function retreat(){if(step<0)return;const ss=flows[active].steps,s=ss[step],l=lines.find(x=>x.from===s.from&&x.to===s.to);if(l){l.tube.material.opacity=.14;l.tube.material.color.set('#8798b5')}step--;if(step>=0){const p=ss[step],pl=lines.find(x=>x.from===p.from&&x.to===p.to);if(pl){pl.tube.material.opacity=1;pl.tube.material.color.set('#fff')}}updateLabels();updateUI()}
+function reset(){clearParticles();step=-1;showFlow()}
+function updateUI(){const ss=flows[active].steps;document.getElementById('counter').textContent=(step<0?0:step+1)+' / '+ss.length;document.getElementById('current').textContent=step>=0?ss[step].label:flows[active].desc}
+Object.entries(flows).forEach(([id,f])=>{const b=document.createElement('button');b.textContent=f.name;b.dataset.id=id;b.title=f.desc;b.onclick=()=>{active=id;step=-1;clearParticles();showFlow()};document.getElementById('tabs').appendChild(b)});
+document.getElementById('next').onclick=advance;document.getElementById('prev').onclick=retreat;document.getElementById('reset').onclick=reset;window.addEventListener('keydown',e=>{if(e.key==='ArrowRight')advance();if(e.key==='ArrowLeft')retreat();if(e.key.toLowerCase()==='r')reset();const n=Number(e.key);const ids=Object.keys(flows);if(n>=1&&n<=ids.length){active=ids[n-1];step=-1;clearParticles();showFlow()}});
+
+const ray=new THREE.Raycaster(),mouse=new THREE.Vector2(),detail=document.getElementById('detail');function hits(e){mouse.x=e.clientX/innerWidth*2-1;mouse.y=-(e.clientY/innerHeight)*2+1;ray.setFromCamera(mouse,camera);const meshes=[];groups.forEach(g=>g.children.forEach(x=>{if(x.isMesh)meshes.push(x)}));return ray.intersectObjects(meshes,false)}
+let hover=null;window.addEventListener('mousemove',e=>{const hs=hits(e);let g=hs.length?hs[0].object:null;while(g&&!g.userData?.id)g=g.parent;if(hover&&hover!==g)hover.children.forEach(x=>{if(x.isMesh&&x.material.emissiveIntensity!==undefined)x.material.emissiveIntensity=.16});if(g){hover=g;g.children.forEach(x=>{if(x.isMesh&&x.material.emissiveIntensity!==undefined)x.material.emissiveIntensity=.42})}else hover=null});
+window.addEventListener('click',e=>{if(e.target.closest('button')||e.target.closest('#detail'))return;const hs=hits(e);if(!hs.length){detail.classList.remove('open');return}let g=hs[0].object;while(g&&!g.userData?.id)g=g.parent;if(!g)return;const x=g.userData;document.getElementById('detail-name').textContent=x.room.name+' › '+x.sub.name;const tag=document.getElementById('detail-tag');tag.textContent=x.room.tag;tag.style.color=x.room.color;tag.style.background=x.room.color+'33';document.getElementById('detail-body').innerHTML='<p>'+x.sub.desc+'</p><h4>所属能力</h4><p>'+x.room.summary+'</p><h4>代码位置</h4><code>'+x.room.code+'</code>';detail.classList.add('open')});
+document.getElementById('close').onclick=()=>detail.classList.remove('open');
+showFlow(); const clock=new THREE.Clock();function animate(){requestAnimationFrame(animate);controls.update();const dt=Math.min(clock.getDelta(),.25);for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.userData.t+=p.userData.speed*dt;if(p.userData.t>=1){scene.remove(p);p.material.dispose();particles.splice(i,1)}else p.position.copy(p.userData.curve.getPointAt(p.userData.t))}renderer.render(scene,camera);labels.render(scene,camera)}animate();
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);labels.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>
