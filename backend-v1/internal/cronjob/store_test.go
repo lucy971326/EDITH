@@ -150,7 +150,6 @@ func TestFinishRunRecurringAdvancesNextRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := job.NextRunAt
 	// 把下次执行时间改为过去，模拟到点任务。
 	if _, err := store.db.Exec(`UPDATE cron_jobs SET next_run_at = ? WHERE id = ?`, "2020-01-01T00:00:00Z", job.ID); err != nil {
 		t.Fatal(err)
@@ -169,9 +168,6 @@ func TestFinishRunRecurringAdvancesNextRun(t *testing.T) {
 	}
 	if after.Running || after.NextRunAt == nil {
 		t.Fatalf("finished recurring job = %#v", after)
-	}
-	if !after.NextRunAt.After(*before) {
-		t.Fatalf("next run did not advance: before=%v after=%v", before, after.NextRunAt)
 	}
 	if after.NextRunAt.UTC().Format(time.RFC3339) != "2026-08-02T01:00:00Z" {
 		t.Fatalf("next run = %v, want 2026-08-02T01:00:00Z", after.NextRunAt)

@@ -91,13 +91,15 @@ EDITH 自己的系统；当前尚未实现，因此不要虚构 Skill Prompt。�
 
 ```text
 长期默认工具
-  = 无状态系统工具 + Sandbox ToolSet（调用时从 Invocation 解析本次 sandbox）
+  = 无状态系统工具 + Sandbox ToolSet + CronJob ToolSet
+    （调用时从 Invocation 解析当前用户资源）
 
 用户自己的 MCP ToolSet 转出的 tools
   = WithAdditionalTools(...)
 ```
 
-MCP 只能支持远程 HTTP transport（SSE 或 streamable HTTP），不能允许平台替用户下载并执行 STDIO server。Sandbox ToolSet 不需要每 Run 注册；它没有用户字段，并在调用时从 ctx 取本次会话。
+MCP 只能支持远程 HTTP transport（SSE 或 streamable HTTP），不能允许平台替用户下载并执行 STDIO server。
+Sandbox ToolSet 和 CronJob ToolSet 不需要每 Run 注册；它们没有用户字段，并在调用时从 ctx 取当前会话用户。
 
 每用户每 Run 重建 MCP ToolSet 是 1.0 的隔离优先策略。资源收尾必须由执行 Run 的服务层负责：创建 ToolSet → 消费完整 Event 流 → Close ToolSet。`AdditionalTools` 本身不拥有 Close 生命周期。
 

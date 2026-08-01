@@ -73,6 +73,28 @@ func textChunk(content string) *event.Event {
 	return &event.Event{Response: &model.Response{IsPartial: true, Choices: []model.Choice{{Delta: model.Message{Content: content}}}}}
 }
 
+// toolCallChunk 构造一个携带工具调用的非增量事件。
+func toolCallChunk(toolID, toolName string) *event.Event {
+	return &event.Event{Response: &model.Response{Choices: []model.Choice{{Message: model.Message{
+		ToolCalls: []model.ToolCall{{
+			ID: toolID,
+			Function: model.FunctionDefinitionParam{
+				Name:      toolName,
+				Arguments: []byte(`{"name":"提醒"}`),
+			},
+		}},
+	}}}}}
+}
+
+// toolResultChunk 构造一个携带工具结果的事件。
+func toolResultChunk(toolID, toolName, content string) *event.Event {
+	return &event.Event{Response: &model.Response{Choices: []model.Choice{{Message: model.Message{
+		ToolID:   toolID,
+		ToolName: toolName,
+		Content:  content,
+	}}}}}
+}
+
 // reasoningChunk 构造一个携带推理增量的事件。
 func reasoningChunk(content string) *event.Event {
 	return &event.Event{Response: &model.Response{IsPartial: true, Choices: []model.Choice{{Delta: model.Message{ReasoningContent: content}}}}}
@@ -145,6 +167,26 @@ func TestDrainRunEventsEmitsToolLifecycle(t *testing.T) {
 	}
 	if got[2].ToolStatus != "completed" || got[2].ToolResult != `{"ok":true}` {
 		t.Fatalf("tool.finished 字段异常: %#v", got[2])
+	}
+}
+
+func TestDrainRunEventsStartsNewTextBlockAfterTool(t *testing.T) {
+	o := newTestOnlyRun(t)
+	request := MessageRequest{RequestID: "request-1", UserID: "user-1", SessionID: "session-1", ModelID: "deepseek-v3"}
+	got := runDrain(t, o, request, []*event.Event{
+		textChunk("工具前"),
+		toolCallChunk("tool-1", "cronjob_create_cron_job"),
+		toolResultChunk("tool-1", "cronjob_create_cron_job", `{"id":"job-1"}`),
+		textChunk("工具后"),
+		completionEvent(),
+	})
+
+	wantEventTypes(t, got, []string{"run.started", "message.delta", "tool.started", "tool.finished", "message.delta", "run.completed"})
+	if got[1].BlockID == "" || got[1].BlockID == got[4].BlockID {
+		t.Fatalf("Tool 前后的文本必须使用不同 BlockID: before=%#v after=%#v", got[1], got[4])
+	}
+	if got[1].Delta != "工具前" || got[4].Delta != "工具后" {
+		t.Fatalf("文本增量顺序异常: before=%q after=%q", got[1].Delta, got[4].Delta)
 	}
 }
 

@@ -1,10 +1,12 @@
-package cronjob
+// Package cronadapter 将定时任务适配为一次 Gateway Agent Run。
+package cronadapter
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
+	"edith/backend-v1/internal/cronjob"
 	"edith/backend-v1/internal/gateway"
 
 	"github.com/google/uuid"
@@ -16,8 +18,8 @@ type Adapter struct {
 	agentGateway *gateway.Gateway
 }
 
-// NewAdapter 创建定时任务执行器。
-func NewAdapter(agentGateway *gateway.Gateway) (*Adapter, error) {
+// New 创建定时任务执行器。
+func New(agentGateway *gateway.Gateway) (*Adapter, error) {
 	if agentGateway == nil {
 		return nil, errors.New("cron adapter gateway is required")
 	}
@@ -28,7 +30,7 @@ func NewAdapter(agentGateway *gateway.Gateway) (*Adapter, error) {
 // 输入：一个已被调度器抢占的任务。
 // 输出：事件流结束即任务收尾；启动失败返回错误，由调用方负责 FinishRun。
 // 执行结果不在此返回，用户通过 cron:<job_id> 会话查看历史。
-func (a *Adapter) RunJob(ctx context.Context, job Job) error {
+func (a *Adapter) RunJob(ctx context.Context, job cronjob.Job) error {
 	stream, apiError := a.agentGateway.Run(gateway.IncomingMessage{
 		Channel:        "cron",
 		ExternalUserID: job.ClerkUserID,
