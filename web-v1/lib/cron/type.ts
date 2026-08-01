@@ -22,6 +22,8 @@ export type CronJobListResponse = {
 export type CreateCronJobRequest = {
   name: string;
   taskType: CronTaskType;
+  // schedule: recurring 为标准 5 段 cron 表达式；once 为 RFC3339 时间，
+  // 由前端从 datetime-local 的本地时间按浏览器时区自动转换后提交。
   schedule: string;
   prompt: string;
   timezone: string;

@@ -23,6 +23,25 @@ function browserTimezone(): string {
   }
 }
 
+// localDateTimeFromNow 生成 N 分钟后的本地时间，格式适配 datetime-local 输入。
+function localDateTimeFromNow(minutes: number): string {
+  const date = new Date(Date.now() + minutes * 60_000);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// localToRFC3339 把 datetime-local 的本地时间转换为带时区偏移的 RFC3339。
+// 后端契约要求一次性任务的 schedule 是 RFC3339；浏览器时区就是用户看到的时间语义。
+function localToRFC3339(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absolute = Math.abs(offsetMinutes);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${value}:00${sign}${pad(Math.floor(absolute / 60))}:${pad(absolute % 60)}`;
+}
+
 function formatNextRun(value: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -62,10 +81,11 @@ export function CronJobsPage() {
     setSaving(true);
     setError("");
     try {
+      const schedule = form.taskType === "once" ? localToRFC3339(form.schedule) : form.schedule.trim();
       const response = await fetch("/api/cron-jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, timezone: browserTimezone() }),
+        body: JSON.stringify({ ...form, schedule, timezone: browserTimezone() }),
       });
       if (!response.ok) {
         setError((await response.text()) || "创建失败。");
@@ -109,7 +129,7 @@ export function CronJobsPage() {
 
   const scheduleHint =
     form.taskType === "once"
-      ? "一次性任务：填触发时间，如 2026-08-01T09:30:00+08:00"
+      ? "一次性任务：选择触发时间，或点“5 分钟后 / 1 小时后”自动填充"
       : "周期性任务：填标准 cron 表达式，如 0 9 * * *（每天 9 点）";
 
   return (
@@ -142,7 +162,7 @@ export function CronJobsPage() {
             <span className="mb-1 block text-xs text-zinc-500">任务类型</span>
             <select
               className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-              onChange={(event) => setForm((current) => ({ ...current, taskType: event.target.value as CronTaskType }))}
+              onChange={(event) => setForm((current) => ({ ...current, taskType: event.target.value as CronTaskType, schedule: "" }))}
               value={form.taskType}
             >
               <option value="recurring">周期性任务</option>
@@ -151,12 +171,40 @@ export function CronJobsPage() {
           </label>
           <label className="block">
             <span className="mb-1 block text-xs text-zinc-500">执行时间</span>
-            <input
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-              onChange={(event) => setForm((current) => ({ ...current, schedule: event.target.value }))}
-              placeholder={form.taskType === "once" ? "2026-08-01T09:30:00+08:00" : "0 9 * * *"}
-              value={form.schedule}
-            />
+            {form.taskType === "once" ? (
+              <input
+                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                min={localDateTimeFromNow(0)}
+                onChange={(event) => setForm((current) => ({ ...current, schedule: event.target.value }))}
+                type="datetime-local"
+                value={form.schedule}
+              />
+            ) : (
+              <input
+                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                onChange={(event) => setForm((current) => ({ ...current, schedule: event.target.value }))}
+                placeholder="0 9 * * *"
+                value={form.schedule}
+              />
+            )}
+            {form.taskType === "once" && (
+              <span className="mt-2 flex gap-2">
+                <button
+                  className="rounded-lg border border-zinc-300 px-2.5 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100"
+                  onClick={() => setForm((current) => ({ ...current, schedule: localDateTimeFromNow(5) }))}
+                  type="button"
+                >
+                  5 分钟后
+                </button>
+                <button
+                  className="rounded-lg border border-zinc-300 px-2.5 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100"
+                  onClick={() => setForm((current) => ({ ...current, schedule: localDateTimeFromNow(60) }))}
+                  type="button"
+                >
+                  1 小时后
+                </button>
+              </span>
+            )}
           </label>
           <label className="block">
             <span className="mb-1 block text-xs text-zinc-500">任务指令</span>
