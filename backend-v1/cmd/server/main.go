@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"time"
 
+	"edith/backend-v1/internal/cronadapter"
 	"edith/backend-v1/internal/cronjob"
 	"edith/backend-v1/internal/gateway"
 	"edith/backend-v1/internal/images"
@@ -76,7 +77,12 @@ func main() {
 		log.Fatalf("open sandbox service: %v", err)
 	}
 
-	defaultTools := tools.Default(sandboxes)
+	cronStore, err := cronjob.New(appDB, users)
+	if err != nil {
+		log.Fatalf("create cron job store: %v", err)
+	}
+
+	defaultTools := tools.Default(sandboxes, cronStore)
 	edithAgent := llmagent.New(
 		"edith-chat",
 		llmagent.WithModels(models.Registered),
@@ -103,11 +109,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("create web adapter: %v", err)
 	}
-	cronStore, err := cronjob.New(appDB, users)
-	if err != nil {
-		log.Fatalf("create cron job store: %v", err)
-	}
-	cronAdapter, err := cronjob.NewAdapter(agentGateway)
+	cronAdapter, err := cronadapter.New(agentGateway)
 	if err != nil {
 		log.Fatalf("create cron job adapter: %v", err)
 	}
@@ -129,6 +131,7 @@ func main() {
 	log.Printf("EDITH runtime listening on http://%s", address)
 
 	httpServer := http.Server{Addr: address, Handler: mux}
+
 	shutdown, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 

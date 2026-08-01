@@ -29,7 +29,7 @@ EDITH 不使用它做：Sandbox/Workspace、Artifact、Skill Repository/`skill_l
 | `Runner` | 一次运行的唯一入口和协调者 | 进程级仅一个，所有用户、所有渠道共享 |
 | `LLMAgent` | LLM + 工具调用循环 | 长期复用的“零默认”骨架，不保存用户配置 |
 | `model.Model` | 对某个模型供应商的调用能力 | 进程级复用；不保存用户 API Key |
-| `tool.Tool` | 给模型调用的能力声明与执行实现 | 默认工具长期注册；用户 MCP / Sandbox 工具按 Run 追加 |
+| `tool.Tool` | 给模型调用的能力声明与执行实现 | 默认工具长期注册；用户 MCP 工具按 Run 追加 |
 | `event.Event` | 运行期间所有输出的统一载体 | HTTP SSE、未来 IM 都消费同一条事件流 |
 
 `Runner` 是服务端思维的中心，不是 `Agent`。不要在 HTTP handler 中创建 Agent，也不要为每个用户保留一个 Agent 实例。
@@ -78,9 +78,9 @@ LLMAgent 长期工具：所有用户都一样的系统工具
 RunOptions.AdditionalTools：本用户、本次运行专属工具
 ```
 
-EDITH 将用户 MCP 工具放在第二层。Sandbox ToolSet 作为长期默认工具注册，但每次调用时从
-Invocation ctx 取得当前 `userID + sessionID`，因此实际操作的仍是本次用户自己的 sandbox；
-它不保存任何用户状态。
+EDITH 将用户 MCP 工具放在第二层。Sandbox ToolSet 和 CronJob ToolSet 作为长期默认工具注册，
+但每次调用时都从 Invocation ctx 取得当前用户身份：Sandbox 使用 `userID + sessionID` 定位工作区，
+CronJob 使用 `userID` 写入任务，因此它们实际操作的仍是当前用户资源；ToolSet 本身不保存用户身份。
 
 MCP ToolSet 有连接生命周期：每个 Run 创建的 ToolSet 必须在**该 Run 的事件流消费完成后**关闭。不能在加载函数返回前关闭，也不能依赖 `Runner.Close()` 代管。
 

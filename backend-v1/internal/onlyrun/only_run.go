@@ -279,17 +279,25 @@ func (o *OnlyRun) drainRunEvents(
 					status = "failed"
 				}
 				events <- StreamEvent{Type: "tool.finished", AssistantID: assistantID, ToolCallID: choice.Message.ToolID, ToolStatus: status, ToolResult: choice.Message.Content}
+				// Tool 是文本块之间的边界；Tool 后的文字必须生成新的 BlockID。
+				lastBlockType, lastBlockID = "", ""
 				continue
 			}
 			if rawEvent.Response.IsPartial {
 				continue
 			}
+			toolStarted := false
 			for _, call := range choice.Message.ToolCalls {
 				if call.ID == "" || startedTools[call.ID] {
 					continue
 				}
 				events <- StreamEvent{Type: "tool.started", AssistantID: assistantID, ToolCallID: call.ID, ToolName: call.Function.Name, Arguments: string(call.Function.Arguments), ToolStatus: "running"}
 				startedTools[call.ID] = true
+				toolStarted = true
+			}
+			if toolStarted {
+				// Tool 是文本块之间的边界；Tool 后的文字必须生成新的 BlockID。
+				lastBlockType, lastBlockID = "", ""
 			}
 		}
 		if !rawEvent.Response.IsPartial {

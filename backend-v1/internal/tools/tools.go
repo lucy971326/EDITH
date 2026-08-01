@@ -5,6 +5,7 @@
 package tools
 
 import (
+	"edith/backend-v1/internal/cronjob"
 	"edith/backend-v1/internal/sandbox"
 
 	"trpc.group/trpc-go/trpc-agent-go/tool"
@@ -17,15 +18,16 @@ type Defaults struct {
 	ToolSets []tool.ToolSet
 }
 
-// Default returns every built-in EDITH tool. SandboxToolSet resolves its user
-// and session from the current invocation, never from main.
-func Default(sandboxes *sandbox.Service) Defaults {
+// Default returns every built-in EDITH tool. User-scoped ToolSet resources are
+// resolved from the current invocation, never from main's global state.
+func Default(sandboxes *sandbox.Service, cronJobs *cronjob.Store) Defaults {
 	return Defaults{
 		Tools: []tool.Tool{
 			GetCurrentTime,
 		},
 		ToolSets: []tool.ToolSet{
 			&SandboxToolSet{Sandboxes: sandboxes},
+			&CronJobToolSet{CronJobs: cronJobs},
 		},
 	}
 }

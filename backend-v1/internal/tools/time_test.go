@@ -27,7 +27,7 @@ func TestGetCurrentTime(t *testing.T) {
 }
 
 func TestDefaultContainsGetCurrentTime(t *testing.T) {
-	defaults := Default(nil)
+	defaults := Default(nil, nil)
 	for _, item := range defaults.Tools {
 		if item.Declaration().Name == "get_current_time" {
 			return

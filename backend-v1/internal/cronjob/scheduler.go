@@ -7,18 +7,24 @@ import (
 )
 
 // DefaultPollInterval 是调度器扫描数据库的默认间隔。
-const DefaultPollInterval = 5 * time.Second
+const DefaultPollInterval = 10 * time.Second
 
 // Scheduler 轮询 cron_jobs 表，把到点且未被抢占的任务交给 Adapter 执行。
 // 单实例部署：防双跑依赖 ClaimDue 的原子 UPDATE，不引入分布式锁。
 type Scheduler struct {
 	store    *Store
-	adapter  *Adapter
+	adapter  JobRunner
 	interval time.Duration
 }
 
-// NewScheduler 创建调度器，默认每 5 秒轮询一次。
-func NewScheduler(store *Store, adapter *Adapter) *Scheduler {
+// JobRunner 是调度器执行一次定时任务所需的最小能力。
+// 具体的 Agent 渠道适配由 cronadapter 包提供，避免存储层依赖 Gateway。
+type JobRunner interface {
+	RunJob(context.Context, Job) error
+}
+
+// NewScheduler 创建调度器，默认每 10 秒轮询一次。
+func NewScheduler(store *Store, adapter JobRunner) *Scheduler {
 	return &Scheduler{store: store, adapter: adapter, interval: DefaultPollInterval}
 }
 
