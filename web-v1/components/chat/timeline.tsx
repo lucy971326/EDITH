@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 
 import type { Timeline } from "@/lib/chat/type";
 
@@ -13,8 +13,24 @@ type TimelineViewProps = {
 };
 
 export const TimelineView = memo(function TimelineView({ timeline, runNotice }: TimelineViewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // 用户停留在底部时自动跟随新消息；向上翻阅历史时暂停跟随。
+  const stickToBottom = useRef(true);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !stickToBottom.current) return;
+    container.scrollTop = container.scrollHeight;
+  }, [timeline]);
+
+  function handleScroll() {
+    const container = scrollRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    stickToBottom.current = distanceFromBottom < 80;
+  }
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="min-h-0 flex-1 overflow-y-auto" onScroll={handleScroll} ref={scrollRef}>
       <div className="mx-auto max-w-3xl space-y-8 px-5 py-8">
         {timeline.blocks.map((block) => {
           if (block.type === "user") {

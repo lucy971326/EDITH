@@ -154,6 +154,10 @@ export function ChatPage() {
           continue;
         }
         const conversation = await conversationResponse.json() as ConversationResponse;
+        // 会话仍在实时流式输出时，不拿历史覆盖，避免与 SSE 事件竞争丢块。
+        if (liveStreamSessionIDs.current.has(pendingRun.sessionId)) {
+          continue;
+        }
         if (stopped) {
           return;
         }
@@ -314,13 +318,8 @@ export function ChatPage() {
       });
       if (!response.ok) {
         if (response.status === 409) {
-          // The server rejected this new request because this session already
-          // has a Run. That existing Run, not this requestID, is background work.
-          setSessions((current) => current.map((session) =>
-            session.id === sessionID
-              ? { ...session, timeline: { blocks: session.timeline.blocks.filter((block) => block.id !== userBlock.id) } }
-              : session,
-          ));
+          // 该会话已有任务在运行，这条消息没有被接受。
+          // 保留刚插入的用户消息块，只显示“会话忙”提示，避免用户以为自己的消息丢了。
           removePendingRun(requestID);
           setSessionRunNotice({ sessionID, reason: "session_busy" });
           taskContinues = false;
