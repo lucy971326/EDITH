@@ -58,3 +58,7 @@ edith.db
 .idea/
 edith-architecture-3d.html
 .tmp-go-cache
+
+**/**.db
+**/**.db-shm
+**/**.db-wal
