@@ -98,7 +98,8 @@ configuredRun
 ├─ ctx        context.Context
 ├─ request    Request
 ├─ definition models.Definition
-│  └─ 模型能力和用量统计规则
+│  ├─ 模型能力和用量统计规则
+│  └─ ContextWindow → 摘要触发阈值
 ├─ run        usage.Run
 ├─ message    model.Message
 ├─ options    []agent.RunOption
@@ -183,6 +184,7 @@ frameworkRunOptions(runOptionInput)
 ├─ RequestID
 ├─ Stream(true)
 ├─ ModelName
+├─ ModelContextWindow
 ├─ Authorization header
 ├─ GlobalInstruction + personality
 ├─ 一次 WithInstruction：公共摘要 + 用户 overview + 资源路径说明
@@ -190,6 +192,26 @@ frameworkRunOptions(runOptionInput)
 ```
 
 runOptionInput 只存在于 AgentRun 内部；外部调用方只提交 Request。
+
+## 会话摘要
+
+```text
+main
+├─ agentrun.NewSessionSummarizer()
+│  └─ summary.NewDynamicSummarizer
+└─ sessionsqlite.NewService(..., WithSummarizer(...))
+
+每次 AgentRun
+├─ RunOptions.ModelContextWindow = 当前模型窗口
+├─ RunOptions.ModelRequestHeaders = 当前用户 API Key
+└─ 新增事件达到窗口 40% → 框架异步生成摘要
+       ├─ 摘要模型 = 当前 Invocation.Model
+       ├─ 摘要请求复用当前请求头
+       ├─ 原始 Events 继续保留
+       └─ 后续请求 = Summary + 摘要后的新事件
+```
+
+摘要模型只存在于本次摘要调用中；API Key 不写入 SQLite，也不进入摘要正文。摘要失败由框架记录并保留原始事件，下一次仍可重试。
 
 ## 一句话记忆
 
