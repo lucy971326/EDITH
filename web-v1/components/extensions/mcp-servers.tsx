@@ -1,5 +1,6 @@
 "use client";
 
+// MCPServers 负责加载并维护当前用户的 MCP 服务配置。
 import { useEffect, useState } from "react";
 
 import type {

@@ -1,5 +1,6 @@
 "use client";
 
+// MCPServerEditor 负责编辑一个 MCP 服务及其请求头。
 import type { MCPTransport } from "@/lib/mcp/type";
 
 export type MCPHeaderDraft = {

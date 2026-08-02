@@ -28,8 +28,6 @@ const commonTimezones = [
 import type { ModelCatalogResponse, ModelInfo, ProviderInfo } from "@/lib/models/type";
 import type { UserSettingsResponse } from "@/lib/userconfig/type";
 
-import { MCPServers } from "./mcp-servers";
-
 export function SettingsForm() {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -154,8 +152,6 @@ export function SettingsForm() {
         <button className="h-10 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700" type="submit">保存</button>
         </div>
       </form>
-
-      <MCPServers />
     </div>
   );
 }
