@@ -7,7 +7,7 @@ type Conversation = {
 
 type ConversationListProps = {
   activeSessionID: string;
-  activePage?: "chat" | "tasks";
+  activePage?: "chat" | "tasks" | "extensions";
   isLoading: boolean;
   sessions: Conversation[];
   onCreate: () => void;
@@ -40,6 +40,16 @@ export function ConversationList({
         href="/tasks"
       >
         定时任务
+      </Link>
+      <Link
+        className={`mb-4 block rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
+          activePage === "extensions"
+            ? "border-zinc-300 bg-zinc-100 text-zinc-900"
+            : "border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+        }`}
+        href="/extensions"
+      >
+        扩展
       </Link>
       <nav className="space-y-1">
         {sessions.map((session) => (

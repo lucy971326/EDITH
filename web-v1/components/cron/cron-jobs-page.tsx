@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { TaskSidebar } from "@/components/cron/task-sidebar";
+import { PageSidebar } from "@/components/page-sidebar";
 import type { CronJob, CronJobListResponse, CronTaskType } from "@/lib/cron/type";
 
 type FormState = {
@@ -134,7 +134,7 @@ export function CronJobsPage() {
 
   return (
     <main className="flex h-screen overflow-hidden bg-zinc-50">
-      <TaskSidebar />
+      <PageSidebar activePage="tasks" />
       <section className="min-w-0 flex-1 overflow-y-auto p-6">
       <header className="mb-6 flex items-center justify-between">
         <div>

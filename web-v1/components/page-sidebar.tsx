@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 
 import { AccountMenu } from "@/components/account-menu";
 import { AppSidebar } from "@/components/app-sidebar";
+import { ConversationList } from "@/components/chat/conversation-list";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
 import type { ConversationListResponse } from "@/lib/chat/type";
 
-import { ConversationList } from "@/components/chat/conversation-list";
+type PageSidebarProps = {
+  activePage: "tasks" | "extensions";
+};
 
-export function TaskSidebar() {
+// PageSidebar 为非聊天页面提供统一的会话导航、页面入口和设置入口。
+export function PageSidebar({ activePage }: PageSidebarProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -34,7 +38,7 @@ export function TaskSidebar() {
     <>
       <AppSidebar footer={<AccountMenu onOpenSettings={() => setSettingsOpen(true)} />}>
         <ConversationList
-          activePage="tasks"
+          activePage={activePage}
           activeSessionID=""
           isLoading={isLoading}
           onCreate={() => router.push("/chat")}
