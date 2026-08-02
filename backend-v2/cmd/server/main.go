@@ -49,7 +49,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("打开会话数据库: %v", err)
 	}
-	rawSessions, err := sessionsqlite.NewService(sessionDB)
+	rawSessions, err := sessionsqlite.NewService(
+		sessionDB,
+		sessionsqlite.WithSummarizer(agentrun.NewSessionSummarizer()),
+	)
 	if err != nil {
 		sessionDB.Close()
 		log.Fatalf("创建会话服务: %v", err)
@@ -114,6 +117,7 @@ func main() {
 		"edith-chat",
 		llmagent.WithModels(registeredModels),
 		llmagent.WithModel(registeredModels[models.DefaultModelID]),
+		llmagent.WithAddSessionSummary(true),
 		llmagent.WithTools(agentTools.Tools),
 		llmagent.WithToolSets(agentTools.ToolSets),
 	)

@@ -95,6 +95,7 @@ func (c *runConfigurations) Load(request Request) (*configuredRun, *Error) {
 	options := frameworkRunOptions(runOptionInput{
 		requestID:         request.RequestID,
 		modelID:           request.ModelID,
+		contextWindow:     definition.ContextWindow,
 		apiKey:            apiKey,
 		globalInstruction: "你是 EDITH AI Agent智能助手\n\n" + personality,
 		instruction:       skillInstruction(c.skills.ListSystemSummaries(), userOverview),

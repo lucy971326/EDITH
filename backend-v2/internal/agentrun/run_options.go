@@ -8,6 +8,7 @@ import (
 type runOptionInput struct {
 	requestID         string
 	modelID           string
+	contextWindow     int
 	apiKey            string
 	globalInstruction string
 	instruction       string
@@ -20,6 +21,7 @@ func frameworkRunOptions(input runOptionInput) []agent.RunOption {
 		agent.WithRequestID(input.requestID),
 		agent.WithStream(true),
 		agent.WithModelName(input.modelID),
+		agent.WithModelContextWindow(input.contextWindow),
 		agent.WithModelRequestHeaders(map[string]string{"Authorization": "Bearer " + input.apiKey}),
 		agent.WithGlobalInstruction(input.globalInstruction),
 	}

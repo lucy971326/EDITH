@@ -158,6 +158,8 @@ Info
 Definition
 ├─ Info
 │  └─ 前端可见的模型描述
+├─ ContextWindow int
+│  └─ 后端摘要阈值使用的上下文窗口，不返回浏览器
 ├─ Model model.Model
 │  └─ trpc-agent-go 真正调用的模型适配器
 └─ DoesNotReportCachedPromptTokens bool

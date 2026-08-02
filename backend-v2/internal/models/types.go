@@ -51,6 +51,9 @@ type Info struct {
 // Definition 将浏览器目录项和 Runner 使用的模型适配器绑定。
 type Definition struct {
 	Info
+	// ContextWindow 是该模型可承载的最大上下文 Token 数。
+	// 它只供后端摘要阈值计算使用，不暴露给浏览器。
+	ContextWindow                   int `json:"-"`
 	Model                           model.Model
 	DoesNotReportCachedPromptTokens bool
 }

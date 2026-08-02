@@ -1,11 +1,17 @@
 package agentrun
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"edith/backend-v2/internal/skills"
 
 	"trpc.group/trpc-go/trpc-agent-go/agent"
+	"trpc.group/trpc-go/trpc-agent-go/event"
+	"trpc.group/trpc-go/trpc-agent-go/model"
+	frameworksession "trpc.group/trpc-go/trpc-agent-go/session"
+	"trpc.group/trpc-go/trpc-agent-go/session/summary"
 )
 
 func TestSkillInstructionUsesOnlySummary(t *testing.T) {
@@ -30,11 +36,72 @@ func TestFrameworkRunOptionsInjectsSkillInstructionOnce(t *testing.T) {
 	runOptions := agent.NewRunOptions(frameworkRunOptions(runOptionInput{
 		requestID:         "request-1",
 		modelID:           "model-1",
+		contextWindow:     256_000,
 		apiKey:            "key-1",
 		globalInstruction: "global",
 		instruction:       "skill instruction",
 	})...)
 	if runOptions.Instruction != "skill instruction" {
 		t.Fatalf("RunOptions.Instruction = %q", runOptions.Instruction)
+	}
+	if runOptions.ModelContextWindow != 256_000 {
+		t.Fatalf("RunOptions.ModelContextWindow = %d", runOptions.ModelContextWindow)
+	}
+}
+
+type summaryTestModel struct {
+	lastRequest *model.Request
+}
+
+func (m *summaryTestModel) GenerateContent(_ context.Context, request *model.Request) (<-chan *model.Response, error) {
+	m.lastRequest = request
+	responses := make(chan *model.Response, 1)
+	responses <- &model.Response{Choices: []model.Choice{{
+		Message: model.Message{Content: "summary"},
+	}}}
+	close(responses)
+	return responses, nil
+}
+
+func (m *summaryTestModel) Info() model.Info {
+	return model.Info{Name: "summary-test", ContextWindow: 10_000}
+}
+
+func TestSessionSummarizerUsesCurrentRunModelAndHeaders(t *testing.T) {
+	baseModel := &summaryTestModel{}
+	summarizer := NewSessionSummarizer()
+	contextual, ok := summarizer.(summary.ContextAwareSummarizer)
+	if !ok {
+		t.Fatal("session summarizer is not context-aware")
+	}
+
+	invocation := agent.NewInvocation(
+		agent.WithInvocationModel(baseModel),
+		agent.WithInvocationRunOptions(agent.NewRunOptions(
+			agent.WithModelContextWindow(10_000),
+			agent.WithModelRequestHeaders(map[string]string{
+				"Authorization": "Bearer user-key",
+				"X-Request":     "from-invocation",
+			}),
+		)),
+	)
+	ctx := agent.NewInvocationContext(context.Background(), invocation)
+	sess := &frameworksession.Session{Events: []event.Event{{
+		Response: &model.Response{Choices: []model.Choice{{
+			Message: model.Message{Content: strings.Repeat("word ", 5_000)},
+		}}},
+	}}}
+	if !contextual.ShouldSummarizeWithContext(ctx, sess) {
+		t.Fatal("summary should trigger at 40% of the current model context window")
+	}
+
+	if _, err := summarizer.Summarize(ctx, sess); err != nil {
+		t.Fatalf("summarize() error = %v", err)
+	}
+	if baseModel.lastRequest == nil {
+		t.Fatal("summary model was not called")
+	}
+	if got := baseModel.lastRequest.Headers["Authorization"]; got != "Bearer user-key" {
+		t.Fatalf("summary Authorization header = %q", got)
 	}
 }
