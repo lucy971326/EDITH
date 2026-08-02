@@ -23,6 +23,7 @@ import (
 	"edith/backend-v2/internal/tools"
 	"edith/backend-v2/internal/usage"
 	"edith/backend-v2/internal/userconfig"
+	"edith/backend-v2/internal/volume"
 	"edith/backend-v2/internal/webadapter"
 
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
@@ -75,7 +76,12 @@ func main() {
 		log.Fatalf("创建图片模块: %v", err)
 	}
 
-	sandboxModule, err := sandbox.New(sandbox.Dependencies{DB: appDB, Template: sandboxTemplate()})
+	volumeModule, err := volume.New(volume.Dependencies{DB: appDB})
+	if err != nil {
+		log.Fatalf("创建 Volume 模块: %v", err)
+	}
+
+	sandboxModule, err := sandbox.New(sandbox.Dependencies{DB: appDB, Template: sandboxTemplate(), Volumes: volumeModule.Volumes})
 	if err != nil {
 		log.Fatalf("创建 Sandbox 模块: %v", err)
 	}

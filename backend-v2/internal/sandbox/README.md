@@ -7,11 +7,12 @@
 
 ```text
 main
+ ├─ volume.New(DB) → volumeModule.Volumes
  └─ sandbox.New(Dependencies)
-    ├─ DB + Template
+    ├─ DB + Template + Volumes
     ├─ createSchema → user_sandboxes
     ├─ E2B Client
-    ├─ service{db, client, template}       私有业务能力
+    ├─ service{db, client, template, volumes} 私有业务能力
     └─ Module{Tools: toolSet{service}}     唯一公开能力
                                       │
                                       ▼
@@ -26,7 +27,10 @@ main
                          ├─ Invocation 已缓存 → 复用
                          └─ service.Workspace(user, session)
                               ├─ 有映射 → E2B Connect
-                              └─ 无映射 → E2B Create + 保存
+                              └─ 无映射
+                                   ├─ volumes.MountForUser(user)
+                                   ├─ E2B Create + 挂载 skills/custom
+                                   └─ 保存 user_sandboxes
                                       │
                         ┌─────────────┴─────────────┐
                         ▼                           ▼
@@ -39,7 +43,8 @@ main
 ```text
 Dependencies
 ├─ DB *sql.DB       创建并访问 user_sandboxes
-└─ Template string  首次创建 E2B Sandbox 的模板
+├─ Template string  首次创建 E2B Sandbox 的模板
+└─ Volumes *volume.Service 取得用户 Volume 挂载信息
 
 Module
 └─ Tools tool.ToolSet
@@ -60,7 +65,8 @@ New 只创建本地表、E2B 客户端和工具集合，不创建远端 Sandbox�
 service（私有）
 ├─ db       *sql.DB
 ├─ client   *e2b.Client
-└─ template string
+├─ template string
+└─ volumes  *volume.Service
 ```
 
 ```text
@@ -72,7 +78,8 @@ service.Workspace(ctx, userID, sessionID)
 │  ├─ 更新 updated_at
 │  └─ 返回 Sandbox
 └─ 没有映射
-   ├─ E2B Create(template, Secure, AutoResume)
+   ├─ volumes.MountForUser(userID)
+   ├─ E2B Create(template, Secure, AutoResume, VolumeMounts)
    ├─ INSERT user_sandboxes
    └─ 返回 Sandbox
 ```
@@ -87,6 +94,14 @@ user_sandboxes
 ```
 
 schema.go 的 createSchema 由 New 调用，其他模块不直接访问此表。
+
+Volume 的用户绑定由 `volume` 模块独立管理：
+
+```text
+user_id → user_volumes → Volume.Name → /home/user/skills/custom
+```
+
+Sandbox 只使用 `volume.Service` 返回的挂载信息，不读取 `user_volumes` 表，也不保存 Volume Token。
 
 ## 身份从哪里来
 
@@ -183,8 +198,9 @@ killProcessOutput  { PID, Message }
 ```text
 Module          = 只暴露 Sandbox 工具集合
 toolSet         = 从 Invocation 取身份并创建工具
-service         = user + session → E2B Sandbox
+service         = user + session → E2B Sandbox + 用户 Volume 挂载
 user_sandboxes  = 保存本地绑定关系
+user_volumes    = 由 Volume 模块保存用户持久化绑定
 Workspace       = 统一路径和目录安全规则
 文件工具       = 操作当前 Sandbox.Files
 进程工具       = 操作当前 Sandbox.Commands
