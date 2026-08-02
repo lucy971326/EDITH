@@ -14,11 +14,44 @@ import (
 )
 
 // Service 负责把 Clerk 用户绑定到唯一的 E2B Volume。
-// 它是 Sandbox 和未来 Skills 模块使用的内部能力，不注册 HTTP 路由。
+// 它是 Sandbox 和 Skills 模块使用的内部能力，不注册 HTTP 路由。
 type Service struct {
 	store  *store
 	config e2b.Config
 	mu     sync.Mutex
+}
+
+// ReadUserOverview 读取已有用户 Volume 中的 Skills 摘要。
+// 用户尚未创建 Volume 或 overview.md 不存在时返回空字符串；不会创建远端 Volume。
+func (s *Service) ReadUserOverview(ctx context.Context, userID string) (string, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return "", errors.New("volume requires a user ID")
+	}
+
+	value, err := s.store.load(ctx, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("load user volume: %w", err)
+	}
+
+	opened, err := e2bvolume.Connect(ctx, value.ID, value.Token, e2bvolume.Options{Config: s.config})
+	if err != nil {
+		if isNotFoundVolumeError(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("connect user volume: %w", err)
+	}
+	data, err := opened.ReadFile(ctx, UserOverviewPath)
+	if err != nil {
+		if isNotFoundVolumeError(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("read user skill overview: %w", err)
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 // MountForUser 返回当前用户的 Skills Volume 挂载信息；首次调用会创建远端 Volume。
@@ -30,7 +63,7 @@ func (s *Service) MountForUser(ctx context.Context, userID string) (Mount, error
 	return Mount{Name: value.Name, Path: CustomSkillsPath}, nil
 }
 
-// OpenForUser 连接当前用户的 Volume，供未来 Skills 模块读取或修改文件。
+// OpenForUser 连接当前用户的 Volume，供需要读写完整用户文件的内部能力使用。
 func (s *Service) OpenForUser(ctx context.Context, userID string) (*e2bvolume.Volume, error) {
 	value, err := s.getOrCreateUserVolume(ctx, userID)
 	if err != nil {
@@ -76,4 +109,12 @@ func (s *Service) getOrCreateUserVolume(ctx context.Context, userID string) (rec
 		return record{}, err
 	}
 	return value, nil
+}
+
+func isNotFoundVolumeError(err error) bool {
+	var volumeErr *e2b.VolumeError
+	if !errors.As(err, &volumeErr) {
+		return false
+	}
+	return strings.HasPrefix(strings.TrimSpace(volumeErr.Message), "http 404:")
 }

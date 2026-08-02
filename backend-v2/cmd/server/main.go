@@ -86,7 +86,7 @@ func main() {
 		log.Fatalf("创建 Sandbox 模块: %v", err)
 	}
 
-	skillModule, err := skills.New()
+	skillModule, err := skills.New(skills.Dependencies{Volumes: volumeModule.Volumes})
 	if err != nil {
 		log.Fatalf("创建 Skills 模块: %v", err)
 	}

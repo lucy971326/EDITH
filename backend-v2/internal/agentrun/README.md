@@ -18,7 +18,7 @@ Service.Run(request)
 │  ├─ Providers  → API Key
 │  ├─ MCP        → additional tools
 │  ├─ Images     → 本次消息图片 URL
-│  └─ Skills     → 内置 Skill 摘要
+│  └─ Skills     → 公共摘要 + 当前用户 overview.md
 │       ▼
 │  configuredRun{Message, Options, Context, ...}
 ├─ Usage.Start
@@ -48,7 +48,7 @@ Dependencies（main 创建 AgentRun 时传入）
 ├─ MCP       *userconfig.MCP
 ├─ Images    *images.AgentInput
 ├─ Skills    *skills.Catalog
-│  └─ 内置 Skill 摘要目录
+│  └─ 公共 Skill 目录 + 用户 overview 读取
 └─ Usage     *usage.Recorder
 
 Service（对外公开）
@@ -70,7 +70,8 @@ runConfigurations
 ├─ settings  *userconfig.Settings
 ├─ providers *userconfig.Providers
 ├─ mcp       *userconfig.MCP
-└─ images    *images.AgentInput
+├─ images    *images.AgentInput
+└─ skills    *skills.Catalog
 ```
 
 ```text
@@ -82,7 +83,8 @@ Load(Request) → configuredRun
 ├─ Settings.LoadPersonality
 ├─ Images.AddMessageImages
 ├─ MCP.OpenTools → tools + closeMCP
-├─ Skills.ListSystemSummaries → Skill 摘要
+├─ Skills.ListSystemSummaries → 公共 Skill 摘要
+├─ Skills.ReadUserOverview → 用户 Skill 摘要
 ├─ frameworkRunOptions → []agent.RunOption
 └─ 返回完整 configuredRun
 ```
@@ -183,7 +185,7 @@ frameworkRunOptions(runOptionInput)
 ├─ ModelName
 ├─ Authorization header
 ├─ GlobalInstruction + personality
-├─ 一次 WithInstruction：内置 Skill 摘要 + 资源路径说明
+├─ 一次 WithInstruction：公共摘要 + 用户 overview + 资源路径说明
 └─ additionalTools（MCP）
 ```
 

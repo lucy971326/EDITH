@@ -19,6 +19,7 @@ EDITH 有两类 Skill：
 ```text
 skills/system/<skill-name>/   公共 Skill：平台提供，只读
 skills/custom/<skill-name>/   用户 Skill：当前用户自己的内容，可编辑
+skills/custom/overview.md      用户 Skills 摘要索引，由脚本生成
 ```
 
 创建或修改用户 Skill 时，只能使用 `skills/custom/` 下的路径，不能修改 `skills/system/`。
@@ -92,15 +93,18 @@ short_description: 创建和管理每日总结任务。
 2. 用 `sandbox_write_file` 写入 `SKILL.md` 和 `edith.yaml`。
 3. 用 `sandbox_read_file` 重新读取文件，检查 YAML 头部、正文和展示字段。
 4. 用 `sandbox_list_files` 确认目录只包含实际需要的文件。
+5. 运行 `sync_overview.py`，更新 `skills/custom/overview.md`。
 
-Skill 自带两个可复用脚本：
+Skill 自带三个可复用脚本：
 
 ```text
 skills/system/skill-creator/scripts/init_skill.py
 skills/system/skill-creator/scripts/quick_validate.py
+skills/system/skill-creator/scripts/sync_overview.py
 ```
 
-需要创建骨架时运行 `init_skill.py`；完成编辑后运行 `quick_validate.py`。这两个脚本只使用 Python 标准库，不依赖额外安装包。
+需要创建骨架时运行 `init_skill.py`；完成创建、修改或删除后运行 `quick_validate.py` 和 `sync_overview.py`。
+`overview.md` 是自动生成的摘要索引，不能手动编辑。这些脚本只使用 Python 标准库，不依赖额外安装包。
 
 ## 更新已有 Skill
 
@@ -108,6 +112,7 @@ skills/system/skill-creator/scripts/quick_validate.py
 - 只修改用户自己的 `skills/custom/` 内容。
 - 保留稳定的 `name`；除非用户明确要求，不要随意改名。
 - 修改后重新读取完整文件，确认摘要仍准确、正文没有互相矛盾的规则。
+- 修改后重新运行 `sync_overview.py`，保持用户 Skills 摘要索引同步。
 
 ## 运行时边界
 

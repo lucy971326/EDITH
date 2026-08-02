@@ -99,7 +99,7 @@ def main():
         return 1
 
     print(f"已创建 EDITH Skill: {skill_path}")
-    print("下一步: 编辑 SKILL.md，完成后运行 quick_validate.py 校验格式。")
+    print("下一步: 编辑 SKILL.md，完成后运行 quick_validate.py 校验格式，再运行 sync_overview.py 更新摘要。")
     return 0
 
 

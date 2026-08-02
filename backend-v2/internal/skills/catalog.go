@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -8,13 +9,15 @@ import (
 	"sort"
 	"strings"
 
+	"edith/backend-v2/internal/volume"
 	"gopkg.in/yaml.v3"
 )
 
 // Catalog 是 Skills 模块对外提供的目录能力。
-// 它在启动时加载内置 Skills，运行期间只读内存，不访问文件系统。
+// 公共 Skills 启动时加载到内存，用户 Skills 通过 Volume.Service 按请求读取摘要。
 type Catalog struct {
-	skills []Skill
+	skills  []Skill
+	volumes *volume.Service
 }
 
 // ListSystemSummaries 返回按稳定顺序排列的内置 Skill 摘要。
@@ -24,6 +27,12 @@ func (c *Catalog) ListSystemSummaries() []SkillSummary {
 		result = append(result, SkillSummary{Name: skill.Name, Description: skill.Description})
 	}
 	return result
+}
+
+// ReadUserOverview 返回当前用户的自定义 Skill 摘要原文。
+// 完整 Skill 正文仍由 Agent 通过 Sandbox 按需读取。
+func (c *Catalog) ReadUserOverview(ctx context.Context, userID string) (string, error) {
+	return c.volumes.ReadUserOverview(ctx, userID)
 }
 
 // loadCatalog 扫描并加载 Skills 文件，返回只读目录。

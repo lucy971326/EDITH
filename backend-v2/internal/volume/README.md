@@ -10,6 +10,9 @@ main.go
   │
   └─ sandbox.New({Volumes: volumeModule.Volumes})
        └─ Sandbox 创建时挂载用户 Volume
+
+Skills.Catalog
+   └─ Volumes.ReadUserOverview(userID)
 ```
 
 ## 核心映射
@@ -56,4 +59,13 @@ MountForUser(ctx, userID) (Mount, error)
 OpenForUser(ctx, userID) (*e2bvolume.Volume, error)
 ```
 
-供未来 Skills 模块读取或修改用户 Volume 文件。Volume 本身暂时没有 HTTP；前端需要展示 Skills 时，由 Skills HTTP 调用这个 Service。
+供需要创建或修改用户文件的内部能力使用；调用它会确保用户 Volume 存在。
+
+```go
+ReadUserOverview(ctx, userID) (string, error)
+```
+
+只读取已有用户 Volume 根目录的 `/overview.md`，不会因为普通对话创建远端 Volume。
+用户没有 Volume 或 overview.md 不存在时返回空内容，其他远程错误继续返回。
+
+Skills 模块只依赖这个方法，不直接依赖 E2B SDK。Volume 本身暂时没有 HTTP；前端需要展示 Skills 时，由 Skills HTTP 调用这个 Service。

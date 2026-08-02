@@ -62,10 +62,10 @@ Template 创建的 Sandbox 会预置：
 
 /home/user/skills/
 ├─ system/    ← 从 backend-v2/internal/skills/system 复制的公共 Skills（root 所有）
-└─ custom/    ← 用户级 Skills 挂载点，当前只创建目录，暂未接入
+└─ custom/    ← 用户级 Skills Volume 的挂载点
 ```
 
-`EDITH_E2B_TEMPLATE` 同时控制 `.env` 中的生产版本和开发版本前缀。当前版本为 `edith-v0-1-4`，开发版本会构建为 `edith-v0-1-4-dev`。
+`EDITH_E2B_TEMPLATE` 同时控制 `.env` 中的生产版本和开发版本前缀。当前版本为 `edith-v0-1-5`，开发版本会构建为 `edith-v0-1-5-dev`。
 
 ## 下一步
 

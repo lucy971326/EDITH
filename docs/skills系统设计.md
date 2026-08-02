@@ -87,7 +87,7 @@ EDITH 的 Skills 分为两类，来源和生命周期完全不同：
                                            └─► Sandbox / Tools
 ```
 
-## Web 端入口：扩展
+## Web 端入口：扩展（后续）
 
 前端导航中新增一个与“新对话”和“定时任务”并列的“扩展”入口：
 
@@ -149,6 +149,15 @@ Clerk 用户 B ──► Volume B ──► 用户 B 的所有 Sandbox
 /home/user/skills/custom
 ```
 
+用户 Skills 根目录同时维护一个自动生成的摘要索引：
+
+```text
+/home/user/skills/custom/overview.md
+```
+
+`overview.md` 由 `skill-creator` 的 `sync_overview.py` 根据各个 `SKILL.md` 生成，
+不是 Agent 手动维护的第二个真相源。AgentRun 每次只读取这一个小文件，不扫描整个 Volume。
+
 它不会进入公共 Template，也不会被其他用户看到。
 
 用户 Skills 在“扩展 → Skills”页面中可以：
@@ -185,10 +194,10 @@ Skills 模块不直接依赖框架，也不返回 `agent.RunOption`；它只返�
 ```text
 Skills 模块
   ├─ 公共 Skills 摘要
-  └─ 已启用的用户 Skills 摘要
+  └─ Volume 中的用户 overview.md
              ↓
 AgentRun
-  ├─ 拼接 L3 系统 Skills + L4 用户 Skills
+  ├─ 拼接 L3 系统 Skills + L4 用户 overview
   └─ agent.WithInstruction(skillInstruction)
              ↓
 ManagedRunner.Run(..., options...)
@@ -226,10 +235,9 @@ options := frameworkRunOptions(runOptionInput{
       ▼
 Skills HTTP
       ▼
-Skills.Catalog.ListForUser(clerkUserID)
+Skills.Catalog
   ├─ 读取公共 Skills
-  ├─ 通过 E2B Volume API 读取用户 /home/user/skills/custom
-  └─ 读取 SQLite 中该用户的启用状态
+  └─ 通过 Volume.Service 读取用户 Volume 的 /overview.md
       ▼
 返回 Skill 摘要列表
 ```
@@ -307,7 +315,7 @@ AgentRun 读取 Skill 摘要用于组装初始配置；Agent 运行过程中，T
 
 ## 当前阶段与后续阶段
 
-### 第一期：只实现公共 Skills
+### 已完成：公共 Skills
 
 ```text
 公共 Skill 文件
@@ -326,18 +334,18 @@ current-time   指导 Agent 在需要当前时间时调用 get_current_time
 skill-creator  指导 Agent 创建和维护用户 Skill
 ```
 
-第一期不实现用户 Skill 的 CRUD，但接口和目录边界按“公共 + 用户”设计，避免后续重写 AgentRun 主链路。
+公共 Skills 已接入 AgentRun；用户 Skill 的 HTTP CRUD 和 Web 编辑页面仍属于后续阶段。
 
-### 第二期：接入用户 Skills
+### 当前阶段：接入用户 Skills 摘要
 
 ```text
 用户创建 / 修改 Skill
       ↓
-写入用户 Volume
+写入用户 Volume，并运行 sync_overview.py
       ↓
-AgentRun 按 userID 读取摘要
+Volume.Service 读取 /overview.md
       ↓
-本次 Agent 使用该用户自己的 Skills
+AgentRun 按 userID 注入摘要
 ```
 
 用户 Skill 必须始终带有用户身份边界，不能由 Agent 自己填写或切换 userID。
@@ -347,7 +355,7 @@ AgentRun 按 userID 读取摘要
 1. Gateway 只做渠道翻译，不加载 Skills。
 2. AgentRun 负责聚合 Skills，并在 Runner 启动前完成加载。
 3. 公共 Skill 的项目文件是唯一真相源，Template 只是构建产物。
-4. 用户 Skill 只能从对应用户的 Volume 加载。
+4. 用户 Skill 只能从对应用户的 Volume overview 加载。
 5. 公共 Skill 与用户 Skill 必须分目录、分权限、分生命周期。
 6. Skill 只描述工作方法；真正执行动作仍然通过 Tool。
 7. 用户 Volume 的并发写入规则需要在接入时明确，避免多个 Sandbox 同时修改同一个 Skill 文件。
