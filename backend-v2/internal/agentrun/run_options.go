@@ -10,18 +10,21 @@ type runOptionInput struct {
 	modelID           string
 	apiKey            string
 	globalInstruction string
+	instruction       string
 	additionalTools   []tool.Tool
 }
 
 // frameworkRunOptions 把一次运行的数据显式转换为框架选项。
 func frameworkRunOptions(input runOptionInput) []agent.RunOption {
-	return []agent.RunOption{
+	options := []agent.RunOption{
 		agent.WithRequestID(input.requestID),
 		agent.WithStream(true),
 		agent.WithModelName(input.modelID),
 		agent.WithModelRequestHeaders(map[string]string{"Authorization": "Bearer " + input.apiKey}),
 		agent.WithGlobalInstruction(input.globalInstruction),
-		agent.WithInstruction("需要知道当前时间时，调用 get_current_time 工具。"),
-		agent.WithAdditionalTools(input.additionalTools),
 	}
+	if input.instruction != "" {
+		options = append(options, agent.WithInstruction(input.instruction))
+	}
+	return append(options, agent.WithAdditionalTools(input.additionalTools))
 }

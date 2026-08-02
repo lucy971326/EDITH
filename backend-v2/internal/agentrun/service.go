@@ -6,6 +6,7 @@ import (
 
 	"edith/backend-v2/internal/images"
 	"edith/backend-v2/internal/models"
+	"edith/backend-v2/internal/skills"
 	"edith/backend-v2/internal/usage"
 	"edith/backend-v2/internal/userconfig"
 
@@ -20,6 +21,7 @@ type Dependencies struct {
 	Providers *userconfig.Providers
 	MCP       *userconfig.MCP
 	Images    *images.AgentInput
+	Skills    *skills.Catalog
 	Usage     *usage.Recorder
 }
 
@@ -35,8 +37,8 @@ type Service struct {
 // New 创建 AgentRun；内部小结构体在这里直接组装，不泄露给 main。
 func New(deps Dependencies) (*Service, error) {
 	if deps.Runner == nil || deps.Models == nil || deps.Settings == nil ||
-		deps.Providers == nil || deps.MCP == nil || deps.Images == nil || deps.Usage == nil {
-		return nil, errors.New("agentrun requires runner, models, settings, providers, MCP, images, and usage")
+		deps.Providers == nil || deps.MCP == nil || deps.Images == nil || deps.Skills == nil || deps.Usage == nil {
+		return nil, errors.New("agentrun requires runner, models, settings, providers, MCP, images, skills, and usage")
 	}
 	return &Service{
 		runner: deps.Runner,
@@ -46,6 +48,7 @@ func New(deps Dependencies) (*Service, error) {
 			providers: deps.Providers,
 			mcp:       deps.MCP,
 			images:    deps.Images,
+			skills:    deps.Skills,
 		},
 		usage:     deps.Usage,
 		lanes:     &sessionLanes{active: make(map[sessionKey]string)},

@@ -52,6 +52,21 @@ print('Sandbox created successfully')
 - `build_dev.py` - 构建开发环境 template
 - `build_prod.py` - 构建生产环境 template
 
+Template 创建的 Sandbox 会预置：
+
+```text
+/home/user/
+├─ uploads/
+├─ work/
+└─ artifacts/
+
+/home/user/skills/
+├─ system/    ← 从 backend-v2/internal/skills/system 复制的公共 Skills（root 所有）
+└─ custom/    ← 用户级 Skills 挂载点，当前只创建目录，暂未接入
+```
+
+`EDITH_E2B_TEMPLATE` 同时控制 `.env` 中的生产版本和开发版本前缀。当前版本为 `edith-v0-1-4`，开发版本会构建为 `edith-v0-1-4-dev`。
+
 ## 下一步
 
 1. 在 `template.py` 中按需定制 template
