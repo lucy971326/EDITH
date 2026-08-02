@@ -1,66 +1,75 @@
 # skills
 
-Skills 模块负责加载 EDITH 的内置 Skills，并向 AgentRun 提供稳定的摘要目录。
+Skills 模块负责加载公共 Skills，并读取当前用户的自定义 Skill 摘要。
 
 ```text
 main.go
-  └─ skills.New()
+  └─ skills.New({Volumes})
        └─ Module
             └─ Catalog
-                 ├─ 启动时读取 system/<skill-name>/SKILL.md
-                 ├─ 可选读取同目录 edith.yaml
-                 ├─ 校验并保存在内存
-                 └─ ListSystemSummaries() → AgentRun
+                 ├─ 启动加载 system Skills
+                 ├─ ReadSystemSummaries() → AgentRun
+                 └─ ReadUserOverview(userID) → Volume.Service
 ```
 
-## 目录格式
+## 文件来源
 
 ```text
-internal/skills/system/current-time/
-├─ SKILL.md
-└─ edith.yaml
+公共 Skills（代码仓库）
+  └─ internal/skills/system/<skill-name>/
+       ├─ SKILL.md
+       ├─ edith.yaml
+       └─ scripts / references / assets
 
-internal/skills/system/skill-creator/
-├─ SKILL.md
-└─ edith.yaml
+用户 Skills（E2B Volume）
+  └─ Volume 根目录
+       ├─ overview.md              ← 自动生成的摘要
+       └─ <skill-name>/SKILL.md     ← 完整规则
 ```
 
-`SKILL.md` 的 YAML 头部是运行元数据，正文暂时只保存，不注入当前请求：
+`SKILL.md` 的 `name + description` 是摘要来源；`edith.yaml` 只保存页面展示字段。
+`overview.md` 是由 `sync_overview.py` 生成的派生索引，不是用户手动维护的真相源。
 
-```yaml
----
-name: current-time
-description: 需要知道当前时间时，调用 get_current_time 工具。
----
-```
-
-`edith.yaml` 只负责 Web 展示元数据；缺失字段回退到 `SKILL.md` 的名称和说明。
-
-Skill 可以携带 `references/`、`scripts/`、`assets/` 等资源；Catalog 不解析这些资源，只负责随 Template 一起复制。当前 `skill-creator` 内置了两个标准库脚本：`init_skill.py` 创建用户 Skill 骨架，`quick_validate.py` 校验 Skill 格式。
-
-Template 创建 Sandbox 后，完整 Skill 文件位于：
+## 运行链路
 
 ```text
-/home/user/skills/system/<skill-name>/   公共 Skills
-/home/user/skills/custom/<skill-name>/   用户 Skills（未来由 Volume 挂载）
+AgentRun.Load(userID)
+  ├─ Catalog.ListSystemSummaries()
+  ├─ Catalog.ReadUserOverview(userID)
+  │    └─ Volume.Service.ReadUserOverview(userID)
+  │         └─ 读取 Volume 根目录 /overview.md
+  ├─ 合并公共摘要 + 用户 overview
+  ├─ 一次 agent.WithInstruction(...)
+  └─ ManagedRunner.Run
+```
 
-Sandbox 文件工具使用工作区相对路径：
+这里只读取一个小的 overview 文件，不读取完整 Skill 正文；正文由 Agent 在需要时通过 Sandbox 文件工具读取：
 
 ```text
-skills/system/<skill-name>/
-skills/custom/<skill-name>/
-```
+公共：skills/system/<skill-name>/
+用户：skills/custom/<skill-name>/
 ```
 
-## 与 AgentRun 的关系
+## 目录能力
+
+```go
+ListSystemSummaries() []SkillSummary
+ReadUserOverview(ctx, userID) (string, error)
+```
+
+- 公共 Skills 在启动时解析并保存在内存中。
+- 用户没有 Volume 或 overview.md 时，用户摘要为空。
+- Volume 的 E2B 连接、Token 和路径细节由 `Volume.Service` 隐藏。
+- Skills 不创建 Runner、不直接依赖 E2B、不注册 HTTP 路由。
+
+## skill-creator
+
+公共 `skill-creator` 提供三个 Python 标准库脚本：
 
 ```text
-Catalog.ListSystemSummaries()
-  └─ [{Name, Description}]
-       ↓
-AgentRun 组装一次 agent.WithInstruction(...)
-       ↓
-ManagedRunner.Run
+init_skill.py       创建用户 Skill 骨架
+quick_validate.py   校验一个 Skill
+sync_overview.py    扫描 custom 并生成 overview.md
 ```
 
-Skills 不创建 Runner、不访问用户数据，也不注册 HTTP 路由。新增内置 Skill 只需增加目录文件，不需要改 AgentRun 主流程。
+创建、修改或删除用户 Skill 后，必须重新运行 `sync_overview.py`。Agent 不直接编辑 `overview.md`。

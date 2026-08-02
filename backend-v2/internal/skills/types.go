@@ -4,7 +4,7 @@ package skills
 const (
 	// SystemPath 是 Sandbox 文件工具使用的公共 Skills 相对路径。
 	SystemPath = "skills/system"
-	// CustomPath 是未来挂载用户 Skills Volume 的相对路径。
+	// CustomPath 是用户 Skills Volume 挂载后的 Sandbox 相对路径。
 	CustomPath = "skills/custom"
 )
 

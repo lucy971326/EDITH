@@ -3,6 +3,8 @@ package skills
 import (
 	"testing"
 	"testing/fstest"
+
+	"edith/backend-v2/internal/volume"
 )
 
 func TestLoadCatalogSortsAndUsesEdithFallback(t *testing.T) {
@@ -49,12 +51,18 @@ func TestLoadCatalogRejectsDuplicateNames(t *testing.T) {
 }
 
 func TestNewLoadsBuiltInSkills(t *testing.T) {
-	module, err := New()
+	module, err := New(Dependencies{Volumes: &volume.Service{}})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 	summaries := module.Catalog.ListSystemSummaries()
 	if len(summaries) != 2 || summaries[0].Name != "current-time" || summaries[1].Name != "skill-creator" {
 		t.Fatalf("unexpected built-in summaries: %#v", summaries)
+	}
+}
+
+func TestNewRequiresVolumes(t *testing.T) {
+	if _, err := New(Dependencies{}); err == nil {
+		t.Fatal("New accepted nil volume service")
 	}
 }

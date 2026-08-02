@@ -78,6 +78,13 @@ func (c *runConfigurations) Load(request Request) (*configuredRun, *Error) {
 	if err != nil {
 		return nil, internalError("open MCP tools", err)
 	}
+	userOverview, err := c.skills.ReadUserOverview(ctx, request.UserID)
+	if err != nil {
+		if closeMCP != nil {
+			_ = closeMCP()
+		}
+		return nil, internalError("read user skill overview", err)
+	}
 
 	run := usage.Run{
 		RequestID: request.RequestID,
@@ -90,7 +97,7 @@ func (c *runConfigurations) Load(request Request) (*configuredRun, *Error) {
 		modelID:           request.ModelID,
 		apiKey:            apiKey,
 		globalInstruction: "你是 EDITH AI Agent智能助手\n\n" + personality,
-		instruction:       skillInstruction(c.skills.ListSystemSummaries()),
+		instruction:       skillInstruction(c.skills.ListSystemSummaries(), userOverview),
 		additionalTools:   mcpTools,
 	})
 	return &configuredRun{
@@ -104,16 +111,24 @@ func (c *runConfigurations) Load(request Request) (*configuredRun, *Error) {
 	}, nil
 }
 
-// skillInstruction 把内置 Skill 摘要拼成一次运行的 Instruction。
-// 这里只注入 name 和 description，完整 Skill 正文留给后续按需加载。
-func skillInstruction(summaries []skills.SkillSummary) string {
-	if len(summaries) == 0 {
+// skillInstruction 把公共和用户 Skill 摘要拼成一次运行的 Instruction。
+// 这里只注入摘要，完整 Skill 正文留给 Agent 通过 Sandbox 按需加载。
+func skillInstruction(summaries []skills.SkillSummary, userOverview string) string {
+	if len(summaries) == 0 && strings.TrimSpace(userOverview) == "" {
 		return ""
 	}
-	lines := make([]string, 0, len(summaries)+1)
-	lines = append(lines, "可用 Skills：")
+	lines := make([]string, 0, len(summaries)+4)
+	if len(summaries) > 0 {
+		lines = append(lines, "可用公共 Skills：")
+	}
 	for _, summary := range summaries {
 		lines = append(lines, fmt.Sprintf("- %s：%s", summary.Name, summary.Description))
+	}
+	if overview := strings.TrimSpace(userOverview); overview != "" {
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, "可用用户 Skills：", overview)
 	}
 	lines = append(lines, fmt.Sprintf("完整 Skill 文件和资源位于 Sandbox 工作区：公共 Skills %s/<skill-name>/，用户 Skills %s/<skill-name>/。需要完整规则或资源时，通过 Sandbox 文件工具读取对应目录。", skills.SystemPath, skills.CustomPath))
 	return strings.Join(lines, "\n")
