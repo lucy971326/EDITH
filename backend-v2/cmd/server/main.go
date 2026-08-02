@@ -172,6 +172,7 @@ func main() {
 	imageModule.HTTP.Register(mux)
 	conversations.HTTP.Register(mux)
 	cronJobs.HTTP.Register(mux)
+	skillModule.HTTP.Register(mux)
 	web.Register(mux)
 
 	go cronScheduler.Run(shutdown)

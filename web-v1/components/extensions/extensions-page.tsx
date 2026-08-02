@@ -3,6 +3,7 @@
 import { PageSidebar } from "@/components/page-sidebar";
 
 import { MCPServers } from "./mcp-servers";
+import { Skills } from "./skills";
 
 // ExtensionsPage 展示当前阶段的扩展配置入口。
 export function ExtensionsPage() {
@@ -14,7 +15,10 @@ export function ExtensionsPage() {
           <h1 className="text-lg font-semibold text-zinc-900">扩展</h1>
           <p className="mt-0.5 text-sm text-zinc-500">管理 EDITH 可以使用的外部能力。</p>
         </header>
-        <MCPServers />
+        <div className="space-y-6">
+          <Skills />
+          <MCPServers />
+        </div>
       </section>
     </main>
   );

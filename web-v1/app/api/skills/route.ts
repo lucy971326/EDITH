@@ -1,0 +1,28 @@
+import { auth } from "@clerk/nextjs/server";
+
+const runtimeURL = process.env.EDITH_RUNTIME_URL ?? "http://127.0.0.1:8080";
+
+// GET /api/skills 只把当前 Clerk 用户的身份注入 Go Runtime。
+export async function GET() {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const url = new URL("/internal/skills", runtimeURL);
+  url.searchParams.set("userId", userId);
+  return forward(url);
+}
+
+async function forward(url: string | URL) {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    return new Response(response.body, {
+      status: response.status,
+      headers: {
+        "Content-Type": response.headers.get("Content-Type") ?? "application/json",
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch {
+    return Response.json({ error: "EDITH runtime is unavailable" }, { status: 502 });
+  }
+}

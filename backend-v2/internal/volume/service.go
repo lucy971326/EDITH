@@ -3,8 +3,11 @@ package volume
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -37,7 +40,20 @@ func (s *Service) ReadUserOverview(ctx context.Context, userID string) (string, 
 		return "", fmt.Errorf("load user volume: %w", err)
 	}
 
-	opened, err := e2bvolume.Connect(ctx, value.ID, value.Token, e2bvolume.Options{Config: s.config})
+	token, err := s.loadCurrentToken(ctx, value.ID)
+	if err != nil {
+		if isNotFoundVolumeError(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("load current user volume token: %w", err)
+	}
+	if token != value.Token {
+		if err := s.store.updateToken(ctx, value.UserID, token); err != nil {
+			return "", err
+		}
+	}
+
+	opened, err := e2bvolume.Connect(ctx, value.ID, token, e2bvolume.Options{Config: s.config})
 	if err != nil {
 		if isNotFoundVolumeError(err) {
 			return "", nil
@@ -69,11 +85,61 @@ func (s *Service) OpenForUser(ctx context.Context, userID string) (*e2bvolume.Vo
 	if err != nil {
 		return nil, err
 	}
-	opened, err := e2bvolume.Connect(ctx, value.ID, value.Token, e2bvolume.Options{Config: s.config})
+	token, err := s.loadCurrentToken(ctx, value.ID)
+	if err != nil {
+		return nil, err
+	}
+	if token != value.Token {
+		if err := s.store.updateToken(ctx, value.UserID, token); err != nil {
+			return nil, err
+		}
+	}
+	opened, err := e2bvolume.Connect(ctx, value.ID, token, e2bvolume.Options{Config: s.config})
 	if err != nil {
 		return nil, fmt.Errorf("connect user volume: %w", err)
 	}
 	return opened, nil
+}
+
+// loadCurrentToken 从 E2B 控制面读取当前 Volume Token。
+// SDK 的 Connect 不会使用控制面响应里的 Token，因此由 Volume 模块统一取得并持久化。
+func (s *Service) loadCurrentToken(ctx context.Context, volumeID string) (string, error) {
+	endpoint := strings.TrimRight(s.config.APIURL, "/") + "/volumes/" + url.PathEscape(volumeID)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("build volume token request: %w", err)
+	}
+	if s.config.APIKey != "" {
+		request.Header.Set("X-API-Key", s.config.APIKey)
+	}
+	if s.config.AccessToken != "" {
+		request.Header.Set("Authorization", "Bearer "+s.config.AccessToken)
+	}
+	for key, value := range s.config.Headers {
+		if request.Header.Get(key) == "" {
+			request.Header.Set(key, value)
+		}
+	}
+
+	response, err := s.config.ResolvedHTTPClient().Do(request)
+	if err != nil {
+		return "", fmt.Errorf("load current volume token: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= http.StatusMultipleChoices {
+		return "", &e2b.VolumeError{Message: fmt.Sprintf("http %d: load current volume token", response.StatusCode)}
+	}
+
+	var result struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode current volume token: %w", err)
+	}
+	if strings.TrimSpace(result.Token) == "" {
+		return "", errors.New("load current volume token: E2B returned an empty token")
+	}
+	return strings.TrimSpace(result.Token), nil
 }
 
 func (s *Service) getOrCreateUserVolume(ctx context.Context, userID string) (record, error) {

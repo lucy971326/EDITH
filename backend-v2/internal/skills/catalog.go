@@ -29,10 +29,48 @@ func (c *Catalog) ListSystemSummaries() []SkillSummary {
 	return result
 }
 
+// ListUserSummaries 返回当前用户 overview.md 中的自定义 Skill 摘要。
+// overview.md 不存在时返回空列表，不会创建用户 Volume。
+func (c *Catalog) ListUserSummaries(ctx context.Context, userID string) ([]SkillSummary, error) {
+	overview, err := c.ReadUserOverview(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return parseUserOverview(overview), nil
+}
+
 // ReadUserOverview 返回当前用户的自定义 Skill 摘要原文。
 // 完整 Skill 正文仍由 Agent 通过 Sandbox 按需读取。
 func (c *Catalog) ReadUserOverview(ctx context.Context, userID string) (string, error) {
 	return c.volumes.ReadUserOverview(ctx, userID)
+}
+
+// parseUserOverview 解析 sync_overview.py 生成的 Skill 摘要列表。
+// 标题、说明和路径等 Markdown 行不会被当作 Skill 项。
+func parseUserOverview(content string) []SkillSummary {
+	result := make([]SkillSummary, 0)
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "- `") {
+			continue
+		}
+
+		remaining := strings.TrimPrefix(line, "- `")
+		endName := strings.IndexByte(remaining, '`')
+		if endName <= 0 {
+			continue
+		}
+		name := strings.TrimSpace(remaining[:endName])
+		description := strings.TrimSpace(remaining[endName+1:])
+		description = strings.TrimSpace(strings.TrimPrefix(description, "："))
+		description = strings.TrimSpace(strings.TrimPrefix(description, ":"))
+		if name == "" || description == "" {
+			continue
+		}
+		result = append(result, SkillSummary{Name: name, Description: description})
+	}
+	sort.Slice(result, func(left, right int) bool { return result[left].Name < result[right].Name })
+	return result
 }
 
 // loadCatalog 扫描并加载 Skills 文件，返回只读目录。

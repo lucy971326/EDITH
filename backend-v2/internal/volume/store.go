@@ -50,3 +50,16 @@ func (s *store) save(ctx context.Context, value record) error {
 	}
 	return nil
 }
+
+// updateToken 更新 E2B 返回的最新 Volume Token。
+func (s *store) updateToken(ctx context.Context, userID, token string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE user_volumes
+		SET volume_token = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE user_id = ?
+	`, token, userID)
+	if err != nil {
+		return fmt.Errorf("update user volume token: %w", err)
+	}
+	return nil
+}

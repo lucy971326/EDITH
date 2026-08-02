@@ -87,7 +87,7 @@ EDITH 的 Skills 分为两类，来源和生命周期完全不同：
                                            └─► Sandbox / Tools
 ```
 
-## Web 端入口：扩展（后续）
+## Web 端入口：扩展
 
 前端导航中新增一个与“新对话”和“定时任务”并列的“扩展”入口：
 
@@ -160,13 +160,15 @@ Clerk 用户 B ──► Volume B ──► 用户 B 的所有 Sandbox
 
 它不会进入公共 Template，也不会被其他用户看到。
 
-用户 Skills 在“扩展 → Skills”页面中可以：
+当前“扩展 → Skills”页面只读展示：
 
 ```text
-展示 ── 开关 ── 编辑
+公共 Skills ──┐
+              ├─ Skills HTTP → overview.md → 页面卡片
+用户 Skills ──┘
 ```
 
-开关状态按用户保存；编辑只允许修改用户自己的 Skill 文件。
+本期不做开关、编辑和详情页；后续管理能力仍需通过用户 Volume 修改源文件，再重新生成 `overview.md`。
 
 ### AgentRun
 
@@ -239,18 +241,16 @@ Skills.Catalog
   ├─ 读取公共 Skills
   └─ 通过 Volume.Service 读取用户 Volume 的 /overview.md
       ▼
-返回 Skill 摘要列表
+解析为公共 / 用户 Skill 摘要列表
 ```
 
-查看 Skill 详情时再读取完整内容：
+当前只提供列表接口：
 
 ```text
-GET /api/skills/{id}          → 读取内容
-PUT /api/skills/{id}          → 写回用户 Volume
-PUT /api/skills/{id}/enabled  → 修改用户启用状态
+GET /api/skills → { system: SkillListItem[], custom: SkillListItem[] }
 ```
 
-这里只读取 Volume，不为了展示页面而创建 Sandbox。公共 Skill 的状态固定为 `enabled=true`、`editable=false`；用户 Skill 的状态和编辑权限按用户隔离。
+这里只读取 Volume，不为了展示页面而创建 Sandbox，也不向浏览器暴露 Volume ID、Token 或完整 Skill 正文。
 
 ## Skill 加载时机
 
@@ -334,7 +334,7 @@ current-time   指导 Agent 在需要当前时间时调用 get_current_time
 skill-creator  指导 Agent 创建和维护用户 Skill
 ```
 
-公共 Skills 已接入 AgentRun；用户 Skill 的 HTTP CRUD 和 Web 编辑页面仍属于后续阶段。
+公共 Skills 已接入 AgentRun；用户 Skills 摘要已经可以通过 Skills HTTP 在扩展页面只读展示。
 
 ### 当前阶段：接入用户 Skills 摘要
 

@@ -26,10 +26,10 @@ func TestReadUserOverviewWithoutVolumeReturnsEmpty(t *testing.T) {
 }
 
 func TestReadUserOverviewReadsExistingVolume(t *testing.T) {
-	server := newVolumeContentTestServer(t, http.StatusOK, []byte("# 用户 Skills\n- daily-summary"))
+	server := newVolumeContentTestServer(t, http.StatusOK, []byte("# 用户 Skills\n- daily-summary"), "fresh-token")
 	db := openVolumeTestDB(t, "overview-read")
 	store := &store{db: db}
-	if err := store.save(context.Background(), record{UserID: "user-1", ID: "vol-1", Name: "vol-1", Token: "token-1"}); err != nil {
+	if err := store.save(context.Background(), record{UserID: "user-1", ID: "vol-1", Name: "vol-1", Token: "stale-token"}); err != nil {
 		t.Fatal(err)
 	}
 	service := &Service{store: store, config: e2b.Config{APIURL: server.URL, APIKey: "test-key"}}
@@ -41,10 +41,17 @@ func TestReadUserOverviewReadsExistingVolume(t *testing.T) {
 	if overview != "# 用户 Skills\n- daily-summary" {
 		t.Fatalf("overview = %q", overview)
 	}
+	value, err := store.load(context.Background(), "user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value.Token != "fresh-token" {
+		t.Fatalf("stored token = %q, want refreshed token", value.Token)
+	}
 }
 
 func TestReadUserOverviewMissingFileReturnsEmpty(t *testing.T) {
-	server := newVolumeContentTestServer(t, http.StatusNotFound, nil)
+	server := newVolumeContentTestServer(t, http.StatusNotFound, nil, "token-1")
 	db := openVolumeTestDB(t, "overview-missing")
 	store := &store{db: db}
 	if err := store.save(context.Background(), record{UserID: "user-1", ID: "vol-1", Name: "vol-1", Token: "token-1"}); err != nil {
@@ -62,7 +69,7 @@ func TestReadUserOverviewMissingFileReturnsEmpty(t *testing.T) {
 }
 
 func TestReadUserOverviewPropagatesRemoteError(t *testing.T) {
-	server := newVolumeContentTestServer(t, http.StatusInternalServerError, []byte("failed"))
+	server := newVolumeContentTestServer(t, http.StatusInternalServerError, []byte("failed"), "token-1")
 	db := openVolumeTestDB(t, "overview-error")
 	store := &store{db: db}
 	if err := store.save(context.Background(), record{UserID: "user-1", ID: "vol-1", Name: "vol-1", Token: "token-1"}); err != nil {
@@ -90,16 +97,19 @@ func openVolumeTestDB(t *testing.T, name string) *sql.DB {
 	return db
 }
 
-func newVolumeContentTestServer(t *testing.T, fileStatus int, body []byte) *httptest.Server {
+func newVolumeContentTestServer(t *testing.T, fileStatus int, body []byte, volumeToken string) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
 		case "/volumes/vol-1":
 			writer.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(writer).Encode(map[string]string{"volumeID": "vol-1", "name": "vol-1"})
+			_ = json.NewEncoder(writer).Encode(map[string]string{"volumeID": "vol-1", "name": "vol-1", "token": volumeToken})
 		case "/volumecontent/vol-1/file":
 			if request.URL.Query().Get("path") != UserOverviewPath {
 				t.Errorf("overview path = %q, want %q", request.URL.Query().Get("path"), UserOverviewPath)
+			}
+			if request.Header.Get("Authorization") != "Bearer "+volumeToken {
+				t.Errorf("volume token = %q, want %q", request.Header.Get("Authorization"), "Bearer "+volumeToken)
 			}
 			writer.WriteHeader(fileStatus)
 			_, _ = writer.Write(body)

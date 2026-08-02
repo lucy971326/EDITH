@@ -67,5 +67,6 @@ ReadUserOverview(ctx, userID) (string, error)
 
 只读取已有用户 Volume 根目录的 `/overview.md`，不会因为普通对话创建远端 Volume。
 用户没有 Volume 或 overview.md 不存在时返回空内容，其他远程错误继续返回。
+连接内容服务前会从 E2B 控制面读取当前 Volume Token，并回写 SQLite；数据库里的 Token 只作记录，不能当作永久凭据。
 
 Skills 模块只依赖这个方法，不直接依赖 E2B SDK。Volume 本身暂时没有 HTTP；前端需要展示 Skills 时，由 Skills HTTP 调用这个 Service。

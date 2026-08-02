@@ -6,10 +6,13 @@ Skills 模块负责加载公共 Skills，并读取当前用户的自定义 Skill
 main.go
   └─ skills.New({Volumes})
        └─ Module
-            └─ Catalog
-                 ├─ 启动加载 system Skills
-                 ├─ ReadSystemSummaries() → AgentRun
-                 └─ ReadUserOverview(userID) → Volume.Service
+            ├─ Catalog
+            │    ├─ 启动加载 system Skills
+            │    ├─ ListSystemSummaries() → AgentRun / HTTP
+            │    ├─ ReadUserOverview(userID) → Volume.Service
+            │    └─ ListUserSummaries(userID) → HTTP
+            └─ HTTP
+                 └─ GET /internal/skills → Web BFF
 ```
 
 ## 文件来源
@@ -55,12 +58,30 @@ AgentRun.Load(userID)
 ```go
 ListSystemSummaries() []SkillSummary
 ReadUserOverview(ctx, userID) (string, error)
+ListUserSummaries(ctx, userID) ([]SkillSummary, error)
+HTTP.Register(mux)
 ```
 
 - 公共 Skills 在启动时解析并保存在内存中。
 - 用户没有 Volume 或 overview.md 时，用户摘要为空。
 - Volume 的 E2B 连接、Token 和路径细节由 `Volume.Service` 隐藏。
-- Skills 不创建 Runner、不直接依赖 E2B、不注册 HTTP 路由。
+- Skills 不创建 Runner、不直接依赖 E2B；Skills 的 HTTP 只提供只读列表。
+
+## Web 列表
+
+```text
+GET /internal/skills?userId=xxx
+  └─ { system: SkillListItem[], custom: SkillListItem[] }
+```
+
+用户 Skills 列表来自 `overview.md`，只解析脚本生成的 `name + description` 摘要；不会扫描 Volume、创建 Volume 或读取完整 Skill 正文。
+
+Next BFF 将 Clerk 用户身份注入后转发为：
+
+```text
+GET /api/skills
+  └─ 扩展页面展示公共 Skills 和用户 Skills
+```
 
 ## skill-creator
 

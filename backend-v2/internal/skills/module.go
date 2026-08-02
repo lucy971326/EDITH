@@ -12,9 +12,9 @@ import (
 var systemFiles embed.FS
 
 // Module 是 Skills 模块对外能力的集合。
-// 当前只公开 Catalog，未来可在这里增加 HTTP 等独立入口。
 type Module struct {
 	Catalog *Catalog
+	HTTP    *HTTP
 }
 
 // Dependencies 是创建 Skills 模块需要的其他模块能力。
@@ -33,5 +33,5 @@ func New(deps Dependencies) (*Module, error) {
 		return nil, fmt.Errorf("load built-in skills: %w", err)
 	}
 	catalog.volumes = deps.Volumes
-	return &Module{Catalog: catalog}, nil
+	return &Module{Catalog: catalog, HTTP: &HTTP{catalog: catalog}}, nil
 }
