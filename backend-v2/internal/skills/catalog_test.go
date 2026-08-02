@@ -66,3 +66,29 @@ func TestNewRequiresVolumes(t *testing.T) {
 		t.Fatal("New accepted nil volume service")
 	}
 }
+
+func TestParseUserOverview(t *testing.T) {
+	overview := "# 用户 Skills 总览\n\n" +
+		"以下内容由脚本生成，请勿手动修改。\n\n" +
+		"- `daily-summary`：生成每日总结。\n" +
+		"  - 路径：`skills/custom/daily-summary/SKILL.md`\n" +
+		"- `weekly-review`: 生成每周复盘。\n"
+
+	got := parseUserOverview(overview)
+	if len(got) != 2 {
+		t.Fatalf("parseUserOverview() returned %d items, want 2: %#v", len(got), got)
+	}
+	if got[0] != (SkillSummary{Name: "daily-summary", Description: "生成每日总结。"}) {
+		t.Fatalf("first summary = %#v", got[0])
+	}
+	if got[1] != (SkillSummary{Name: "weekly-review", Description: "生成每周复盘。"}) {
+		t.Fatalf("second summary = %#v", got[1])
+	}
+}
+
+func TestParseUserOverviewIgnoresInvalidLines(t *testing.T) {
+	got := parseUserOverview("# 用户 Skills 总览\n- `broken`\n- 路径：`skills/custom/broken/SKILL.md`\n")
+	if len(got) != 0 {
+		t.Fatalf("parseUserOverview() returned invalid items: %#v", got)
+	}
+}

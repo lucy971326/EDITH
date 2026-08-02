@@ -26,6 +26,18 @@ type SkillSummary struct {
 	Description string
 }
 
+// SkillListItem 是浏览器展示的 Skill 摘要。
+type SkillListItem struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// SkillsResponse 是 Skills 列表 HTTP 输出。
+type SkillsResponse struct {
+	System []SkillListItem `json:"system"`
+	Custom []SkillListItem `json:"custom"`
+}
+
 type skillFrontmatter struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
