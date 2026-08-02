@@ -17,7 +17,8 @@ Service.Run(request)
 │  ├─ Models     → Definition + Model 能力
 │  ├─ Providers  → API Key
 │  ├─ MCP        → additional tools
-│  └─ Images     → 本次消息图片 URL
+│  ├─ Images     → 本次消息图片 URL
+│  └─ Skills     → 内置 Skill 摘要
 │       ▼
 │  configuredRun{Message, Options, Context, ...}
 ├─ Usage.Start
@@ -46,6 +47,8 @@ Dependencies（main 创建 AgentRun 时传入）
 ├─ Providers *userconfig.Providers
 ├─ MCP       *userconfig.MCP
 ├─ Images    *images.AgentInput
+├─ Skills    *skills.Catalog
+│  └─ 内置 Skill 摘要目录
 └─ Usage     *usage.Recorder
 
 Service（对外公开）
@@ -79,6 +82,7 @@ Load(Request) → configuredRun
 ├─ Settings.LoadPersonality
 ├─ Images.AddMessageImages
 ├─ MCP.OpenTools → tools + closeMCP
+├─ Skills.ListSystemSummaries → Skill 摘要
 ├─ frameworkRunOptions → []agent.RunOption
 └─ 返回完整 configuredRun
 ```
@@ -179,7 +183,7 @@ frameworkRunOptions(runOptionInput)
 ├─ ModelName
 ├─ Authorization header
 ├─ GlobalInstruction + personality
-├─ 当前时间工具指令
+├─ 一次 WithInstruction：内置 Skill 摘要 + 资源路径说明
 └─ additionalTools（MCP）
 ```
 

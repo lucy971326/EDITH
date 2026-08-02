@@ -18,6 +18,7 @@ import (
 	"edith/backend-v2/internal/images"
 	"edith/backend-v2/internal/models"
 	"edith/backend-v2/internal/sandbox"
+	"edith/backend-v2/internal/skills"
 	"edith/backend-v2/internal/systemtools"
 	"edith/backend-v2/internal/tools"
 	"edith/backend-v2/internal/usage"
@@ -79,6 +80,11 @@ func main() {
 		log.Fatalf("创建 Sandbox 模块: %v", err)
 	}
 
+	skillModule, err := skills.New()
+	if err != nil {
+		log.Fatalf("创建 Skills 模块: %v", err)
+	}
+
 	cronJobs, err := cronjob.New(cronjob.Dependencies{DB: appDB, Settings: users.Settings})
 	if err != nil {
 		log.Fatalf("创建定时任务模块: %v", err)
@@ -128,6 +134,7 @@ func main() {
 		Providers: users.Providers,
 		MCP:       users.MCP,
 		Images:    imageModule.AgentInput,
+		Skills:    skillModule.Catalog,
 		Usage:     usageModule.Recorder,
 	})
 	if err != nil {

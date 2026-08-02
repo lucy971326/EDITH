@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"edith/backend-v2/internal/images"
 	"edith/backend-v2/internal/models"
+	"edith/backend-v2/internal/skills"
 	"edith/backend-v2/internal/usage"
 	"edith/backend-v2/internal/userconfig"
 
@@ -14,13 +16,14 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/model"
 )
 
-// runConfigurations 聚合模型、用户设置、MCP 和图片配置。
+// runConfigurations 聚合模型、用户设置、MCP、图片和 Skills 配置。
 type runConfigurations struct {
 	models    *models.Catalog
 	settings  *userconfig.Settings
 	providers *userconfig.Providers
 	mcp       *userconfig.MCP
 	images    *images.AgentInput
+	skills    *skills.Catalog
 }
 
 // configuredRun 是已经可以交给 ManagedRunner 的一次运行。
@@ -87,6 +90,7 @@ func (c *runConfigurations) Load(request Request) (*configuredRun, *Error) {
 		modelID:           request.ModelID,
 		apiKey:            apiKey,
 		globalInstruction: "你是 EDITH AI Agent智能助手\n\n" + personality,
+		instruction:       skillInstruction(c.skills.ListSystemSummaries()),
 		additionalTools:   mcpTools,
 	})
 	return &configuredRun{
@@ -98,6 +102,21 @@ func (c *runConfigurations) Load(request Request) (*configuredRun, *Error) {
 		options:    options,
 		closeMCP:   closeMCP,
 	}, nil
+}
+
+// skillInstruction 把内置 Skill 摘要拼成一次运行的 Instruction。
+// 这里只注入 name 和 description，完整 Skill 正文留给后续按需加载。
+func skillInstruction(summaries []skills.SkillSummary) string {
+	if len(summaries) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(summaries)+1)
+	lines = append(lines, "可用 Skills：")
+	for _, summary := range summaries {
+		lines = append(lines, fmt.Sprintf("- %s：%s", summary.Name, summary.Description))
+	}
+	lines = append(lines, fmt.Sprintf("完整 Skill 文件和资源位于 Sandbox 工作区：公共 Skills %s/<skill-name>/，用户 Skills %s/<skill-name>/。需要完整规则或资源时，通过 Sandbox 文件工具读取对应目录。", skills.SystemPath, skills.CustomPath))
+	return strings.Join(lines, "\n")
 }
 
 // Close 释放配置加载阶段建立的 MCP 连接。
