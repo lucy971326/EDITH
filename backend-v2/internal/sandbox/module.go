@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"edith/backend-v2/internal/volume"
 	"github.com/eric642/e2b-go-sdk"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 )
@@ -19,6 +20,7 @@ const connectTimeout = 10 * time.Minute
 type Dependencies struct {
 	DB       *sql.DB
 	Template string
+	Volumes  *volume.Service
 }
 
 // Module 是 Sandbox 功能的公开入口；Tools 供 tools 聚合模块收集。
@@ -35,6 +37,9 @@ func New(deps Dependencies) (*Module, error) {
 	if template == "" {
 		return nil, errors.New("sandbox requires an E2B template")
 	}
+	if deps.Volumes == nil {
+		return nil, errors.New("sandbox requires a volume service")
+	}
 	if err := createSchema(context.Background(), deps.DB); err != nil {
 		return nil, err
 	}
@@ -42,6 +47,6 @@ func New(deps Dependencies) (*Module, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create E2B client: %w", err)
 	}
-	workspaces := &service{db: deps.DB, client: client, template: template}
+	workspaces := &service{db: deps.DB, client: client, template: template, volumes: deps.Volumes}
 	return &Module{Tools: &toolSet{workspaces: workspaces}}, nil
 }

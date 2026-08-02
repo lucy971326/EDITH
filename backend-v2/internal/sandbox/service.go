@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"edith/backend-v2/internal/volume"
 	"github.com/eric642/e2b-go-sdk"
 )
 
@@ -15,6 +16,7 @@ type service struct {
 	db       *sql.DB
 	client   *e2b.Client
 	template string
+	volumes  *volume.Service
 }
 
 // Workspace 为当前用户会话返回可恢复的 E2B Sandbox；首次调用才会创建远端资源。
@@ -38,7 +40,11 @@ func (s *service) Workspace(ctx context.Context, userID, sessionID string) (*e2b
 	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("load sandbox: %w", err)
 	}
-	workspace, err := s.client.Create(ctx, e2b.CreateOptions{Template: s.template, Timeout: connectTimeout, Secure: true, Metadata: map[string]string{"edith_user_id": userID, "edith_session_id": sessionID}, Lifecycle: &e2b.LifecycleOptions{OnTimeout: "pause", AutoResume: true}})
+	mount, err := s.volumes.MountForUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("prepare user volume: %w", err)
+	}
+	workspace, err := s.client.Create(ctx, e2b.CreateOptions{Template: s.template, Timeout: connectTimeout, Secure: true, Metadata: map[string]string{"edith_user_id": userID, "edith_session_id": sessionID}, Lifecycle: &e2b.LifecycleOptions{OnTimeout: "pause", AutoResume: true}, VolumeMounts: []e2b.VolumeMount{{Name: mount.Name, Path: mount.Path}}})
 	if err != nil {
 		return nil, fmt.Errorf("create sandbox: %w", err)
 	}
