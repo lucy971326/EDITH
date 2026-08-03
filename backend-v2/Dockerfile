@@ -3,6 +3,8 @@
 # golang image ships with it; keep CGO_ENABLED=1.
 FROM golang:1.26 AS builder
 WORKDIR /src
+# proxy.golang.org 国内直连被墙，换 goproxy.cn
+ENV GOPROXY=https://goproxy.cn,direct
 
 # cache module downloads
 COPY go.mod go.sum ./

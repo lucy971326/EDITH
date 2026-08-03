@@ -1,6 +1,8 @@
 # --- deps -------------------------------------------------------------------
 FROM node:22-alpine AS deps
 WORKDIR /app
+# npm 官方源国内慢，换 npmmirror
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 COPY package.json package-lock.json ./
 RUN npm ci
 
