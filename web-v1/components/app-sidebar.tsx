@@ -36,7 +36,10 @@ export function AppSidebar({ children, footer }: AppSidebarProps) {
           </button>
         ) : (
           <>
-            <span className="font-semibold">EDITH</span>
+            <span className="flex items-center gap-2 font-semibold">
+              <img alt="EDITH" className="size-7 rounded-lg" src="/icon.svg" />
+              EDITH
+            </span>
             <button
               aria-expanded="true"
               aria-label="折叠侧边栏"

@@ -1,171 +1,147 @@
 # EDITH
 
-> **中文** | [English](README.md)
+[English](README.md) · 一个面向多用户的可扩展服务端 AI Agent 平台。
 
-一个面向多用户的服务端 Agent MVP：Web 登录、流式对话、会话隔离、Sandbox 工作区，以及用户自带 Telegram Bot 接入。
+EDITH 不只是一个聊天页面，而是一个可长期演进的**多用户服务端 Agent 平台**：每位用户拥有独立身份、配置、会话、Sandbox 与 Skill Volume；用户可与模型对话、让 Agent 使用工具与持久化沙箱、把可复用的方法沉淀为 Skill、定时自动执行任务，并在每个会话中保留工作文件。
 
-## 名字来源
+> 当前以 Web 为第一个用户渠道；飞书、Telegram、GitHub App 等 IM 渠道留待后续接入。
 
-EDITH 致敬《蜘蛛侠：英雄远征》中的 AI 系统 **E.D.I.T.H.**：
+## 项目特点
 
-> **Even Dead, I’m The Hero.**
+- **真正的 Agent 运行时**：所有请求先进入唯一 Gateway，再由 AgentRun 聚合配置，最终交给 `ManagedRunner` 执行。
+- **多用户隔离**：Clerk 用户身份贯穿请求、会话、配置、Sandbox、Volume 与定时任务，用户之间不共享运行空间或凭据。
+- **有状态的工作区**：每个会话拥有独立 E2B Sandbox，可执行命令、管理文件、上传原始资料并产出交付文件。
+- **跨会话复用 Skills**：公共 Skill 随 EDITH 发布；用户 Skill 保存在自己的 E2B Volume 中，可跨新会话继续使用。
+- **不止聊天，还能自动化**：定时任务和 Web 对话走同一个 Agent 入口，执行结果自然沉淀为会话历史。
+- **长对话可持续**：当会话接近当前模型上下文窗口的 40% 时，框架自动生成滚动摘要；完整历史仍永久保留。
+- **面向产品的界面**：深浅主题、紧凑的思考/工具卡片、会话导航、MCP 管理、Skills 展示与会话文件工作区。
 
-这个项目借鉴的不是电影设定，而是它的核心意象：AI 不只负责聊天，也能理解任务、调用工具，并在受控工作区中真正完成事情。
+## 实拍图
 
-## 当前能力
+![对话工作台](docs/assets/screenshots/chat-workspace.png)
 
-- Clerk 登录后使用 EDITH；浏览器提交的 `user_id` 不被信任，由 Next.js BFF 从登录态注入。
-- Web 流式对话：模型选择、思考过程、工具调用、历史会话加载。
-- 图片直接作为视觉输入发送给支持视觉的模型。
-- 普通文件上传到当前会话的 Sandbox；Agent 可处理它们。
-- 工作区文件树：查看 Agent 生成的文件并下载。
-- Local / E2B 两种 Sandbox 后端。
-- 系统 Skills：公共、只读的 Skills 随 E2B Template 预装；Agent 按需读取完整说明后执行。
-- 用户级 Skills：EDITH 可为每位用户创建私有、持久保存的 Skills；在 Local 与 E2B 模式下均可跨会话使用。
-- 用户在页面填写自己的 Telegram Bot Token；后端注册 Webhook，消息进入该用户的 Agent 空间。
-- GitHub MCP 工具集。
+![扩展中心](docs/assets/screenshots/extensions.png)
 
-![EDITH 主界面](asset/主界面.png)
+![定时任务](docs/assets/screenshots/scheduled-tasks.png)
 
-## 架构
+![Sandbox 文件区](docs/assets/screenshots/sandbox-files.png)
+
+![设置](docs/assets/screenshots/settings.png)
+
+## 已实现功能
+
+### Agent 对话
+
+- 流式回复、思考过程与工具调用卡片
+- 基于 Request ID 的运行状态查询与中断
+- 会话级并发保护
+- 多模型供应商配置，以及聊天内临时切换模型
+- 图片输入与历史图片水合
+- 按模型上下文窗口比例触发的滚动会话摘要
+
+### Sandbox 文件工作区
+
+- 每个 `user_id + session_id` 拥有独立 E2B Sandbox
+- 在聊天页查看当前会话的文件树
+- 上传原始资料到 `/uploads`
+- Agent 可读取、处理、生成与整理文件
+- 从 `/artifacts` 下载 Agent 产出的交付物
+
+### Skills 与扩展
+
+- 随服务内置、并挂载进每个 Sandbox 的公共 Skills
+- 保存在用户持久化 E2B Volume 中的自定义 Skills
+- `overview.md` 同时为 Agent 上下文和扩展页提供稳定、低成本的 Skill 摘要
+- 可在界面中配置、启停和管理远程 HTTP MCP 服务
+
+### 定时任务
+
+- 一次性任务与周期性 Cron 任务
+- 用户时区与默认模型
+- 原子抢占，避免同一任务重复执行
+- 每次任务执行通过同一个 Gateway，并在独立会话中保存结果
+
+## 架构一眼看懂
+
+EDITH 将渠道、执行与基础设施分开；核心运行主链路很短：
 
 ```text
-Web Browser
-    │ Clerk 登录
-    ▼
-Next.js BFF
-    │ 从登录态注入可信 user_id
-    ▼
-Go Backend
-    │ Gateway → Runner.Run(APPName, user_id, session_id)
-    ▼
-Agent + Tools + Local / E2B Sandbox
+WebAdapter / CronAdapter / 未来 IM Adapter
+                    │
+                    ▼
+                Gateway
+          身份确认与请求边界
+                    │
+                    ▼
+                AgentRun
+  模型 + MCP + Skills + 图片 + 工具 + 参数聚合
+                    │
+                    ▼
+             ManagedRunner
+                    │
+                    ▼
+          中性 Agent 流式事件
 ```
+
+后端按显式模块组织。每个模块管理自己的存储、自己的 HTTP 边界（若需要），并暴露自己的公开能力；`main.go` 只负责创建模块和连接模块能力。
 
 ```text
-用户自己的 Telegram Bot
-    │ Webhook: /webhook/telegram/{routeKey}
-    ▼
-TelegramService
-    │ routeKey → ownerUserID + Telegram Client
-    ▼
-Gateway → Runner → Agent
-    │
-    └── 使用同一个 Bot Client 回复消息
+backend-v2/
+├─ cmd/server/          组合根与进程启动
+├─ internal/agentrun/   聚合 RunOptions，执行 ManagedRunner
+├─ internal/gateway/    统一 Agent 请求入口
+├─ internal/webadapter/ Web 请求与 SSE 适配器
+├─ internal/cronjob/    Cron 存储与调度器
+├─ internal/cronadapter/ 定时执行适配器
+├─ internal/sandbox/    E2B Sandbox 生命周期、文件、上传下载 HTTP
+├─ internal/volume/     用户级持久化 E2B Volume
+├─ internal/skills/     公共与用户 Skill 目录
+├─ internal/tools/      Agent ToolSet 注册表
+├─ internal/userconfig/ 用户设置、供应商、MCP 与绑定
+├─ internal/conversation/ 历史会话投影
+└─ internal/agentstream/ 框架事件 → 中性流式事件
 ```
 
-核心隔离边界：
+完整的架构心智模型见：[Go架构心智模型.md](backend-v2/Go架构心智模型.md)。
 
-```text
-APPName + user_id + session_id
-```
+## 技术栈
 
-## 目录
-
-```text
-.
-├── backend/      Go 后端：Agent、Gateway、Sandbox、Telegram、HTTP API
-├── web/          Next.js：Clerk、聊天页、BFF、SSE
-├── docs/         EDITH 架构设计与学习笔记
-├── .claude/      项目级 Agent / Skill 配置
-└── .codex/       项目级 Agent / Skill 配置
-```
+- 后端：Go、`trpc-agent-go`、SQLite
+- 前端：Next.js、React、TypeScript、Tailwind CSS
+- 身份认证：Clerk
+- Agent 工作区与持久化 Skills：E2B Sandbox + Volume
 
 ## 本地启动
 
-### 1. 准备配置
+1. 配置 Clerk、模型供应商与 E2B 所需环境变量。
+2. 启动后端：
 
-在两个目录中分别复制环境变量模板：
+   ```powershell
+   cd backend-v2
+   go run ./cmd/server
+   ```
 
-```powershell
-Copy-Item backend/.env.example backend/.env
-Copy-Item web/.env.example web/.env
-```
+3. 在另一个终端启动 Web：
 
-然后填写：
+   ```powershell
+   cd web-v1
+   npm install
+   npm run dev
+   ```
 
-- `backend/.env`：DeepSeek、MiniMax、GitHub Token；按需配置 E2B 与 Telegram Webhook。
-- `web/.env`：Clerk Publishable Key 与 Secret Key。
+4. 打开 `http://localhost:3000`。
 
-本地 Sandbox 默认可用：
+## 目录说明
 
-```dotenv
-SANDBOX_MODE=local
-```
+| 路径 | 作用 |
+| --- | --- |
+| `backend-v2/` | 当前模块化后端 |
+| `web-v1/` | Next.js Web 工作台 |
+| `e2b-template/` | E2B Sandbox 模板定义 |
+| `docs/` | 产品、架构、协议与设计文档 |
+| `reference/` | 只读的上游源码与文档参考 |
+| `backend-v1/` | 保留用于学习和对比的早期实现 |
 
-### 2. 启动后端
+## 当前状态
 
-```powershell
-cd backend
-go run .
-```
-
-默认地址：`http://127.0.0.1:8080`
-
-### 3. 启动前端
-
-新开一个终端：
-
-```powershell
-cd web
-npm install
-npm run dev
-```
-
-打开：`http://localhost:3000`
-
-## Telegram 接入
-
-1. 在 Telegram 中通过 BotFather 创建 Bot，取得 Bot Token。
-2. 让后端可被公网 HTTPS 访问，例如使用 ngrok。
-3. 在 `backend/.env` 配置：
-
-```dotenv
-TELEGRAM_WEBHOOK_BASE_URL=https://your-public-domain
-```
-
-4. 登录 EDITH，点击右上角 **Telegram**，填入自己的 Bot Token。
-
-后端会验证 Token、生成内部 `routeKey` 并向 Telegram 注册 Webhook。前端不需要知道 `routeKey`。
-
-若本地无法直接访问 Telegram API，可配置代理，记得代理端口要和clash之类的软件上的端口号一致：
-
-```dotenv
-TELEGRAM_PROXY=http://127.0.0.1:7897
-```
-
-![模型选择与 Telegram 配置](asset/模型与Tele配置.png)
-
-## 开发检查
-
-```powershell
-# 需要 GNU Make；Windows 可使用 Git Bash、MSYS2 或 Scoop 安装 make。
-make check
-make build
-```
-
-常用命令：
-
-```text
-make backend-run    启动 Go 后端
-make web-dev        启动 Next.js 开发服务
-make check          后端测试 + 前端 TypeScript 检查
-make build          构建前后端
-```
-
-## 当前 MVP 边界
-
-- Telegram Bot 配置目前仅保存在后端内存中，重启后需要重新填写 Token。
-- 当前不校验 Telegram 消息发送者；收到私聊消息后，会进入该 Bot 所属用户的 Agent 空间。
-- E2B 需要自行填写 API Key；本地开发默认使用 Local Sandbox。
-- `.env`、私钥、运行时工作区和构建产物不应提交到 Git。
-
-## 文档
-
-- [IM 接入设计](docs/IM接入设计.md)
-- [多用户改造计划](docs/多用户改造计划.md)
-- [tRPC-Agent-Go 学习笔记](docs/learn/trpc-agent-go/01-核心心智模型.md)
-
-## License
-
-[MIT](LICENSE)
+多用户服务端 Agent 平台的核心闭环已完成：对话、工具、文件、Skills、自动化、MCP、用户配置和上下文压缩可以协同工作。未来可新增飞书、Telegram、GitHub App 等渠道适配器，而无需改动 Agent 执行核心。

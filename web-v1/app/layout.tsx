@@ -10,6 +10,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "EDITH",
   description: "EDITH Agent Platform",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
