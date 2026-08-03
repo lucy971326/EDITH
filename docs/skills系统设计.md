@@ -1,6 +1,6 @@
 # Skills 系统设计
 
-![](image.png)
+![](assets/skills设计图.png)
 
 ## 一句话
 
