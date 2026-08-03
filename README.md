@@ -4,6 +4,8 @@
 
 EDITH is not a single chat page. It is a long-running **multi-user server-side Agent platform**: each user receives isolated identity, configuration, sessions, Sandboxes, and Skill Volumes while chatting with models, using tools, building reusable skills, scheduling tasks, and retaining session working files.
 
+For a quick experience, visit the [online demo](https://edith.lucyspace.top/).
+
 > Web is the first user channel. IM channels are intentionally left for a future phase.
 
 ## What makes EDITH different

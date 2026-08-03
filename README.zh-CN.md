@@ -4,6 +4,8 @@
 
 EDITH 不只是一个聊天页面，而是一个可长期演进的**多用户服务端 Agent 平台**：每位用户拥有独立身份、配置、会话、Sandbox 与 Skill Volume；用户可与模型对话、让 Agent 使用工具与持久化沙箱、把可复用的方法沉淀为 Skill、定时自动执行任务，并在每个会话中保留工作文件。
 
+如果你想快速体验，请访问：[在线体验](https://edith.lucyspace.top/)。
+
 > 当前以 Web 为第一个用户渠道；飞书、Telegram、GitHub App 等 IM 渠道留待后续接入。
 
 ## 项目特点
