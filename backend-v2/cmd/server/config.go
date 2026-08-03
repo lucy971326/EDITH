@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"os"
 
@@ -11,9 +10,16 @@ import (
 )
 
 // loadEnvironment 加载本地开发配置；进程环境变量优先。
+// 兼容两种布局：backend-v2/.env（旧），或仓库根目录 .env（统一配置）。
+// 在 backend-v2 下 go run 时 ../.env 即根目录；从根目录运行时 .env 即根目录。
 func loadEnvironment() {
-	if err := godotenv.Load(".env"); err != nil && !errors.Is(err, os.ErrNotExist) {
-		log.Fatalf("加载 .env: %v", err)
+	for _, path := range []string{".env", "../.env"} {
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		if err := godotenv.Load(path); err != nil {
+			log.Fatalf("加载 %s: %v", path, err)
+		}
 	}
 }
 

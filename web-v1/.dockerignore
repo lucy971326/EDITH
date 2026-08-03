@@ -1,0 +1,18 @@
+# Secrets — never bake into an image
+.env
+.env.local
+.env*.local
+
+# Build / dependency output
+node_modules
+.next
+
+# VCS / IDE
+.git
+.gitignore
+.idea
+.codex
+.claude
+
+# Temp
+npm-debug.log*

@@ -1,0 +1,19 @@
+# Secrets — never bake into an image
+.env
+
+# Local databases
+*.db
+*.db-shm
+*.db-wal
+
+# VCS / IDE / tooling
+.git
+.gitignore
+.idea
+.codex
+.claude
+
+# Docs and notes not needed to build the binary.
+# NOTE: *.md must stay on disk for go:embed system (SKILL.md inside the skill dirs).
+docs/
+/*.md

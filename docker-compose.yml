@@ -1,0 +1,39 @@
+services:
+  backend:
+    build: ./backend-v2
+    environment:
+      # inside the container the server must listen on all interfaces
+      EDITH_ADDR: 0.0.0.0:8080
+      EDITH_DB_PATH: /app/data/edith-v2.db
+      # external APIs — from root .env (see .env.example)
+      EDITH_E2B_TEMPLATE: ${EDITH_E2B_TEMPLATE:?set in root .env}
+      E2B_API_KEY: ${E2B_API_KEY:?set in root .env}
+      EDITH_COS_BUCKET: ${EDITH_COS_BUCKET:?set in root .env}
+      EDITH_COS_REGION: ${EDITH_COS_REGION:?set in root .env}
+      EDITH_COS_SECRET_ID: ${EDITH_COS_SECRET_ID:?set in root .env}
+      EDITH_COS_SECRET_KEY: ${EDITH_COS_SECRET_KEY:?set in root .env}
+    volumes:
+      - edith-data:/app/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web-v1
+      args:
+        # NEXT_PUBLIC_* are inlined at build time
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:?set in root .env}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/sign-in}
+        NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/sign-up}
+        NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/}
+        NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/}
+    environment:
+      EDITH_RUNTIME_URL: http://backend:8080
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?set in root .env}
+    ports:
+      - "80:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  edith-data:
