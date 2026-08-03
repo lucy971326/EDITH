@@ -1,8 +1,10 @@
 package sandbox
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,6 +68,41 @@ func TestIsPreviewableText(t *testing.T) {
 		if isPreviewableText(data) {
 			t.Fatalf("%v should not be previewable", data)
 		}
+	}
+}
+
+func TestHTTPUploadRejectsEmptyFileBeforeCreatingSandbox(t *testing.T) {
+	db := newSandboxTestDB(t)
+	h := &HTTP{workspaces: &service{db: db}}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	file, err := writer.CreateFormFile("file", "empty.txt")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := file.Write(nil); err != nil {
+		t.Fatalf("write form file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/internal/sandbox/files/upload?userId=user-1&sessionId=session-1", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	h.uploadFile(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHTTPDownloadRejectsNonArtifactPathBeforeConnecting(t *testing.T) {
+	db := newSandboxTestDB(t)
+	h := &HTTP{workspaces: &service{db: db}}
+	recorder := httptest.NewRecorder()
+	h.downloadFile(recorder, httptest.NewRequest(http.MethodGet, "/internal/sandbox/files/download?userId=user-1&sessionId=session-1&path=uploads/source.txt", nil))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusForbidden)
 	}
 }
 

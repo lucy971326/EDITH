@@ -74,6 +74,7 @@ export type ChatRequest = {
 	sessionId: string;
   message: string;
   imageIds: string[];
+  uploadPaths: string[];
   modelId: string;
   reasoningOptionId?: string;
 };

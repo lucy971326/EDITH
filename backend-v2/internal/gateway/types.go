@@ -19,6 +19,7 @@ type IncomingMessage struct {
 	RequestID         string
 	Message           string
 	ImageIDs          []string
+	UploadPaths       []string
 	ModelID           string
 	ReasoningOptionID string
 }

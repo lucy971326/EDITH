@@ -42,6 +42,13 @@ type FileEntry struct {
 	Type string `json:"type"`
 	Size int64  `json:"size"`
 }
+
+// FileUploadResponse 是浏览器上传成功后可交给本次 AgentRun 的路径。
+type FileUploadResponse struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+}
 type listFilesOutput struct {
 	Path    string      `json:"path"`
 	Entries []FileEntry `json:"entries"`

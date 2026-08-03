@@ -58,6 +58,7 @@ func (g *Service) Run(input IncomingMessage) (*Stream, *Error) {
 	return g.agentRuns.Run(agentrun.Request{
 		RequestID: input.RequestID, UserID: userID, SessionID: sessionID,
 		Message: input.Message, ImageIDs: input.ImageIDs, ModelID: input.ModelID,
+		UploadPaths:       input.UploadPaths,
 		ReasoningOptionID: input.ReasoningOptionID,
 	})
 }

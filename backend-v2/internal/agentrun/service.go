@@ -6,6 +6,7 @@ import (
 
 	"edith/backend-v2/internal/images"
 	"edith/backend-v2/internal/models"
+	"edith/backend-v2/internal/sandbox"
 	"edith/backend-v2/internal/skills"
 	"edith/backend-v2/internal/usage"
 	"edith/backend-v2/internal/userconfig"
@@ -21,6 +22,7 @@ type Dependencies struct {
 	Providers *userconfig.Providers
 	MCP       *userconfig.MCP
 	Images    *images.AgentInput
+	Files     *sandbox.AgentInput
 	Skills    *skills.Catalog
 	Usage     *usage.Recorder
 }
@@ -37,8 +39,8 @@ type Service struct {
 // New 创建 AgentRun；内部小结构体在这里直接组装，不泄露给 main。
 func New(deps Dependencies) (*Service, error) {
 	if deps.Runner == nil || deps.Models == nil || deps.Settings == nil ||
-		deps.Providers == nil || deps.MCP == nil || deps.Images == nil || deps.Skills == nil || deps.Usage == nil {
-		return nil, errors.New("agentrun requires runner, models, settings, providers, MCP, images, skills, and usage")
+		deps.Providers == nil || deps.MCP == nil || deps.Images == nil || deps.Files == nil || deps.Skills == nil || deps.Usage == nil {
+		return nil, errors.New("agentrun requires runner, models, settings, providers, MCP, images, files, skills, and usage")
 	}
 	return &Service{
 		runner: deps.Runner,
@@ -48,6 +50,7 @@ func New(deps Dependencies) (*Service, error) {
 			providers: deps.Providers,
 			mcp:       deps.MCP,
 			images:    deps.Images,
+			files:     deps.Files,
 			skills:    deps.Skills,
 		},
 		usage:     deps.Usage,
@@ -115,6 +118,9 @@ func normalizeRequest(request Request) Request {
 	for index := range request.ImageIDs {
 		request.ImageIDs[index] = strings.TrimSpace(request.ImageIDs[index])
 	}
+	for index := range request.UploadPaths {
+		request.UploadPaths[index] = strings.TrimSpace(request.UploadPaths[index])
+	}
 	return request
 }
 
@@ -122,8 +128,8 @@ func validateRequest(request Request) *Error {
 	if request.RequestID == "" || request.UserID == "" || request.SessionID == "" {
 		return &Error{Type: "invalid_request", Message: "requestId, userId, and sessionId are required"}
 	}
-	if request.Message == "" && len(request.ImageIDs) == 0 {
-		return &Error{Type: "invalid_request", Message: "message or imageIds is required"}
+	if request.Message == "" && len(request.ImageIDs) == 0 && len(request.UploadPaths) == 0 {
+		return &Error{Type: "invalid_request", Message: "message, imageIds, or uploadPaths is required"}
 	}
 	return nil
 }

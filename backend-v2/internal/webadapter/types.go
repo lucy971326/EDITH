@@ -9,6 +9,7 @@ type MessageRequest struct {
 	SessionID         string   `json:"sessionId"`
 	Message           string   `json:"message"`
 	ImageIDs          []string `json:"imageIds"`
+	UploadPaths       []string `json:"uploadPaths"`
 	ModelID           string   `json:"modelId"`
 	ReasoningOptionID string   `json:"reasoningOptionId,omitempty"`
 }

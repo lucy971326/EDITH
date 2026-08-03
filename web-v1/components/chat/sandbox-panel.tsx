@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, File, Folder, LoaderCircle, RefreshCw, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, File, Folder, LoaderCircle, RefreshCw, X } from "lucide-react";
 import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import type { SandboxFileContentResponse, SandboxFileEntry, SandboxFilesResponse } from "@/lib/sandbox/type";
@@ -72,6 +72,17 @@ export function SandboxPanel({ sessionID, open }: { sessionID: string; open: boo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sessionID]);
 
+  useEffect(() => {
+    function refresh() {
+      setDirectories({});
+      if (open) void loadDirectory("", true);
+    }
+    window.addEventListener("sandbox-files-updated", refresh);
+    return () => window.removeEventListener("sandbox-files-updated", refresh);
+    // 事件仅由同一页面的上传成功触发，读取当前 session 的根目录即可。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, sessionID]);
+
   async function toggleDirectory(entry: SandboxFileEntry) {
     const next = new Set(expanded);
     if (next.has(entry.path)) {
@@ -129,17 +140,19 @@ export function SandboxPanel({ sessionID, open }: { sessionID: string; open: boo
     return state?.entries?.map((entry) => {
       const isDirectory = entry.type === "directory";
       const isOpen = expanded.has(entry.path);
+      const canDownload = !isDirectory && entry.path.startsWith("artifacts/");
       return <div key={entry.path}>
-        <button
-          className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-100"
+        <div
+          className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-100"
           style={{ paddingLeft: `${8 + depth * 16}px` }}
-          onClick={() => isDirectory ? void toggleDirectory(entry) : void openPreview(entry)}
-          title={entry.path}
         >
+          <button className="flex min-w-0 flex-1 items-center gap-1.5 text-left" onClick={() => isDirectory ? void toggleDirectory(entry) : void openPreview(entry)} title={entry.path}>
           {isDirectory ? (isOpen ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />) : <span className="w-4 shrink-0" />}
           {isDirectory ? <Folder className="size-4 shrink-0 text-amber-500" /> : <File className="size-4 shrink-0 text-zinc-400" />}
-          <span className="truncate">{entry.name}</span>
-        </button>
+          <span className="truncate">{entry.name}{entry.path === "uploads" && <span className="ml-1 text-xs text-zinc-400">用户上传</span>}</span>
+          </button>
+          {canDownload && <a aria-label={`下载 ${entry.name}`} className="rounded p-1 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-900" href={`/api/sandbox/files/download?${new URLSearchParams({ sessionId: sessionID, path: entry.path })}`} title="下载交付文件"><Download className="size-3.5" /></a>}
+        </div>
         {isDirectory && isOpen && renderEntries(entry.path, depth + 1)}
       </div>;
     });
