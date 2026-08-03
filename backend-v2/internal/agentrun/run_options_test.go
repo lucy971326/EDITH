@@ -32,6 +32,14 @@ func TestSkillInstructionIncludesUserOverview(t *testing.T) {
 	}
 }
 
+func TestMessageWithUploadsKeepsAttachmentNamesInHistory(t *testing.T) {
+	got := messageWithUploads("请处理这些文件", []string{"uploads/report.pdf", "uploads/data (2).csv"})
+	want := "请处理这些文件\n\n附件：\n- `report.pdf`\n- `data (2).csv`"
+	if got != want {
+		t.Fatalf("messageWithUploads() = %q, want %q", got, want)
+	}
+}
+
 func TestFrameworkRunOptionsInjectsSkillInstructionOnce(t *testing.T) {
 	runOptions := agent.NewRunOptions(frameworkRunOptions(runOptionInput{
 		requestID:         "request-1",

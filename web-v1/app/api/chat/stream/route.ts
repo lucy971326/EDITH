@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const chatRequest = await parseChatRequest(request);
   if (!chatRequest) {
     return Response.json(
-      { error: "sessionId, modelId, and either message or imageIds are required" },
+      { error: "sessionId, modelId, and a message, image, or uploaded file are required" },
       { status: 400 },
     );
   }
@@ -68,12 +68,14 @@ async function parseChatRequest(request: Request): Promise<ChatRequest | null> {
 
   const imageIds = "imageIds" in value ? value.imageIds : [];
   const reasoningOptionId = "reasoningOptionId" in value ? value.reasoningOptionId : undefined;
+  const uploadPaths = "uploadPaths" in value ? value.uploadPaths : [];
   if (
     !Array.isArray(imageIds) ||
+    !Array.isArray(uploadPaths) || uploadPaths.some((path) => typeof path !== "string" || !path.trim()) ||
     imageIds.some((id) => typeof id !== "string" || !id.trim()) ||
     (reasoningOptionId !== undefined && typeof reasoningOptionId !== "string") ||
     !isUUID(value.requestId) || !value.sessionId.trim() || !value.modelId.trim() ||
-    (!value.message.trim() && imageIds.length === 0)
+    (!value.message.trim() && imageIds.length === 0 && uploadPaths.length === 0)
   ) return null;
 
   const chatRequest: ChatRequest = {
@@ -81,6 +83,7 @@ async function parseChatRequest(request: Request): Promise<ChatRequest | null> {
     sessionId: value.sessionId.trim(),
     message: value.message.trim(),
     imageIds: imageIds.map((id) => id.trim()),
+    uploadPaths: uploadPaths.map((path) => path.trim()),
     modelId: value.modelId.trim(),
   };
   if (reasoningOptionId?.trim()) chatRequest.reasoningOptionId = reasoningOptionId.trim();

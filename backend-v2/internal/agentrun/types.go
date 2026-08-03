@@ -10,6 +10,7 @@ type Request struct {
 	SessionID         string
 	Message           string
 	ImageIDs          []string
+	UploadPaths       []string
 	ModelID           string
 	ReasoningOptionID string
 }

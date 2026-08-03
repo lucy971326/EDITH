@@ -2,7 +2,7 @@
 
 按用户和会话隔离的 E2B 工作区，以及文件、命令、进程工具。
 公开能力包括 `Module.Tools`（交给 tools 模块聚合给 ManagedRunner）和 `Module.HTTP`
-（给 Web BFF 的只读文件浏览）。两者共用私有 `service`，但生命周期边界不同。
+（给 Web BFF 的文件浏览、上传与交付下载）和 `Module.AgentInput`（给 AgentRun 校验本次上传）。三者共用私有 `service`，但生命周期边界不同。
 
 ## 总图
 
@@ -69,11 +69,15 @@ New 只创建本地表、E2B 客户端和工具集合，不创建远端 Sandbox�
 ```text
 GET /internal/sandbox/files?userId&sessionId&path
 GET /internal/sandbox/files/content?userId&sessionId&path
+POST /internal/sandbox/files/upload?userId&sessionId  (multipart file)
+GET /internal/sandbox/files/download?userId&sessionId&path
 ```
 
 HTTP 从 `user_sandboxes` 查询既有绑定后调用 `service.ExistingWorkspace` 连接 Sandbox。
 没有绑定时返回 404，绝不会调用 `Create`、`MountForUser`，也不会写入映射表或 Volume。
 因此打开文件面板不会意外创建计费资源。
+
+上传是唯一允许调用 `Workspace` 的 HTTP 操作：它流式写入 `uploads/`，单文件最大 50MB，并以 `report (2).pdf` 形式避免同名覆盖。下载和浏览只用 `ExistingWorkspace`；下载只允许 `artifacts/` 下的普通文件并使用 attachment 流式返回。`AgentInput.ValidateUploads` 仅接受当前用户、当前会话已经存在于 `uploads/` 的路径，防止浏览器伪造 work、artifacts 或其他会话文件。
 
 `files` 仅返回目录的直接子项；`content` 只返回最多 32 KiB 的 UTF-8 文本。含 NUL 的二进制
 内容或无效 UTF-8 均返回 `422 file_not_previewable`。两条接口的 `path` 都复用

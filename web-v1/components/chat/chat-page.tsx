@@ -70,6 +70,14 @@ function removePendingRun(requestId: string) {
   sessionStorage.setItem(pendingRunsKey, JSON.stringify(pendingRuns));
 }
 
+function messageWithUploads(content: string, uploadPaths: string[]) {
+  const message = content.trim();
+  if (uploadPaths.length === 0) return message;
+  const files = uploadPaths.map((path) => `- \`${path.split("/").at(-1) || path}\``).join("\n");
+  const attachments = `附件：\n${files}`;
+  return message ? `${message}\n\n${attachments}` : attachments;
+}
+
 export function ChatPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -162,7 +170,7 @@ export function ChatPage() {
           continue;
         }
         if (stopped) {
-          return;
+          return false;
         }
 
         setSessions((current) => current.map((session) =>
@@ -266,9 +274,9 @@ export function ChatPage() {
     // ManagedRunner 不再报告该 requestID 为运行中，才能确认已结束。
   }
 
-  async function sendMessage(content: string, imageIDs: string[]) {
+  async function sendMessage(content: string, imageIDs: string[], uploadPaths: string[]): Promise<boolean> {
     if (!modelID || isRunning) {
-      return;
+      return false;
     }
 
     const sessionID = activeSession.id;
@@ -280,7 +288,7 @@ export function ChatPage() {
     const userBlock: UserBlock = {
       type: "user",
       id: crypto.randomUUID(),
-      content,
+      content: messageWithUploads(content, uploadPaths),
       images: imageIDs.map((id) => ({ id })),
       createdAt: now,
     };
@@ -292,7 +300,7 @@ export function ChatPage() {
 
         return {
           ...session,
-          title: session.timeline.blocks.length === 0 ? (content.slice(0, 18) || "图片") : session.title,
+          title: session.timeline.blocks.length === 0 ? (content.slice(0, 18) || (uploadPaths.length > 0 ? "附件" : "图片")) : session.title,
           timeline: {
             blocks: [...session.timeline.blocks, userBlock],
           },
@@ -303,8 +311,7 @@ export function ChatPage() {
     liveStreamSessionIDs.current.add(sessionID);
     const abort = new AbortController();
     abortRef.current = abort;
-    let streamCompleted = false;
-    let taskContinues = true;
+
     try {
       const response = await fetch("/api/chat/stream", {
         signal: abort.signal,
@@ -315,6 +322,7 @@ export function ChatPage() {
           sessionId: sessionID,
           message: content,
           imageIds: imageIDs,
+          uploadPaths,
           modelId: modelID,
           ...(reasoningOptionID ? { reasoningOptionId: reasoningOptionID } : {}),
         }),
@@ -325,25 +333,48 @@ export function ChatPage() {
           // 保留刚插入的用户消息块，只显示“会话忙”提示，避免用户以为自己的消息丢了。
           removePendingRun(requestID);
           setSessionRunNotice({ sessionID, reason: "session_busy" });
-          taskContinues = false;
+          liveStreamSessionIDs.current.delete(sessionID);
           finishActiveRun(requestID);
-          return;
+          return false;
         }
 
         removePendingRun(requestID);
-        taskContinues = false;
+        liveStreamSessionIDs.current.delete(sessionID);
         finishActiveRun(requestID);
-        throw new Error(await response.text());
+        const errorMessage = await response.text();
+        setSessions((current) => current.map((session) =>
+          session.id === sessionID
+            ? { ...session, timeline: { blocks: [...session.timeline.blocks, errorTimelineEvent(errorMessage)] } }
+            : session,
+        ));
+        return false;
       }
 
-      await readChatStream(response, (event) => {
-        if (event.type === "run.completed" || event.type === "run.canceled") {
-          streamCompleted = true;
-          removePendingRun(requestID);
-          finishActiveRun(requestID);
-        }
-        setSessions((current) =>
-          current.map((session) =>
+      void consumeStream(response);
+      return true;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        liveStreamSessionIDs.current.delete(sessionID);
+        return false; // 用户主动取消，不发错误提示
+      }
+      liveStreamSessionIDs.current.delete(sessionID);
+      if (!abort.signal.aborted) {
+        setIsRunning(false);
+      }
+      setSessionRunNotice({ sessionID, reason: "stream_disconnected" });
+      return false;
+    }
+
+    async function consumeStream(response: Response) {
+      let streamCompleted = false;
+      try {
+        await readChatStream(response, (event) => {
+          if (event.type === "run.completed" || event.type === "run.canceled") {
+            streamCompleted = true;
+            removePendingRun(requestID);
+            finishActiveRun(requestID);
+          }
+          setSessions((current) => current.map((session) =>
             session.id === sessionID
               ? {
                   ...session,
@@ -351,40 +382,20 @@ export function ChatPage() {
                   usage: (event.type === "run.completed" || event.type === "run.canceled") && event.sessionUsage ? event.sessionUsage : session.usage,
                 }
               : session,
-          ),
-        );
-      });
-      if (!streamCompleted) {
-        throw new Error("网络连接已断开，任务仍在后台继续。");
-      }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return; // 用户主动取消，不发错误提示
-      }
-      const message = error instanceof Error ? error.message : "网络连接已断开，任务仍在后台继续。";
-      if (taskContinues) {
-        setSessionRunNotice({ sessionID, reason: "stream_disconnected" });
-        return;
-      }
-      setSessions((current) =>
-        current.map((session) =>
-          session.id === sessionID
-            ? {
-                ...session,
-                timeline: {
-                  blocks: [...session.timeline.blocks, errorTimelineEvent(message)],
-                },
-              }
-            : session,
-        ),
-      );
-    } finally {
-      liveStreamSessionIDs.current.delete(sessionID);
-      if (!abort.signal.aborted) {
-        setIsRunning(false);
-      }
-      if (!taskContinues) {
-        finishActiveRun(requestID);
+          ));
+        });
+        if (!streamCompleted) {
+          throw new Error("网络连接已断开，任务仍在后台继续。");
+        }
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setSessionRunNotice({ sessionID, reason: "stream_disconnected" });
+        }
+      } finally {
+        liveStreamSessionIDs.current.delete(sessionID);
+        if (!abort.signal.aborted) {
+          setIsRunning(false);
+        }
       }
     }
   }
@@ -436,7 +447,7 @@ export function ChatPage() {
           onCancel={cancelRun}
           onModelChange={selectModel}
           onReasoningOptionChange={setReasoningOptionID}
-          onSend={(content, imageIDs) => void sendMessage(content, imageIDs)}
+          onSend={sendMessage}
         />
       </section>
 

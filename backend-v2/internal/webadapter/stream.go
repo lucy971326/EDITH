@@ -22,7 +22,8 @@ func (a *Adapter) StreamMessage(writer http.ResponseWriter, request *http.Reques
 	stream, runError := a.gateway.Run(gateway.IncomingMessage{
 		Channel: gateway.WebChannel, ExternalUserID: input.UserID, SessionKey: input.SessionID,
 		RequestID: input.RequestID, Message: input.Message, ImageIDs: input.ImageIDs,
-		ModelID: input.ModelID, ReasoningOptionID: input.ReasoningOptionID,
+		UploadPaths: input.UploadPaths,
+		ModelID:     input.ModelID, ReasoningOptionID: input.ReasoningOptionID,
 	})
 	if runError != nil {
 		writeGatewayError(writer, runError)

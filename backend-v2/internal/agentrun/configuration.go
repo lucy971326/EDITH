@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path"
 	"strings"
 
 	"edith/backend-v2/internal/images"
 	"edith/backend-v2/internal/models"
+	"edith/backend-v2/internal/sandbox"
 	"edith/backend-v2/internal/skills"
 	"edith/backend-v2/internal/usage"
 	"edith/backend-v2/internal/userconfig"
@@ -16,13 +18,14 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/model"
 )
 
-// runConfigurations 聚合模型、用户设置、MCP、图片和 Skills 配置。
+// runConfigurations 聚合模型、用户设置、MCP、图片、上传文件和 Skills 配置。
 type runConfigurations struct {
 	models    *models.Catalog
 	settings  *userconfig.Settings
 	providers *userconfig.Providers
 	mcp       *userconfig.MCP
 	images    *images.AgentInput
+	files     *sandbox.AgentInput
 	skills    *skills.Catalog
 }
 
@@ -66,7 +69,11 @@ func (c *runConfigurations) Load(request Request) (*configuredRun, *Error) {
 	if err != nil {
 		return nil, internalError("load user personality", err)
 	}
-	message := model.NewUserMessage(request.Message)
+	uploads, err := c.files.ValidateUploads(ctx, request.UserID, request.SessionID, request.UploadPaths)
+	if err != nil {
+		return nil, &Error{Type: "invalid_request", Message: fmt.Sprintf("prepare uploaded files: %v", err)}
+	}
+	message := model.NewUserMessage(messageWithUploads(request.Message, uploads))
 	ctx = images.WithHydratedSession(ctx)
 	if len(request.ImageIDs) > 0 {
 		ctx, err = c.images.AddMessageImages(ctx, request.UserID, request.SessionID, request.ImageIDs, &message)
@@ -98,7 +105,7 @@ func (c *runConfigurations) Load(request Request) (*configuredRun, *Error) {
 		contextWindow:     definition.ContextWindow,
 		apiKey:            apiKey,
 		globalInstruction: "你是 EDITH AI Agent智能助手\n\n" + personality,
-		instruction:       skillInstruction(c.skills.ListSystemSummaries(), userOverview),
+		instruction:       runInstruction(c.skills.ListSystemSummaries(), userOverview, uploads),
 		additionalTools:   mcpTools,
 	})
 	return &configuredRun{
@@ -110,6 +117,36 @@ func (c *runConfigurations) Load(request Request) (*configuredRun, *Error) {
 		options:    options,
 		closeMCP:   closeMCP,
 	}, nil
+}
+
+// messageWithUploads 把附件名称写入用户消息，保证会话历史也能展示本次上传。
+func messageWithUploads(content string, uploads []string) string {
+	content = strings.TrimSpace(content)
+	if len(uploads) == 0 {
+		return content
+	}
+	files := make([]string, 0, len(uploads))
+	for _, upload := range uploads {
+		files = append(files, "- `"+path.Base(upload)+"`")
+	}
+	attachments := "附件：\n" + strings.Join(files, "\n")
+	if content == "" {
+		return attachments
+	}
+	return content + "\n\n" + attachments
+}
+
+// runInstruction 将本次已验证的上传文件附加到 Agent 指令，路径只可由 Sandbox 提供。
+func runInstruction(summaries []skills.SkillSummary, overview string, uploads []string) string {
+	instruction := skillInstruction(summaries, overview)
+	if len(uploads) == 0 {
+		return instruction
+	}
+	files := "本次用户上传文件：\n- " + strings.Join(uploads, "\n- ") + "\n请通过 Sandbox 文件工具从 uploads/ 读取这些文件。"
+	if instruction == "" {
+		return files
+	}
+	return instruction + "\n\n" + files
 }
 
 // skillInstruction 把公共和用户 Skill 摘要拼成一次运行的 Instruction。

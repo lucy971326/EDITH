@@ -144,6 +144,7 @@ func main() {
 		Providers: users.Providers,
 		MCP:       users.MCP,
 		Images:    imageModule.AgentInput,
+		Files:     sandboxModule.AgentInput,
 		Skills:    skillModule.Catalog,
 		Usage:     usageModule.Recorder,
 	})

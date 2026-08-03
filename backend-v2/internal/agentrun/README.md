@@ -47,6 +47,7 @@ Dependencies（main 创建 AgentRun 时传入）
 ├─ Providers *userconfig.Providers
 ├─ MCP       *userconfig.MCP
 ├─ Images    *images.AgentInput
+├─ Files     *sandbox.AgentInput
 ├─ Skills    *skills.Catalog
 │  └─ 公共 Skill 目录 + 用户 overview 读取
 └─ Usage     *usage.Recorder
@@ -82,6 +83,7 @@ Load(Request) → configuredRun
 ├─ Providers.LoadAPIKey
 ├─ Settings.LoadPersonality
 ├─ Images.AddMessageImages
+├─ Files.ValidateUploads → 当前会话 uploads/ 普通文件
 ├─ MCP.OpenTools → tools + closeMCP
 ├─ Skills.ListSystemSummaries → 公共 Skill 摘要
 ├─ Skills.ReadUserOverview → 用户 Skill 摘要
@@ -187,7 +189,7 @@ frameworkRunOptions(runOptionInput)
 ├─ ModelContextWindow
 ├─ Authorization header
 ├─ GlobalInstruction + personality
-├─ 一次 WithInstruction：公共摘要 + 用户 overview + 资源路径说明
+├─ 一次 WithInstruction：公共摘要 + 用户 overview + 资源路径说明 + 本次已验证上传文件
 └─ additionalTools（MCP）
 ```
 
