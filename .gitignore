@@ -62,3 +62,6 @@ edith-architecture-3d.html
 **/**.db
 **/**.db-shm
 **/**.db-wal
+edith-architecture-v2.html
+.agents/skills/
+.claude/
