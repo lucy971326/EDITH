@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarClock, ListTodo, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PageSidebar } from "@/components/page-sidebar";
@@ -133,35 +134,35 @@ export function CronJobsPage() {
       : "周期性任务：填标准 cron 表达式，如 0 9 * * *（每天 9 点）";
 
   return (
-    <main className="flex h-screen overflow-hidden bg-zinc-50">
+    <main className="flex h-screen overflow-hidden bg-canvas">
       <PageSidebar activePage="tasks" />
-      <section className="min-w-0 flex-1 overflow-y-auto p-6">
-      <header className="mb-6 flex items-center justify-between">
+      <section className="min-w-0 flex-1 overflow-y-auto p-6 md:p-8">
+      <div className="mx-auto max-w-6xl">
+      <header className="mb-8">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-900">定时任务</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">到点后由 EDITH 自动执行，结果保存在对应会话中</p>
+          <p className="mb-2 text-xs font-medium tracking-[0.12em] text-accent">AUTOMATION</p>
+          <h1 className="ui-page-title text-2xl">定时任务</h1>
+          <p className="ui-page-description">到点后由 EDITH 自动执行，结果保存在对应会话中</p>
         </div>
-        <a className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100" href="/chat">
-          返回对话
-        </a>
       </header>
 
-      <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-medium text-zinc-900">新建任务</h2>
+      <section className="ui-surface mb-5 overflow-hidden">
+        <header className="flex items-center gap-3 border-b border-border px-5 py-4"><span className="inline-flex size-9 items-center justify-center rounded-xl bg-accent-soft text-accent"><CalendarClock className="size-4" /></span><div><h2 className="text-sm font-semibold text-ink">新建任务</h2><p className="mt-1 text-xs text-muted">让 EDITH 在指定时间自动完成一次工作。</p></div></header>
+        <div className="p-5">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="block">
-            <span className="mb-1 block text-xs text-zinc-500">任务名</span>
+            <span className="mb-1 block text-xs text-muted">任务名</span>
             <input
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              className="ui-field w-full px-3 py-2"
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
               placeholder="例如：每日晨报"
               value={form.name}
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs text-zinc-500">任务类型</span>
+            <span className="mb-1 block text-xs text-muted">任务类型</span>
             <select
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              className="ui-field w-full px-3 py-2"
               onChange={(event) => setForm((current) => ({ ...current, taskType: event.target.value as CronTaskType, schedule: "" }))}
               value={form.taskType}
             >
@@ -170,10 +171,10 @@ export function CronJobsPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs text-zinc-500">执行时间</span>
+            <span className="mb-1 block text-xs text-muted">执行时间</span>
             {form.taskType === "once" ? (
               <input
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                className="ui-field w-full px-3 py-2"
                 min={localDateTimeFromNow(0)}
                 onChange={(event) => setForm((current) => ({ ...current, schedule: event.target.value }))}
                 type="datetime-local"
@@ -181,7 +182,7 @@ export function CronJobsPage() {
               />
             ) : (
               <input
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                className="ui-field w-full px-3 py-2"
                 onChange={(event) => setForm((current) => ({ ...current, schedule: event.target.value }))}
                 placeholder="0 9 * * *"
                 value={form.schedule}
@@ -190,14 +191,14 @@ export function CronJobsPage() {
             {form.taskType === "once" && (
               <span className="mt-2 flex gap-2">
                 <button
-                  className="rounded-lg border border-zinc-300 px-2.5 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100"
+                  className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:bg-surface-subtle hover:text-ink"
                   onClick={() => setForm((current) => ({ ...current, schedule: localDateTimeFromNow(5) }))}
                   type="button"
                 >
                   5 分钟后
                 </button>
                 <button
-                  className="rounded-lg border border-zinc-300 px-2.5 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100"
+                  className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:bg-surface-subtle hover:text-ink"
                   onClick={() => setForm((current) => ({ ...current, schedule: localDateTimeFromNow(60) }))}
                   type="button"
                 >
@@ -207,70 +208,72 @@ export function CronJobsPage() {
             )}
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs text-zinc-500">任务指令</span>
+            <span className="mb-1 block text-xs text-muted">任务指令</span>
             <input
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              className="ui-field w-full px-3 py-2"
               onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))}
               placeholder="例如：总结昨天的数据并生成日报"
               value={form.prompt}
             />
           </label>
         </div>
-        <p className="mt-2 text-xs text-zinc-400">{scheduleHint}。时区使用当前浏览器时区（{browserTimezone()}）。</p>
-        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+        <p className="mt-2 text-xs text-faint">{scheduleHint}。时区使用当前浏览器时区（{browserTimezone()}）。</p>
+        {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
         <button
-          className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="ui-button-primary mt-4"
           disabled={saving}
           onClick={() => void createJob()}
           type="button"
         >
-          {saving ? "创建中…" : "创建任务"}
+          <Plus className="size-4" />{saving ? "创建中…" : "创建任务"}
         </button>
+        </div>
       </section>
 
-      <section className="rounded-xl border border-zinc-200 bg-white">
-        <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-3">
-          <h2 className="text-sm font-medium text-zinc-900">任务列表</h2>
-          <span className="text-xs text-zinc-400">{jobs.length} 个任务</span>
+      <section className="ui-surface overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-ink"><ListTodo className="size-4 text-faint" />任务列表</h2>
+          <span className="text-xs text-faint">{jobs.length} 个任务</span>
         </div>
         {jobs.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-zinc-400">还没有定时任务</p>
+          <p className="px-5 py-10 text-center text-sm text-faint">还没有定时任务</p>
         ) : (
-          <ul className="divide-y divide-zinc-100">
+          <ul className="divide-y divide-border">
             {jobs.map((job) => (
-              <li className="flex items-center gap-4 px-5 py-3" key={job.id}>
+              <li className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-surface-subtle/70" key={job.id}>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-900">{job.name}</span>
-                    <span className={`rounded px-1.5 py-0.5 text-xs ${job.enabled ? "bg-emerald-50 text-emerald-600" : "bg-zinc-100 text-zinc-500"}`}>
+                    <span className="text-sm font-medium text-ink">{job.name}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-xs ${job.enabled ? "bg-success-soft text-success" : "bg-surface-subtle text-muted"}`}>
                       {job.enabled ? "启用" : "停用"}
                     </span>
-                    {job.running ? <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-600">运行中</span> : null}
+                    {job.running ? <span className="rounded bg-warning-soft px-1.5 py-0.5 text-xs text-warning">运行中</span> : null}
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-zinc-500">
+                  <p className="mt-0.5 truncate text-xs text-muted">
                     {job.taskType === "once" ? "一次性" : "周期"} · {job.schedule} · 下次：{formatNextRun(job.nextRunAt)}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-zinc-400">{job.prompt}</p>
+                  <p className="mt-0.5 truncate text-xs text-faint">{job.prompt}</p>
                 </div>
                 <button
-                  className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-100"
+                  className="ui-button-secondary text-xs"
                   onClick={() => void toggleJob(job)}
                   type="button"
                 >
                   {job.enabled ? "停用" : "启用"}
                 </button>
                 <button
-                  className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                  className="ui-button-danger text-xs"
                   onClick={() => void deleteJob(job)}
                   type="button"
                 >
-                  删除
+                  <Trash2 className="size-3.5" />删除
                 </button>
               </li>
             ))}
           </ul>
         )}
       </section>
+      </div>
       </section>
     </main>
   );

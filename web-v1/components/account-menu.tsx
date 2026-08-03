@@ -1,6 +1,9 @@
 "use client";
 
 import { UserButton } from "@clerk/nextjs";
+import { Settings } from "lucide-react";
+
+import { ThemeToggle } from "./theme-toggle";
 
 type AccountMenuProps = {
   onOpenSettings: () => void;
@@ -9,17 +12,12 @@ type AccountMenuProps = {
 // Clerk owns account actions. EDITH only adds its own settings entry.
 export function AccountMenu({ onOpenSettings }: AccountMenuProps) {
   return (
-    <div className="flex items-center justify-between rounded-xl px-2 py-1 hover:bg-zinc-50">
+    <div className="flex items-center justify-between rounded-xl px-2 py-1 hover:bg-surface-subtle">
       <UserButton showName userProfileMode="modal" />
-      <button
-        aria-label="EDITH 设置"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-900"
-        onClick={onOpenSettings}
-        title="EDITH 设置"
-        type="button"
-      >
-        ⚙
-      </button>
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
+        <button aria-label="EDITH 设置" className="ui-icon-button shrink-0" onClick={onOpenSettings} title="EDITH 设置" type="button"><Settings className="size-4" /></button>
+      </div>
     </div>
   );
 }

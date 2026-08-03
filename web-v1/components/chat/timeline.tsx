@@ -31,7 +31,7 @@ export const TimelineView = memo(function TimelineView({ timeline, runNotice }: 
   }
   return (
     <div className="min-h-0 flex-1 overflow-y-auto" onScroll={handleScroll} ref={scrollRef}>
-      <div className="mx-auto max-w-3xl space-y-8 px-5 py-8">
+      <div className="mx-auto max-w-4xl space-y-7 px-6 py-8 md:px-8">
         {timeline.blocks.map((block) => {
           if (block.type === "user") {
             return <UserBlockView block={block} key={block.id} />;
@@ -40,7 +40,7 @@ export const TimelineView = memo(function TimelineView({ timeline, runNotice }: 
             return <AssistantBlockView block={block} key={block.id} />;
           }
           return (
-            <p className="text-sm text-red-600" key={block.id}>
+            <p className="text-sm text-danger" key={block.id}>
               {block.message}
             </p>
           );
@@ -63,11 +63,11 @@ function ActiveRunNotice({ reason }: { reason: TimelineRunNotice }) {
       };
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600" role="status">
-      <span aria-hidden className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-zinc-400" />
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-subtle px-4 py-3 text-sm text-muted" role="status">
+      <span aria-hidden className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" />
       <div>
-        <p className="font-medium text-zinc-700">{copy.title}</p>
-        <p className="mt-0.5 text-xs text-zinc-500">{copy.description}</p>
+        <p className="font-medium text-ink">{copy.title}</p>
+        <p className="mt-0.5 text-xs text-muted">{copy.description}</p>
       </div>
     </div>
   );

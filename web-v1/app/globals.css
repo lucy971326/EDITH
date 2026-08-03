@@ -1,17 +1,156 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
+  color-scheme: light;
+  --font-ui: "Noto Sans SC Variable", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  --font-code: "JetBrains Mono Variable", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --canvas: #f7f7f8;
+  --surface: #ffffff;
+  --surface-subtle: #f1f2f4;
+  --surface-hover: #eaecf0;
+  --border: #e1e3e8;
+  --border-strong: #cfd3dc;
+  --ink: #20232a;
+  --muted: #686f7c;
+  --faint: #969ca8;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: #e9efff;
+  --accent-foreground: #ffffff;
+  --success: #15805d;
+  --success-soft: #e7f7ef;
+  --warning: #a96400;
+  --warning-soft: #fff4dc;
+  --danger: #c9363e;
+  --danger-soft: #fff0f1;
+}
+
+.dark {
+  color-scheme: dark;
+  --canvas: #101216;
+  --surface: #171a20;
+  --surface-subtle: #20242c;
+  --surface-hover: #292e38;
+  --border: #2d333e;
+  --border-strong: #414958;
+  --ink: #f0f2f5;
+  --muted: #aeb5c0;
+  --faint: #737b88;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-soft: #162c50;
+  --accent-foreground: #ffffff;
+  --success: #52d19a;
+  --success-soft: #143b2c;
+  --warning: #f3ba63;
+  --warning-soft: #4a3514;
+  --danger: #ff7a84;
+  --danger-soft: #4a2026;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-ui);
+}
+
+/* 统一滚动条：细而低对比，避免侧栏和弹窗抢占视觉注意力。 */
+* {
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--border-strong);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  background-clip: padding-box;
+}
+
+button,
+input,
+textarea,
+select {
+  /* 仅继承字体族；不能用 font 简写，否则会覆盖组件自己的字号。 */
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+@layer components {
+  .ui-icon-button {
+    @apply inline-flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent;
+  }
+
+  .ui-button-primary {
+    @apply inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground shadow-sm transition-[background-color,box-shadow,transform] hover:bg-accent-hover hover:shadow-md active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ui-button-secondary {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-muted transition-colors hover:bg-surface-subtle hover:text-ink disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ui-button-danger {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-danger/25 px-3 text-sm font-medium text-danger transition-colors hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ui-page-header {
+    @apply mb-7 flex items-start justify-between gap-5;
+  }
+
+  .ui-page-title {
+    @apply text-xl font-semibold tracking-[-0.02em] text-ink;
+  }
+
+  .ui-page-description {
+    @apply mt-1 text-sm leading-6 text-muted;
+  }
+
+  .ui-surface {
+    @apply rounded-xl border border-border bg-surface shadow-[0_1px_2px_rgb(15_23_42/0.02)];
+  }
+
+  .ui-field {
+    @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent focus:ring-3 focus:ring-accent/15;
+  }
 }
