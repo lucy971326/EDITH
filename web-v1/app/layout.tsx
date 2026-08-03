@@ -1,5 +1,10 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
+import "@fontsource-variable/jetbrains-mono/wght.css";
+import "@fontsource-variable/noto-sans-sc/wght.css";
+
+import { ThemeProvider } from "@/components/theme-provider";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,10 +21,11 @@ export default function RootLayout({
     <html
       lang="zh-CN"
       className="h-full antialiased"
+      suppressHydrationWarning
     >
-      <body className="min-h-full bg-zinc-50 text-zinc-900">
+      <body className="min-h-full bg-canvas text-ink">
         <ClerkProvider>
-          {children}
+          <ThemeProvider>{children}</ThemeProvider>
         </ClerkProvider>
       </body>
     </html>

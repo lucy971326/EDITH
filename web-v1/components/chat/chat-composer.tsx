@@ -2,16 +2,15 @@
 
 /* eslint-disable @next/next/no-img-element -- local Blob URLs must remain browser-local while upload is in progress. */
 
-import { FileUp, ImagePlus, LoaderCircle, X } from "lucide-react";
+import { ArrowUp, FileUp, ImagePlus, LoaderCircle, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { uploadChatImage, validateImageFile } from "@/lib/chat/images";
 import { uploadSandboxFile } from "@/lib/sandbox/files";
-import type { ChatImage, SessionUsage } from "@/lib/chat/type";
+import type { ChatImage } from "@/lib/chat/type";
 import type { ModelInfo } from "@/lib/models/type";
 
 import { ModelPicker } from "./model-picker";
-import { SessionUsageView } from "./session-usage";
 
 type ChatComposerProps = {
   isLoading: boolean;
@@ -22,7 +21,6 @@ type ChatComposerProps = {
   models: ModelInfo[];
   reasoningOptionID: string;
   selectedModel?: ModelInfo;
-  sessionUsage: SessionUsage;
   onCancel: () => void;
   onModelChange: (modelID: string) => void;
   onReasoningOptionChange: (reasoningOptionID: string) => void;
@@ -47,7 +45,6 @@ export function ChatComposer({
   models,
   reasoningOptionID,
   selectedModel,
-  sessionUsage,
   onCancel,
   onModelChange,
   onReasoningOptionChange,
@@ -172,29 +169,26 @@ export function ChatComposer({
 
   return (
     <form
-      className="border-t border-zinc-200 bg-white p-4"
+      className="bg-canvas/90 px-3 py-2.5 backdrop-blur"
       onSubmit={(event) => {
         event.preventDefault();
         send();
       }}
     >
-      <div className="mx-auto mb-1 max-w-3xl">
-        <SessionUsageView usage={sessionUsage} />
-      </div>
-      <div className="mx-auto max-w-3xl rounded-2xl border border-zinc-300 bg-white p-3 shadow-sm transition-colors focus-within:border-zinc-400">
+      <div className="mx-auto w-full max-w-[830px] rounded-[18px] border-[0.9px] border-border bg-surface px-3 py-2 shadow-[0_10px_28px_rgba(20,23,42,0.07)] transition-[border-color,box-shadow] focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
         {images.length > 0 && <div className="mb-2 flex flex-wrap gap-2 px-1">
-          {images.map((image) => <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100" key={image.localID}>
+          {images.map((image) => <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-border bg-surface-subtle" key={image.localID}>
             {image.previewURL && <img alt="待发送图片" className="h-full w-full object-cover" src={image.previewURL} />}
-            {image.status === "uploading" && <span className="absolute inset-0 flex items-center justify-center bg-white/70 text-zinc-700">↻</span>}
-            {image.status === "failed" && <span className="absolute inset-0 flex items-center justify-center bg-red-50 px-1 text-center text-xs text-red-600">{image.error}</span>}
-            <button aria-label="移除图片" className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800/70 text-xs text-white" onClick={() => removeImage(image.localID)} type="button">×</button>
+            {image.status === "uploading" && <span className="absolute inset-0 flex items-center justify-center bg-surface/70 text-ink"><LoaderCircle className="size-4 animate-spin" /></span>}
+            {image.status === "failed" && <span className="absolute inset-0 flex items-center justify-center bg-danger-soft px-1 text-center text-xs text-danger">{image.error}</span>}
+            <button aria-label="移除图片" className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink/75 text-xs text-surface" onClick={() => removeImage(image.localID)} type="button">×</button>
           </div>)}
         </div>}
         {files.length > 0 && <div className="mb-2 space-y-1 px-1">
-          {files.map((item) => <div className="flex items-center gap-2 rounded-lg bg-zinc-100 px-2 py-1 text-xs text-zinc-700" key={item.localID}><FileUp className="size-3.5" /><span className="truncate">{item.file.name}</span><span className="shrink-0 text-zinc-500">{(item.file.size / 1024 / 1024).toFixed(1)} MB</span>{item.error && <span className="truncate text-red-600">{item.error}</span>}<button aria-label="移除文件" className="ml-auto" onClick={() => setFiles((current) => current.filter((file) => file.localID !== item.localID))} type="button"><X className="size-3.5" /></button></div>)}
+          {files.map((item) => <div className="flex items-center gap-2 rounded-lg bg-surface-subtle px-2 py-1 text-xs text-muted" key={item.localID}><FileUp className="size-3.5" /><span className="truncate">{item.file.name}</span><span className="shrink-0 text-faint">{(item.file.size / 1024 / 1024).toFixed(1)} MB</span>{item.error && <span className="truncate text-danger">{item.error}</span>}<button aria-label="移除文件" className="ml-auto text-muted hover:text-ink" onClick={() => setFiles((current) => current.filter((file) => file.localID !== item.localID))} type="button"><X className="size-3.5" /></button></div>)}
         </div>}
         <textarea
-          className="block min-h-20 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 outline-none placeholder:text-zinc-400"
+          className="block min-h-[52px] w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-ink outline-none placeholder:text-faint"
           placeholder="输入消息…"
           rows={2}
           value={message}
@@ -210,9 +204,10 @@ export function ChatComposer({
         />
         <input accept="image/jpeg,image/png,image/webp" className="hidden" multiple onChange={(event) => { void selectImages(event.target.files); event.currentTarget.value = ""; }} ref={imageInput} type="file" />
         <input className="hidden" multiple onChange={(event) => { selectFiles(event.target.files); event.currentTarget.value = ""; }} ref={fileInput} type="file" />
-        <div className="mt-2 flex items-center gap-2 border-t border-zinc-100 pt-2">
-          <button aria-label="添加图片" className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:text-zinc-300" disabled={!canUseVision || isLoading || isRunning || isSending} onClick={() => imageInput.current?.click()} title={canUseVision ? "添加图片" : "当前模型不支持图片识别"} type="button"><ImagePlus className="size-4" /></button>
-          <button aria-label="添加文件" className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:text-zinc-300" disabled={isLoading || isRunning || isSending} onClick={() => fileInput.current?.click()} title="添加文件（单个不超过 50MB）" type="button"><FileUp className="size-4" /></button>
+        <div className="mt-1 flex items-center gap-1 border-t border-border pt-1">
+          <button aria-label="添加图片" className="ui-icon-button disabled:cursor-not-allowed disabled:text-faint" disabled={!canUseVision || isLoading || isRunning || isSending} onClick={() => imageInput.current?.click()} title={canUseVision ? "添加图片" : "当前模型不支持图片识别"} type="button"><ImagePlus className="size-4" /></button>
+          <button aria-label="添加文件" className="ui-icon-button disabled:cursor-not-allowed disabled:text-faint" disabled={isLoading || isRunning || isSending} onClick={() => fileInput.current?.click()} title="添加文件（单个不超过 50MB）" type="button"><FileUp className="size-4" /></button>
+          <span className="mx-1 h-4 w-px bg-border" aria-hidden />
           <ModelPicker
               disabled={isLoading || isRunning || isSending}
             modelID={modelID}
@@ -220,8 +215,8 @@ export function ChatComposer({
             onChange={onModelChange}
           />
           {selectedModel && selectedModel.reasoningOptions.length > 0 && <>
-            <span className="text-zinc-300">·</span>
-            <select className="h-8 rounded-lg bg-transparent px-2 text-sm text-zinc-600 outline-none hover:bg-zinc-100" disabled={isLoading || isRunning} value={reasoningOptionID} onChange={(event) => onReasoningOptionChange(event.target.value)}>
+            <span className="text-border-strong">·</span>
+            <select className="h-8 rounded-lg bg-transparent px-2 text-sm text-muted outline-none hover:bg-surface-hover" disabled={isLoading || isRunning} value={reasoningOptionID} onChange={(event) => onReasoningOptionChange(event.target.value)}>
               <option value="">思考</option>
               {selectedModel.reasoningOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
             </select>
@@ -229,21 +224,21 @@ export function ChatComposer({
           {isRunning ? (
             <button
               aria-label="停止"
-              className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl bg-red-500 text-lg text-white transition-colors hover:bg-red-600 disabled:cursor-wait disabled:bg-red-300"
+              className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg bg-danger text-accent-foreground transition-colors hover:opacity-85 disabled:cursor-wait disabled:opacity-50"
               disabled={isCancelling}
               onClick={(event) => { event.preventDefault(); onCancel(); }}
               type="button"
             >
-              {isCancelling ? "…" : "■"}
+              {isCancelling ? "…" : <Square className="size-3.5 fill-current" />}
             </button>
           ) : (
             <button
               aria-label="发送"
-              className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-lg text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+              className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-faint"
               disabled={(!message.trim() && readyImageIDs.length === 0 && files.length === 0) || !modelID || isLoading || isSending || hasUploadingImage || files.some((file) => file.error) || (hasImageInput && !canUseVision)}
               type="submit"
             >
-              {isSending ? <LoaderCircle className="size-4 animate-spin" /> : "↑"}
+              {isSending ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
             </button>
           )}
         </div>

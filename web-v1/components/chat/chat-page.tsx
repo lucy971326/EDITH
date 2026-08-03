@@ -22,6 +22,7 @@ import { ChatComposer } from "./chat-composer";
 import { ConversationList } from "./conversation-list";
 import { TimelineView, type TimelineRunNotice } from "./timeline";
 import { SandboxPanel } from "./sandbox-panel";
+import { SessionUsageView } from "./session-usage";
 
 type ChatSession = {
   id: string;
@@ -401,7 +402,7 @@ export function ChatPage() {
   }
 
   return (
-    <main className="flex h-screen overflow-hidden bg-zinc-50">
+    <main className="flex h-screen overflow-hidden bg-canvas">
       <AppSidebar footer={<AccountMenu onOpenSettings={() => setSettingsOpen(true)} />}>
         <ConversationList
           activeSessionID={activeSession.id}
@@ -413,19 +414,22 @@ export function ChatPage() {
       </AppSidebar>
 
       <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-5">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-5">
           <div>
-            <p className="text-sm font-medium">{activeSession.title}</p>
-            <p className="mt-0.5 text-xs text-zinc-500">EDITH</p>
+            <p className="text-[13px] font-semibold text-ink">{activeSession.title}</p>
+            <p className="mt-0.5 text-[11px] font-medium tracking-wide text-faint">EDITH</p>
           </div>
-          <button
-            className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-            onClick={() => setSandboxOpen((current) => !current)}
-            title={sandboxOpen ? "关闭 Sandbox 文件" : "展开 Sandbox 文件"}
-            aria-label={sandboxOpen ? "关闭 Sandbox 文件" : "展开 Sandbox 文件"}
-          >
-            {sandboxOpen ? <PanelRightClose className="size-5" /> : <PanelRightOpen className="size-5" />}
-          </button>
+          <div className="flex items-center gap-1">
+            <SessionUsageView menuPosition="down" usage={activeSession.usage} />
+            <button
+              className="ui-icon-button"
+              onClick={() => setSandboxOpen((current) => !current)}
+              title={sandboxOpen ? "关闭 Sandbox 文件" : "展开 Sandbox 文件"}
+              aria-label={sandboxOpen ? "关闭 Sandbox 文件" : "展开 Sandbox 文件"}
+            >
+              {sandboxOpen ? <PanelRightClose className="size-5" /> : <PanelRightOpen className="size-5" />}
+            </button>
+          </div>
         </header>
 
         <TimelineView
@@ -443,7 +447,6 @@ export function ChatPage() {
           models={models}
           reasoningOptionID={reasoningOptionID}
           selectedModel={selectedModel}
-          sessionUsage={activeSession.usage}
           onCancel={cancelRun}
           onModelChange={selectModel}
           onReasoningOptionChange={setReasoningOptionID}

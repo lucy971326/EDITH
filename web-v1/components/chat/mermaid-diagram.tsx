@@ -16,17 +16,18 @@ export function MermaidDiagram({ chart, isComplete }: { chart: string; isComplet
       }
       try {
         const mermaid = (await import("mermaid")).default;
+        const dark = document.documentElement.classList.contains("dark");
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: "strict",
           theme: "base",
           themeVariables: {
-            primaryColor: "#f4f4f5",
-            primaryTextColor: "#18181b",
-            primaryBorderColor: "#d4d4d8",
-            lineColor: "#71717a",
-            secondaryColor: "#fafafa",
-            tertiaryColor: "#ffffff",
+            primaryColor: dark ? "#20242c" : "#f1f2f4",
+            primaryTextColor: dark ? "#f0f2f5" : "#20232a",
+            primaryBorderColor: dark ? "#414958" : "#cfd3dc",
+            lineColor: dark ? "#aeb5c0" : "#686f7c",
+            secondaryColor: dark ? "#171a20" : "#ffffff",
+            tertiaryColor: dark ? "#101216" : "#f7f7f8",
             pie1: "#60a5fa",
             pie2: "#34d399",
             pie3: "#fbbf24",
@@ -69,15 +70,15 @@ export function MermaidDiagram({ chart, isComplete }: { chart: string; isComplet
   }, [chart, id, isComplete]);
 
   if (!isComplete) {
-    return <p className="py-3 text-sm text-zinc-400">正在生成图表…</p>;
+    return <p className="py-3 text-sm text-faint">正在生成图表…</p>;
   }
 
   if (error) {
-    return <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>;
+    return <p className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>;
   }
 
   if (!svg) {
-    return <p className="py-3 text-sm text-zinc-400">正在渲染图表…</p>;
+    return <p className="py-3 text-sm text-faint">正在渲染图表…</p>;
   }
 
   return <div aria-label="Mermaid diagram" className="my-4 overflow-x-auto" dangerouslySetInnerHTML={{ __html: svg }} />;

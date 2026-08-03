@@ -1,6 +1,7 @@
 "use client";
 
 // MCPServers 负责加载并维护当前用户的 MCP 服务配置。
+import { Cable, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type {
@@ -128,27 +129,27 @@ export function MCPServers() {
   }
 
   return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-base font-medium">MCP 服务</h2>
-          <p className="mt-1 text-sm text-zinc-500">仅支持远程 HTTP MCP。启用后，Agent 才能在对话中调用它的工具。</p>
+    <section className="ui-surface overflow-hidden">
+      <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+        <div className="flex gap-3">
+          <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning-soft text-warning"><Cable className="size-4" /></span>
+          <div><h2 className="text-sm font-semibold text-ink">MCP 服务</h2><p className="mt-1 text-xs leading-5 text-muted">启用远程 HTTP MCP 后，Agent 才能调用服务提供的工具。</p></div>
         </div>
-        {!editing && <button className="h-9 shrink-0 rounded-lg border border-zinc-300 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50" type="button" onClick={() => { setEditing(newDraft()); setMessage(""); }}>+ 添加服务</button>}
+        {!editing && <button className="ui-button-secondary shrink-0" type="button" onClick={() => { setEditing(newDraft()); setMessage(""); }}><Plus className="size-4" />添加服务</button>}
       </div>
 
-      {!editing && <div className="mt-5 space-y-2">
+      {!editing && <div className="space-y-2 p-4">
         {servers.map((server) => (
-          <button className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-3 text-left hover:bg-zinc-50" key={server.id} type="button" onClick={() => { setEditing(draftFromServer(server)); setMessage(""); }}>
-            <span><span className="block text-sm font-medium">{server.name}</span><span className="mt-0.5 block text-xs text-zinc-500">{server.transport === "streamable" ? "Streamable HTTP" : "Legacy SSE"} · {server.url}</span></span>
-            <span className={`text-xs ${server.enabled ? "text-emerald-700" : "text-zinc-400"}`}>{server.enabled ? "已启用" : "已停用"}</span>
+          <button className="flex w-full items-center justify-between rounded-xl border border-border px-3.5 py-3 text-left transition-colors hover:bg-surface-subtle" key={server.id} type="button" onClick={() => { setEditing(draftFromServer(server)); setMessage(""); }}>
+            <span><span className="block text-sm font-medium text-ink">{server.name}</span><span className="mt-0.5 block text-xs text-muted">{server.transport === "streamable" ? "Streamable HTTP" : "Legacy SSE"} · {server.url}</span></span>
+            <span className={`text-xs ${server.enabled ? "text-success" : "text-faint"}`}>{server.enabled ? "已启用" : "已停用"}</span>
           </button>
         ))}
-        {servers.length === 0 && !message && <p className="rounded-lg bg-zinc-50 px-3 py-4 text-sm text-zinc-500">还没有 MCP 服务。</p>}
+        {servers.length === 0 && !message && <p className="rounded-lg bg-surface-subtle px-3 py-4 text-sm text-muted">还没有 MCP 服务。</p>}
       </div>}
 
-      {editing && <div className="mt-5"><MCPServerEditor draft={editing} message={message} saving={saving} onChange={setEditing} onCancel={() => { setEditing(null); setMessage(""); }} onDelete={editing.id ? remove : undefined} onSave={save} /></div>}
-      {!editing && message && <p className="mt-4 text-sm text-zinc-500">{message}</p>}
+      {editing && <div className="p-4"><MCPServerEditor draft={editing} message={message} saving={saving} onChange={setEditing} onCancel={() => { setEditing(null); setMessage(""); }} onDelete={editing.id ? remove : undefined} onSave={save} /></div>}
+      {!editing && message && <p className="px-4 pb-4 text-sm text-muted">{message}</p>}
     </section>
   );
 }
