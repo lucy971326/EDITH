@@ -1,7 +1,8 @@
 # sandbox
 
 按用户和会话隔离的 E2B 工作区，以及文件、命令、进程工具。
-无 HTTP 入口；公开能力是 Module.Tools，交给 tools 模块聚合给 ManagedRunner。
+公开能力包括 `Module.Tools`（交给 tools 模块聚合给 ManagedRunner）和 `Module.HTTP`
+（给 Web BFF 的只读文件浏览）。两者共用私有 `service`，但生命周期边界不同。
 
 ## 总图
 
@@ -13,7 +14,9 @@ main
     ├─ createSchema → user_sandboxes
     ├─ E2B Client
     ├─ service{db, client, template, volumes} 私有业务能力
-    └─ Module{Tools: toolSet{service}}     唯一公开能力
+    └─ Module{Tools, HTTP}
+         ├─ Tools: toolSet{service}
+         └─ HTTP: 只读文件树和文本预览
                                       │
                                       ▼
                               tools 模块 → ManagedRunner
@@ -49,6 +52,8 @@ Dependencies
 Module
 └─ Tools tool.ToolSet
    └─ 交给 tools 模块聚合
+└─ HTTP *HTTP
+   └─ Register(mux) 注册只读文件接口
 
 toolSet（私有）
 └─ workspaces *service
@@ -58,6 +63,21 @@ toolSet（私有）
 ```
 
 New 只创建本地表、E2B 客户端和工具集合，不创建远端 Sandbox；首次调用工具时才创建。
+
+## HTTP 只读文件浏览
+
+```text
+GET /internal/sandbox/files?userId&sessionId&path
+GET /internal/sandbox/files/content?userId&sessionId&path
+```
+
+HTTP 从 `user_sandboxes` 查询既有绑定后调用 `service.ExistingWorkspace` 连接 Sandbox。
+没有绑定时返回 404，绝不会调用 `Create`、`MountForUser`，也不会写入映射表或 Volume。
+因此打开文件面板不会意外创建计费资源。
+
+`files` 仅返回目录的直接子项；`content` 只返回最多 32 KiB 的 UTF-8 文本。含 NUL 的二进制
+内容或无效 UTF-8 均返回 `422 file_not_previewable`。两条接口的 `path` 都复用
+`workspacePath`：只允许工作区相对路径，禁止绝对路径和 `..`。
 
 ## service：绑定用户会话与 E2B
 
@@ -196,7 +216,7 @@ killProcessOutput  { PID, Message }
 ## 一句话记忆
 
 ```text
-Module          = 只暴露 Sandbox 工具集合
+Module          = 暴露 Sandbox 工具集合与只读 HTTP
 toolSet         = 从 Invocation 取身份并创建工具
 service         = user + session → E2B Sandbox + 用户 Volume 挂载
 user_sandboxes  = 保存本地绑定关系

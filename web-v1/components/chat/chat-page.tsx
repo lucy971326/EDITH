@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -20,6 +21,7 @@ import type { AvailableModelCatalogResponse, ModelInfo } from "@/lib/models/type
 import { ChatComposer } from "./chat-composer";
 import { ConversationList } from "./conversation-list";
 import { TimelineView, type TimelineRunNotice } from "./timeline";
+import { SandboxPanel } from "./sandbox-panel";
 
 type ChatSession = {
   id: string;
@@ -81,6 +83,7 @@ export function ChatPage() {
   const [modelID, setModelID] = useState("");
   const [reasoningOptionID, setReasoningOptionID] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sandboxOpen, setSandboxOpen] = useState(false);
   const [sessionRunNotice, setSessionRunNotice] = useState<SessionRunNotice | null>(null);
   const liveStreamSessionIDs = useRef(new Set<string>());
   const abortRef = useRef<AbortController | null>(null);
@@ -404,6 +407,14 @@ export function ChatPage() {
             <p className="text-sm font-medium">{activeSession.title}</p>
             <p className="mt-0.5 text-xs text-zinc-500">EDITH</p>
           </div>
+          <button
+            className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+            onClick={() => setSandboxOpen((current) => !current)}
+            title={sandboxOpen ? "关闭 Sandbox 文件" : "展开 Sandbox 文件"}
+            aria-label={sandboxOpen ? "关闭 Sandbox 文件" : "展开 Sandbox 文件"}
+          >
+            {sandboxOpen ? <PanelRightClose className="size-5" /> : <PanelRightOpen className="size-5" />}
+          </button>
         </header>
 
         <TimelineView
@@ -428,6 +439,8 @@ export function ChatPage() {
           onSend={(content, imageIDs) => void sendMessage(content, imageIDs)}
         />
       </section>
+
+      <SandboxPanel key={activeSession.id} sessionID={activeSession.id} open={sandboxOpen} />
 
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </main>

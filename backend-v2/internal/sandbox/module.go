@@ -26,6 +26,7 @@ type Dependencies struct {
 // Module 是 Sandbox 功能的公开入口；Tools 供 tools 聚合模块收集。
 type Module struct {
 	Tools tool.ToolSet
+	HTTP  *HTTP
 }
 
 // New 创建工作区映射表和 E2B 客户端；不会创建任何用户 Sandbox。
@@ -48,5 +49,5 @@ func New(deps Dependencies) (*Module, error) {
 		return nil, fmt.Errorf("create E2B client: %w", err)
 	}
 	workspaces := &service{db: deps.DB, client: client, template: template, volumes: deps.Volumes}
-	return &Module{Tools: &toolSet{workspaces: workspaces}}, nil
+	return &Module{Tools: &toolSet{workspaces: workspaces}, HTTP: &HTTP{workspaces: workspaces}}, nil
 }

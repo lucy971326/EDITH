@@ -34,7 +34,9 @@ type movePathInput struct {
 	From string `json:"from" jsonschema:"description=Source path,required"`
 	To   string `json:"to" jsonschema:"description=Destination path,required"`
 }
-type fileEntry struct {
+
+// FileEntry 是 Sandbox 文件列表中的一个直接子项。
+type FileEntry struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
 	Type string `json:"type"`
@@ -42,7 +44,7 @@ type fileEntry struct {
 }
 type listFilesOutput struct {
 	Path    string      `json:"path"`
-	Entries []fileEntry `json:"entries"`
+	Entries []FileEntry `json:"entries"`
 }
 type readFileOutput struct {
 	Path      string `json:"path"`
@@ -72,13 +74,13 @@ func (s *toolSet) listFilesTool() tool.Tool {
 		if err != nil {
 			return listFilesOutput{}, err
 		}
-		output := listFilesOutput{Path: relativePath(directory), Entries: []fileEntry{}}
+		output := listFilesOutput{Path: relativePath(directory), Entries: []FileEntry{}}
 		for _, entry := range entries {
 			kind := "file"
 			if entry.Type == e2b.EntryTypeDirectory {
 				kind = "directory"
 			}
-			output.Entries = append(output.Entries, fileEntry{Name: entry.Name, Path: relativePath(entry.Path), Type: kind, Size: entry.Size})
+			output.Entries = append(output.Entries, FileEntry{Name: entry.Name, Path: relativePath(entry.Path), Type: kind, Size: entry.Size})
 		}
 		return output, nil
 	}, function.WithName("sandbox_list_files"), function.WithDescription(toolDescription("列出当前会话 Sandbox 工作区中的文件和目录。")))
@@ -193,7 +195,8 @@ func (s *toolSet) deletePathTool() tool.Tool {
 	}, function.WithName("sandbox_delete_path"), function.WithDescription(toolDescription("删除当前会话 Sandbox 中的文件或目录。")))
 }
 func workspacePath(input string, allowRoot bool) (string, error) {
-	relative := strings.ReplaceAll(strings.TrimSpace(input), `\\`, "/")
+	// 请求路径统一按 POSIX 规则处理，避免 Windows 分隔符绕过 .. 校验。
+	relative := strings.ReplaceAll(strings.TrimSpace(input), `\`, "/")
 	if relative == "" || relative == "." {
 		if allowRoot {
 			return Workspace.Root, nil
