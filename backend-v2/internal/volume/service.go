@@ -2,10 +2,12 @@ package volume
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -25,7 +27,9 @@ type Service struct {
 }
 
 // ReadUserOverview 读取已有用户 Volume 中的 Skills 摘要。
-// 用户尚未创建 Volume 或 overview.md 不存在时返回空字符串；不会创建远端 Volume。
+// overview.md 是可选的派生索引：用户尚未创建 Volume、文件不存在或 E2B
+// 暂时不可用时都返回空字符串，让 Agent 继续运行；本地数据库错误仍会返回。
+// 该方法不会创建远端 Volume。
 func (s *Service) ReadUserOverview(ctx context.Context, userID string) (string, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
@@ -45,12 +49,15 @@ func (s *Service) ReadUserOverview(ctx context.Context, userID string) (string, 
 		if isNotFoundVolumeError(err) {
 			return "", nil
 		}
-		return "", fmt.Errorf("load current user volume token: %w", err)
+		return s.skipUnavailableOverview(userID, value.ID, "load current token", err), nil
 	}
 	if token != value.Token {
 		if err := s.store.updateToken(ctx, value.UserID, token); err != nil {
 			return "", err
 		}
+	}
+	if traceEnabled() {
+		log.Printf("e2b volume overview user_id=%s volume_id=%s token_sha256=%x token_len=%d", userFingerprint(userID), value.ID, sha256.Sum256([]byte(token)), len(token))
 	}
 
 	opened, err := e2bvolume.Connect(ctx, value.ID, token, e2bvolume.Options{Config: s.config})
@@ -58,16 +65,25 @@ func (s *Service) ReadUserOverview(ctx context.Context, userID string) (string, 
 		if isNotFoundVolumeError(err) {
 			return "", nil
 		}
-		return "", fmt.Errorf("connect user volume: %w", err)
+		return s.skipUnavailableOverview(userID, value.ID, "connect volume", err), nil
 	}
 	data, err := opened.ReadFile(ctx, UserOverviewPath)
 	if err != nil {
 		if isNotFoundVolumeError(err) {
 			return "", nil
 		}
-		return "", fmt.Errorf("read user skill overview: %w", err)
+		return s.skipUnavailableOverview(userID, value.ID, "read overview", err), nil
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+func (s *Service) skipUnavailableOverview(userID, volumeID, action string, err error) string {
+	log.Printf("skip unavailable user skill overview user_id=%s volume_id=%s action=%q error=%v", userFingerprint(userID), volumeID, action, err)
+	return ""
+}
+
+func userFingerprint(userID string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(userID)))[:12]
 }
 
 // MountForUser 返回当前用户的 Skills Volume 挂载信息；首次调用会创建远端 Volume。

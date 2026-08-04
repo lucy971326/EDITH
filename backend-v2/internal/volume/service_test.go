@@ -68,7 +68,7 @@ func TestReadUserOverviewMissingFileReturnsEmpty(t *testing.T) {
 	}
 }
 
-func TestReadUserOverviewPropagatesRemoteError(t *testing.T) {
+func TestReadUserOverviewDegradesRemoteError(t *testing.T) {
 	server := newVolumeContentTestServer(t, http.StatusInternalServerError, []byte("failed"), "token-1")
 	db := openVolumeTestDB(t, "overview-error")
 	store := &store{db: db}
@@ -77,8 +77,12 @@ func TestReadUserOverviewPropagatesRemoteError(t *testing.T) {
 	}
 	service := &Service{store: store, config: e2b.Config{APIURL: server.URL, APIKey: "test-key"}}
 
-	if _, err := service.ReadUserOverview(context.Background(), "user-1"); err == nil {
-		t.Fatal("ReadUserOverview() accepted a remote error")
+	overview, err := service.ReadUserOverview(context.Background(), "user-1")
+	if err != nil {
+		t.Fatalf("ReadUserOverview() error = %v", err)
+	}
+	if overview != "" {
+		t.Fatalf("overview = %q, want empty", overview)
 	}
 }
 

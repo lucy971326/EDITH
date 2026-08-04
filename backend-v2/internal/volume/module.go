@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/http"
 
 	"github.com/eric642/e2b-go-sdk"
 )
@@ -28,5 +29,14 @@ func New(deps Dependencies) (*Module, error) {
 	if err := createSchema(context.Background(), deps.DB); err != nil {
 		return nil, err
 	}
-	return &Module{Volumes: &Service{store: &store{db: deps.DB}, config: e2b.Config{}.Resolve()}}, nil
+	config := e2b.Config{}.Resolve()
+	if traceEnabled() {
+		// The tracer observes requests after the SDK has applied its request
+		// editors. It deliberately records only header shape and fingerprints.
+		config.HTTPClient = &http.Client{
+			Timeout:   config.RequestTimeout,
+			Transport: volumeTraceTransport{next: http.DefaultTransport},
+		}
+	}
+	return &Module{Volumes: &Service{store: &store{db: deps.DB}, config: config}}, nil
 }

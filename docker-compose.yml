@@ -5,6 +5,8 @@ services:
       # inside the container the server must listen on all interfaces
       EDITH_ADDR: 0.0.0.0:8080
       EDITH_DB_PATH: /app/data/edith-v2.db
+      # Temporary, redacted E2B Volume HTTP diagnostics. Keep false normally.
+      EDITH_E2B_DEBUG_HTTP: ${EDITH_E2B_DEBUG_HTTP:-false}
       # external APIs — from root .env (see .env.example)
       EDITH_E2B_TEMPLATE: ${EDITH_E2B_TEMPLATE:?set in root .env}
       E2B_API_KEY: ${E2B_API_KEY:?set in root .env}
