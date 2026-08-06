@@ -17,7 +17,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := studio.Run(ctx, projectRoot, "127.0.0.1:8765"); err != nil {
+	if err := studio.Start(ctx, projectRoot, "127.0.0.1:8765"); err != nil {
 		log.Fatal(err)
 	}
 }

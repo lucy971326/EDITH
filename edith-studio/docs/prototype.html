@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EDITH Studio Prototype</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --line: #e5e7eb;
+      --muted: #8b93a3;
+      --text: #20242c;
+      --blue: #1668dc;
+      --blue-soft: #edf4ff;
+      --green: #0d9f6e;
+      --orange: #d97706;
+      --code: #1e1e1e;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { background: var(--bg); color: var(--text); font: 13px/1.5 Inter, "Microsoft YaHei", sans-serif; }
+    button, textarea { font: inherit; }
+    button { border: 0; background: none; color: inherit; cursor: pointer; }
+
+    .app { display: flex; height: 100vh; min-width: 1120px; overflow: hidden; }
+    .sidebar { display: flex; width: 254px; flex-direction: column; border-right: 1px solid var(--line); background: #fbfbfc; }
+    .brand { display: flex; height: 58px; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); padding: 0 18px; }
+    .brand-mark { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 8px; background: #172033; color: #fff; font-weight: 800; }
+    .brand-name { font-size: 15px; font-weight: 700; letter-spacing: .05em; }
+    .brand-sub { color: var(--muted); font-size: 11px; }
+    .side-top { padding: 14px 12px 10px; }
+    .new-chat { display: flex; width: 100%; align-items: center; gap: 9px; border: 1px solid #d9e4f7; border-radius: 8px; background: #fff; color: #245bb4; padding: 9px 11px; font-weight: 600; }
+    .new-chat:hover, .session:hover { background: var(--blue-soft); }
+    .side-section { padding: 12px 12px 0; }
+    .side-title { display: flex; justify-content: space-between; padding: 0 8px 8px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .side-title button { color: var(--muted); font-size: 17px; line-height: 1; }
+    .session { display: block; width: 100%; border-radius: 8px; padding: 9px 10px; text-align: left; }
+    .session.active { background: var(--blue-soft); color: #1558b0; }
+    .session-name { display: block; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .session-time { color: var(--muted); font-size: 11px; }
+    .side-nav { margin-top: auto; border-top: 1px solid var(--line); padding: 12px; }
+    .nav-item { display: flex; width: 100%; align-items: center; gap: 10px; border-radius: 7px; padding: 9px 10px; text-align: left; }
+    .nav-item:hover { background: #eef1f5; }
+    .user { display: flex; align-items: center; gap: 9px; border-top: 1px solid var(--line); margin-top: 8px; padding: 13px 10px 0; }
+    .avatar { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; background: #7357c9; color: #fff; font-size: 11px; font-weight: 700; }
+    .workspace-name { font-size: 11px; color: var(--muted); }
+
+    .chat { display: flex; min-width: 480px; flex: 1; flex-direction: column; background: var(--panel); }
+    .chat-header { display: flex; height: 58px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 0 22px; }
+    .project-title { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+    .project-title span { color: var(--muted); font-weight: 400; }
+    .run-info { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+    .messages { flex: 1; overflow-y: auto; padding: 27px 34px 16px; }
+    .message { max-width: 760px; margin: 0 auto 22px; }
+    .message-label { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; color: var(--muted); font-size: 12px; }
+    .message-label strong { color: #424955; }
+    .user-bubble { margin-left: auto; width: fit-content; max-width: 80%; border-radius: 12px 12px 3px 12px; background: #147ed0; color: #fff; padding: 10px 14px; }
+    .reasoning { border: 1px solid #f3dfad; border-radius: 10px; background: #fffaf0; color: #765723; padding: 11px 13px; }
+    .reasoning-head { display: flex; align-items: center; gap: 7px; color: var(--orange); font-weight: 700; }
+    .reasoning p { margin: 7px 0 0; }
+    .assistant-text { margin: 10px 0 0; color: #343a46; font-size: 14px; }
+    .tool-card { margin-top: 11px; border: 1px solid #dfe5ee; border-radius: 10px; background: #fbfcfe; overflow: hidden; }
+    .tool-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e9edf3; padding: 10px 12px; }
+    .tool-name { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+    .tool-badge { border-radius: 5px; background: #e9f7f0; color: var(--green); padding: 2px 6px; font-size: 11px; }
+    .tool-body { color: #5f6877; padding: 10px 12px; }
+    .tool-body code { display: block; border-radius: 6px; background: #f1f3f6; padding: 8px; font: 12px/1.5 Consolas, monospace; white-space: pre-wrap; }
+    .tool-result { margin-top: 8px; color: #4d5868; }
+    .composer { border-top: 1px solid var(--line); padding: 13px 24px 15px; }
+    .composer-box { border: 1px solid #d9dee7; border-radius: 12px; background: #fff; box-shadow: 0 3px 14px rgba(25, 37, 58, .06); }
+    .composer textarea { display: block; width: 100%; min-height: 57px; resize: none; border: 0; outline: 0; background: transparent; padding: 12px 14px; color: var(--text); }
+    .composer-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 0 9px 9px 12px; }
+    .composer-tools { display: flex; align-items: center; gap: 5px; }
+    .icon-button { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 6px; color: #687385; font-size: 17px; }
+    .icon-button:hover { background: #f0f2f5; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 7px; background: #f3f5f8; color: #596477; padding: 5px 8px; font-size: 12px; }
+    .pill b { color: #303b4d; }
+    .send { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 8px; background: #236bd1; color: #fff; font-size: 17px; }
+
+    .icon { width: 16px; height: 16px; flex: 0 0 16px; fill: currentColor; vertical-align: -3px; }
+    .icon.small { width: 14px; height: 14px; flex-basis: 14px; }
+    .inspector { display: flex; width: 540px; flex-direction: column; border-left: 1px solid var(--line); background: #fbfbfc; }
+    .inspector-head { display: flex; height: 58px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 0 15px; }
+    .inspector-tabs { display: flex; gap: 3px; }
+    .inspector-tab { border-radius: 6px; padding: 7px 9px; color: var(--muted); }
+    .inspector-tab.active { background: #edf1f6; color: #303b4d; font-weight: 700; }
+    .filter { width: 120px; border: 1px solid #e0e4eb; border-radius: 6px; background: #fff; padding: 6px 8px; outline: 0; color: #687385; }
+    .inspector-main { display: flex; min-height: 0; flex: 1; }
+    .code-panel { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+    .code-tabs { display: flex; min-height: 37px; align-items: center; overflow-x: auto; border-bottom: 1px solid #e6e8ec; background: #f3f4f6; }
+    .code-tab { flex-shrink: 0; border-right: 1px solid #e3e5e9; padding: 9px 12px; color: #8790a0; }
+    .code-tab.active { border-top: 2px solid var(--blue); background: #fff; color: #303b4d; }
+    .file-tree { width: 190px; flex: 0 0 190px; overflow-y: auto; border-right: 1px solid var(--line); padding: 12px 8px; }
+    .file-tree-title { padding: 0 9px 8px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .tree-row { display: flex; align-items: center; gap: 6px; border-radius: 6px; padding: 5px 8px; color: #5b6575; }
+    .tree-row:hover { background: #eef2f7; }
+    .tree-row.active { background: var(--blue-soft); color: #1558b0; font-weight: 600; }
+    .tree-indent { padding-left: 19px; }
+    .code-view { min-height: 0; flex: 1; overflow: auto; background: var(--code); color: #d4d4d4; padding: 14px 0; font: 12px/1.7 Consolas, monospace; }
+    .code-line { display: flex; min-width: 470px; padding-right: 15px; }
+    .line-no { width: 39px; flex-shrink: 0; color: #6b7280; text-align: right; user-select: none; }
+    .line-code { padding-left: 16px; white-space: pre; }
+    .kw { color: #569cd6; } .type { color: #4ec9b0; } .str { color: #ce9178; } .comment { color: #6a9955; }
+    .status-bar { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #333; background: #252526; color: #9ca3af; padding: 7px 12px; font-size: 11px; }
+    .status-bar span { display: inline-flex; align-items: center; gap: 5px; }
+
+    .menu { position: absolute; z-index: 5; bottom: 77px; left: 31px; width: 285px; border: 1px solid #e1e5ec; border-radius: 10px; background: #fff; box-shadow: 0 12px 28px rgba(20, 33, 55, .17); padding: 7px; }
+    .menu-title { padding: 7px 9px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .menu-row { display: flex; align-items: center; justify-content: space-between; border-radius: 7px; padding: 8px 9px; }
+    .menu-row:hover { background: #f2f5f9; }
+    .menu-row small { display: block; color: var(--muted); }
+    .menu-row.selected { background: #fff7ed; color: #c2410c; }
+    .context { position: absolute; right: 29px; bottom: 75px; border: 1px solid #e1e5ec; border-radius: 9px; background: #fff; box-shadow: 0 10px 26px rgba(20, 33, 55, .14); padding: 10px 12px; text-align: center; }
+    .context strong { display: block; font-size: 14px; }
+    .context small { color: var(--muted); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7.4 8.6 4.6 4.6 4.6-4.6 1.4 1.4-6 6-6-6z"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2h6.5A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zm8 1.8V8h3.2z"/></symbol>
+    <symbol id="i-tool" viewBox="0 0 24 24"><path d="M14.7 5.3a5 5 0 0 0-6.2 6.2L3.2 16.8a2 2 0 0 0 2.8 2.8l5.3-5.3a5 5 0 0 0 6.2-6.2l-3 3-2.8-.8-.8-2.8z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="m19.4 13.5 1.6 1.2-2 3.4-1.9-.8a7 7 0 0 1-1.7 1l-.3 2h-4l-.3-2a7 7 0 0 1-1.7-1l-1.9.8-2-3.4 1.6-1.2a7 7 0 0 1 0-2L5.2 10l2-3.4 1.9.8a7 7 0 0 1 1.7-1l.3-2h4l.3 2a7 7 0 0 1 1.7 1l1.9-.8 2 3.4-1.6 1.2a7 7 0 0 1 0 2M13 15.5A3.5 3.5 0 1 0 13 8a3.5 3.5 0 0 0 0 7.5"/></symbol>
+    <symbol id="i-attach" viewBox="0 0 24 24"><path d="m8.5 12.5 6.7-6.7a3.2 3.2 0 0 1 4.6 4.6l-8.6 8.6a5 5 0 0 1-7-7l8-8 1.4 1.4-8 8a3 3 0 0 0 4.2 4.2l8.6-8.6a1.2 1.2 0 1 0-1.7-1.7L9.9 13.9z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><path d="m16.2 14.8 4.5 4.5-1.4 1.4-4.5-4.5a7 7 0 1 1 1.4-1.4M10 15a5 5 0 1 0 0-10 5 5 0 0 0 0 10"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="m3 4 18 8-18 8 2.3-7L14 12 5.3 11z"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.4 5 6 6 6-6 1.4 1.4-6 6 6 6-1.4 1.4-6-6-6 6L5 18.4l6-6-6-6z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6zm0 3.2L7 8v3c0 3.4 2 6 5 7.2 3-1.2 5-3.8 5-7.2V8z"/></symbol>
+    <symbol id="i-model" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/></symbol>
+  </svg>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">E</div><div><div class="brand-name">EDITH</div><div class="brand-sub">Local Coding Agent</div></div></div>
+      <div class="side-top"><button class="new-chat"><svg class="icon small"><use href="#i-plus"></use></svg> 新建会话 <span style="margin-left:auto;color:#9aa3b2">Ctrl K</span></button></div>
+      <section class="side-section"><div class="side-title"><span>当前目录 · EDITH-v1</span><button><svg class="icon small"><use href="#i-plus"></use></svg></button></div>
+        <button class="session active"><span class="session-name">前端工作台原型设计</span><span class="session-time">刚刚 · 运行中</span></button>
+        <button class="session"><span class="session-name">E2B Volume 问题分析</span><span class="session-time">昨天</span></button>
+        <button class="session"><span class="session-name">模型配置重构</span><span class="session-time">8 月 5 日</span></button>
+      </section>
+      <nav class="side-nav">
+        <button class="nav-item"><svg class="icon small"><use href="#i-grid"></use></svg>扩展</button><button class="nav-item"><svg class="icon small"><use href="#i-settings"></use></svg>设置</button>
+        <div class="user"><div class="avatar">J</div><div><b>Jdjd Lucy</b><div class="workspace-name">当前工作区：edith-studio</div></div></div>
+      </nav>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-header"><div class="project-title">前端工作台原型设计 <span>· session-7f1a</span></div><div class="run-info"><i class="dot"></i> Agent 运行中 <svg class="icon small"><use href="#i-chevron"></use></svg></div></header>
+      <section class="messages">
+        <article class="message"><div class="message-label"><strong>你</strong><span>刚刚</span></div><div class="user-bubble">帮我看看当前项目的前端结构，先不要修改文件。</div></article>
+        <article class="message"><div class="message-label"><strong>EDITH</strong><span>思考中</span></div>
+          <div class="reasoning"><div class="reasoning-head"><svg class="icon small"><use href="#i-chevron"></use></svg> 思考过程</div><p>我会先读取项目文件结构，再查看前端入口和主要组件。当前处于只读分析阶段，不会修改任何文件。</p></div>
+          <div class="tool-card"><div class="tool-head"><div class="tool-name"><svg class="icon small"><use href="#i-tool"></use></svg> claudecode_Glob <span class="tool-badge">已完成</span></div><span style="color:#9aa3b2"><svg class="icon small"><use href="#i-chevron"></use></svg></span></div><div class="tool-body"><code>{"pattern":"web/**/*.{ts,tsx,css}"}</code><div class="tool-result">找到 28 个匹配文件</div></div></div>
+          <p class="assistant-text">项目使用 Next.js，页面入口位于 <b>web/src/app</b>。我已经把相关代码打开到右侧，方便你边看边继续提问。</p>
+        </article>
+      </section>
+      <div class="composer">
+        <div class="composer-box"><textarea placeholder="输入消息，使用 / 查看指令与 Skills…"></textarea><div class="composer-toolbar"><div class="composer-tools"><button class="icon-button"><svg class="icon"><use href="#i-attach"></use></svg></button><button class="icon-button"><svg class="icon"><use href="#i-search"></use></svg></button><button class="pill" id="permissionButton"><svg class="icon small"><use href="#i-shield"></use></svg> <b>normal</b> <svg class="icon small"><use href="#i-chevron"></use></svg></button></div><div class="composer-tools"><button class="pill" id="modelButton"><svg class="icon small"><use href="#i-model"></use></svg> <b>DeepSeek V4 Flash</b> <svg class="icon small"><use href="#i-chevron"></use></svg></button><button class="pill" id="contextButton">Context 42%</button><button class="send"><svg class="icon"><use href="#i-send"></use></svg></button></div></div></div>
+      </div>
+      <div id="permissionMenu" class="menu hidden"><div class="menu-title">工具权限等级</div><button class="menu-row"><span><b>strict</b><small>危险操作都需要确认</small></span>　</button><button class="menu-row selected"><span><b>normal</b><small>只确认高风险操作</small></span>✓</button><button class="menu-row"><span><b>unrestricted</b><small>不进行工具审批</small></span>　</button></div>
+      <div id="contextInfo" class="context hidden"><strong>Context window: 42%</strong><small>108k / 258k tokens used</small></div>
+    </main>
+
+    <aside class="inspector">
+      <header class="inspector-head"><div class="inspector-tabs"><button class="inspector-tab active">代码</button><button class="inspector-tab">Diff</button></div><input class="filter" placeholder="过滤文件…"></header>
+      <div class="inspector-main">
+        <div class="file-tree"><div class="file-tree-title">项目文件</div>
+          <div class="tree-row"><svg class="icon small"><use href="#i-folder"></use></svg>edith-studio</div><div class="tree-row tree-indent"><svg class="icon small"><use href="#i-folder"></use></svg>internal</div><div class="tree-row tree-indent"><svg class="icon small"><use href="#i-folder"></use></svg>engine</div><div class="tree-row tree-indent"><svg class="icon small"><use href="#i-file"></use></svg>README.md</div><div class="tree-row tree-indent active"><svg class="icon small"><use href="#i-file"></use></svg>engine.go</div><div class="tree-row tree-indent"><svg class="icon small"><use href="#i-file"></use></svg>run.go</div><div class="tree-row tree-indent"><svg class="icon small"><use href="#i-file"></use></svg>types.go</div><div class="tree-row tree-indent"><svg class="icon small"><use href="#i-folder"></use></svg>models</div><div class="tree-row tree-indent"><svg class="icon small"><use href="#i-folder"></use></svg>studio</div><div class="tree-row tree-indent"><svg class="icon small"><use href="#i-folder"></use></svg>tools</div>
+        </div>
+        <div class="code-panel">
+          <div class="code-tabs"><div class="code-tab active">engine.go　<svg class="icon small"><use href="#i-close"></use></svg></div><div class="code-tab">run.go　<svg class="icon small"><use href="#i-close"></use></svg></div></div>
+          <div class="code-view"><div class="code-line"><span class="line-no">1</span><span class="line-code"><span class="kw">package</span> engine</span></div><div class="code-line"><span class="line-no">2</span><span class="line-code"></span></div><div class="code-line"><span class="line-no">3</span><span class="line-code"><span class="kw">import</span> (</span></div><div class="code-line"><span class="line-no">4</span><span class="line-code">　<span class="str">"context"</span></span></div><div class="code-line"><span class="line-no">5</span><span class="line-code">　<span class="str">"time"</span></span></div><div class="code-line"><span class="line-no">6</span><span class="line-code">)</span></div><div class="code-line"><span class="line-no">7</span><span class="line-code"></span></div><div class="code-line"><span class="line-no">8</span><span class="line-code"><span class="comment">// Engine 管理一个本地项目的 Agent Runner。</span></span></div><div class="code-line"><span class="line-no">9</span><span class="line-code"><span class="kw">type</span> <span class="type">Engine</span> <span class="kw">struct</span> {</span></div><div class="code-line"><span class="line-no">10</span><span class="line-code">　workspaceID <span class="type">string</span></span></div><div class="code-line"><span class="line-no">11</span><span class="line-code">　runner <span class="type">runner.ManagedRunner</span></span></div><div class="code-line"><span class="line-no">12</span><span class="line-code">　sessionService session.Service</span></div><div class="code-line"><span class="line-no">13</span><span class="line-code">}</span></div><div class="code-line"><span class="line-no">14</span><span class="line-code"></span></div><div class="code-line"><span class="line-no">15</span><span class="line-code"><span class="kw">func</span> (e *<span class="type">Engine</span>) <span class="type">Run</span>(ctx context.Context) <span class="type">error</span> {</span></div><div class="code-line"><span class="line-no">16</span><span class="line-code">　<span class="comment">// 直接消费 Runner 事件并推送到 Web。</span></span></div></div>
+        </div>
+      </div>
+      <div class="status-bar"><span><i class="dot"></i> Go</span><span>只读　Ln 15, Col 1</span></div>
+    </aside>
+  </div>
+  <script>
+    document.getElementById('permissionButton').onclick = function () { document.getElementById('permissionMenu').classList.toggle('hidden'); };
+    document.getElementById('contextButton').onclick = function () { document.getElementById('contextInfo').classList.toggle('hidden'); };
+  </script>
+</body>
+</html>

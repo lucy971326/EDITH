@@ -1,37 +1,19 @@
 package engine
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
-	"fmt"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
-	"edith/studio/internal/models"
-	"edith/studio/internal/session"
-	"edith/studio/internal/tools"
-
-	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
-	sessionpkg "trpc.group/trpc-go/trpc-agent-go/session"
-	"trpc.group/trpc-go/trpc-agent-go/tool"
-)
-
-const (
-	appName      = "edith-studio"
-	agentName    = "edith"
-	systemPrompt = "You are EDITH, a careful coding agent. Work only in the current project. Explain important changes clearly and keep code readable."
 )
 
 // Dependencies 是 Engine 持有的长期依赖。
 type Dependencies struct {
-	ProjectRoot    string
-	Runner         runner.ManagedRunner
-	SessionService sessionpkg.Service
-	ToolSets       []tool.ToolSet
+	// WorkspaceID 是当前项目的 Session 隔离身份。
+	WorkspaceID string
+	// Runner 是 Workspace 已组装好的 Agent 运行能力。
+	Runner runner.ManagedRunner
 }
 
 // Engine 管理一个本地项目的 Agent Runner。
@@ -40,11 +22,6 @@ type Engine struct {
 	workspaceID string
 	// runner 是已组装的 Agent 运行能力；它负责执行和取消一次 Run。
 	runner runner.ManagedRunner
-	// sessionService 是已组装的会话持久化能力；Runner 用它保存对话。
-	sessionService sessionpkg.Service
-	// toolSets 是已组装的工具能力；Agent 在 Run 中可调用其中的工具。
-	toolSets []tool.ToolSet
-
 	// runningMu 保护下面两份随运行变化的状态，避免并发 Run 相互干扰。
 	runningMu sync.Mutex
 	// runningSession 记录每个会话当前对应的请求身份，用于限制一个会话只运行一个 Run。
@@ -53,61 +30,14 @@ type Engine struct {
 	userCanceled map[string]struct{}
 }
 
-// Open 为当前项目组装完整的 Agent 内核。
-func Open(projectRoot string) (*Engine, error) {
-	projectRoot, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return nil, fmt.Errorf("resolve project root: %w", err)
-	}
-	projectRoot = filepath.Clean(projectRoot)
-	modelRegistry, err := models.Open()
-	if err != nil {
-		return nil, err
-	}
-	toolSets, err := tools.NewToolSets(projectRoot)
-	if err != nil {
-		return nil, err
-	}
-	sessionService, err := session.Open()
-	if err != nil {
-		closeToolSets(toolSets)
-		return nil, err
-	}
-	agent := llmagent.New(
-		agentName,
-		llmagent.WithModel(modelRegistry.Default),
-		llmagent.WithModels(modelRegistry.All),
-		llmagent.WithGlobalInstruction(systemPrompt),
-		llmagent.WithToolSets(toolSets),
-	)
-	managedRunner, ok := runner.NewRunner(
-		appName,
-		agent,
-		runner.WithSessionService(sessionService),
-	).(runner.ManagedRunner)
-	if !ok {
-		closeToolSets(toolSets)
-		_ = sessionService.Close()
-		return nil, errors.New("framework runner does not support cancellation")
-	}
-	return New(Dependencies{
-		ProjectRoot:    projectRoot,
-		Runner:         managedRunner,
-		SessionService: sessionService,
-		ToolSets:       toolSets,
-	})
-}
-
 // New 使用已经创建好的长期依赖组装 Engine。
 func New(dependencies Dependencies) (*Engine, error) {
-	if dependencies.ProjectRoot == "" || dependencies.Runner == nil || dependencies.SessionService == nil {
+	if strings.TrimSpace(dependencies.WorkspaceID) == "" || dependencies.Runner == nil {
 		return nil, errors.New("engine dependencies are incomplete")
 	}
 	return &Engine{
-		workspaceID:    workspaceID(dependencies.ProjectRoot),
+		workspaceID:    dependencies.WorkspaceID,
 		runner:         dependencies.Runner,
-		sessionService: dependencies.SessionService,
-		toolSets:       dependencies.ToolSets,
 		runningSession: make(map[string]string),
 		userCanceled:   make(map[string]struct{}),
 	}, nil
@@ -137,21 +67,9 @@ func (e *Engine) Cancel(requestID string) bool {
 	return false
 }
 
-// Close 释放 Engine 持有的 Runner、ToolSet 和 SessionService。
+// Close 关闭 Engine 持有的 Runner。
 func (e *Engine) Close() error {
-	var closeErrors []error
-	if err := e.runner.Close(); err != nil {
-		closeErrors = append(closeErrors, err)
-	}
-	for _, toolSet := range e.toolSets {
-		if err := toolSet.Close(); err != nil {
-			closeErrors = append(closeErrors, err)
-		}
-	}
-	if err := e.sessionService.Close(); err != nil {
-		closeErrors = append(closeErrors, err)
-	}
-	return errors.Join(closeErrors...)
+	return e.runner.Close()
 }
 
 func (e *Engine) reserveSession(input RunInput) error {
@@ -181,19 +99,4 @@ func (e *Engine) clearUserCanceled(requestID string) {
 	e.runningMu.Lock()
 	defer e.runningMu.Unlock()
 	delete(e.userCanceled, requestID)
-}
-
-func workspaceID(projectRoot string) string {
-	canonicalPath := filepath.Clean(projectRoot)
-	if runtime.GOOS == "windows" {
-		canonicalPath = strings.ToLower(canonicalPath)
-	}
-	hash := sha256.Sum256([]byte(canonicalPath))
-	return "workspace:" + hex.EncodeToString(hash[:])
-}
-
-func closeToolSets(toolSets []tool.ToolSet) {
-	for _, toolSet := range toolSets {
-		_ = toolSet.Close()
-	}
 }

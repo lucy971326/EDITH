@@ -9,7 +9,6 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
-	"trpc.group/trpc-go/trpc-agent-go/session/inmemory"
 )
 
 type recordingRunner struct {
@@ -65,9 +64,8 @@ func TestRunStreamsFrameworkEventsWithoutAnIntermediateChannel(t *testing.T) {
 
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
 	engine, err := New(Dependencies{
-		ProjectRoot:    t.TempDir(),
-		Runner:         runner,
-		SessionService: inmemory.NewSessionService(),
+		WorkspaceID: "workspace:test",
+		Runner:      runner,
 	})
 	if err != nil {
 		t.Fatalf("new engine: %v", err)
@@ -104,9 +102,8 @@ func TestCancelDelegatesToManagedRunner(t *testing.T) {
 	sourceEventCh := make(chan *event.Event)
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
 	engine, err := New(Dependencies{
-		ProjectRoot:    t.TempDir(),
-		Runner:         runner,
-		SessionService: inmemory.NewSessionService(),
+		WorkspaceID: "workspace:test",
+		Runner:      runner,
 	})
 	if err != nil {
 		t.Fatalf("new engine: %v", err)
@@ -120,9 +117,8 @@ func TestRunReportsUserCancellationAtCompletion(t *testing.T) {
 	sourceEventCh := make(chan *event.Event, 1)
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
 	engine, err := New(Dependencies{
-		ProjectRoot:    t.TempDir(),
-		Runner:         runner,
-		SessionService: inmemory.NewSessionService(),
+		WorkspaceID: "workspace:test",
+		Runner:      runner,
 	})
 	if err != nil {
 		t.Fatalf("new engine: %v", err)
@@ -157,7 +153,7 @@ func TestRunHandlesCompleteResponseAndDeduplicatesTools(t *testing.T) {
 	close(sourceEventCh)
 
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
-	engine, err := New(Dependencies{ProjectRoot: t.TempDir(), Runner: runner, SessionService: inmemory.NewSessionService()})
+	engine, err := New(Dependencies{WorkspaceID: "workspace:test", Runner: runner})
 	if err != nil {
 		t.Fatalf("new engine: %v", err)
 	}
@@ -190,7 +186,7 @@ func TestRunRejectsASecondRunInTheSameSession(t *testing.T) {
 	sourceEventCh := make(chan *event.Event, 1)
 	runStartedCh := make(chan struct{})
 	runner := &recordingRunner{sourceEventCh: sourceEventCh, runStartedCh: runStartedCh}
-	engine, err := New(Dependencies{ProjectRoot: t.TempDir(), Runner: runner, SessionService: inmemory.NewSessionService()})
+	engine, err := New(Dependencies{WorkspaceID: "workspace:test", Runner: runner})
 	if err != nil {
 		t.Fatalf("new engine: %v", err)
 	}
@@ -228,7 +224,7 @@ func TestRunKeepsConsumingAfterTheBrowserDisconnects(t *testing.T) {
 	close(sourceEventCh)
 
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
-	engine, err := New(Dependencies{ProjectRoot: t.TempDir(), Runner: runner, SessionService: inmemory.NewSessionService()})
+	engine, err := New(Dependencies{WorkspaceID: "workspace:test", Runner: runner})
 	if err != nil {
 		t.Fatalf("new engine: %v", err)
 	}
@@ -262,7 +258,7 @@ func TestRunReturnsTheFrameworkErrorMessage(t *testing.T) {
 	close(sourceEventCh)
 
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
-	engine, err := New(Dependencies{ProjectRoot: t.TempDir(), Runner: runner, SessionService: inmemory.NewSessionService()})
+	engine, err := New(Dependencies{WorkspaceID: "workspace:test", Runner: runner})
 	if err != nil {
 		t.Fatalf("new engine: %v", err)
 	}

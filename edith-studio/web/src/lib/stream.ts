@@ -16,6 +16,7 @@ export type StreamEvent = {
 export type AssistantBlock =
   | { id: string; type: "reasoning"; content: string }
   | { id: string; type: "text"; content: string }
+  | { id: string; type: "error"; content: string }
   | { id: string; type: "tool"; name: string; arguments: string; result: string; status: ToolStatus };
 
 export function readSSEFrames(buffer: string): { events: StreamEvent[]; rest: string } {

@@ -4,7 +4,7 @@
 
 ## 当前优先级：内核骨架
 
-- [x] 按 `代码组织约定.md` 重构为 `main → studio → engine`。
+- [x] 按 [架构设计](architecture/架构设计.md) 重构为 `main → studio → engine`。
 - [x] `main` 只负责启动应用；Engine 内核自行组装 Model、Tools、SessionService 与 Runner。
 - [x] 删除工具审批半成品；不保留空包、空接口或预留 channel。
 - [x] 收紧流式主路径：`RunInput → frameworkEventCh → StreamEvent → SSE`。

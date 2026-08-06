@@ -8,20 +8,22 @@ import (
 	"net/http"
 	"time"
 
-	"edith/studio/internal/engine"
+	"edith/studio/internal/workspace"
 )
 
-// Run 启动 Engine 和本地 HTTP 服务，并在进程退出时释放资源。
-func Run(ctx context.Context, projectRoot, address string) error {
-	engineRuntime, err := engine.Open(projectRoot)
+// Start 创建 Workspace 并启动本地 HTTP 服务；进程退出时关闭 Workspace。
+func Start(ctx context.Context, projectRoot, address string) (returnErr error) {
+	workspaceRuntime, err := workspace.Create(workspace.Dependencies{ProjectRoot: projectRoot})
 	if err != nil {
 		return err
 	}
-	defer engineRuntime.Close()
+	defer func() {
+		returnErr = errors.Join(returnErr, workspaceRuntime.Close())
+	}()
 
 	server := &http.Server{
 		Addr:              address,
-		Handler:           newHandler(ctx, engineRuntime),
+		Handler:           newHandler(ctx, workspaceRuntime),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	shutdownCh := make(chan struct{})
