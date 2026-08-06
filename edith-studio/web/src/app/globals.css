@@ -80,6 +80,9 @@ button:disabled { cursor: not-allowed; }
 .stop-button { border: 1px solid #f2c7cf; border-radius: 8px; background: white; color: #bd2944; padding: 7px 10px; font-size: 12px; font-weight: 700; }
 .control-pill { display: flex; align-items: center; gap: 5px; border: 0; border-radius: 7px; background: #f2f4f7; color: #526176; padding: 6px 8px; font-size: 12px; }
 .control-pill b { color: #303b4d; }
+.control-select { display: flex; align-items: center; gap: 5px; border-radius: 7px; background: #f2f4f7; color: #526176; padding: 4px 7px; font-size: 12px; }
+.control-select select { max-width: 150px; border: 0; outline: 0; background: transparent; color: #303b4d; font: inherit; cursor: pointer; }
+.control-select select:disabled { cursor: not-allowed; }
 .soon-label { color: #9aa5b5; font-size: 11px; }
 
 .inspector { display: flex; min-width: 0; flex-direction: column; border-left: 1px solid var(--line); }

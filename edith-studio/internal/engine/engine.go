@@ -5,6 +5,8 @@ import (
 	"strings"
 	"sync"
 
+	"edith/studio/internal/models"
+
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 )
 
@@ -14,6 +16,8 @@ type Dependencies struct {
 	WorkspaceID string
 	// Runner 是 Workspace 已组装好的 Agent 运行能力。
 	Runner runner.ManagedRunner
+	// Models 是本次 Run 选择模型和思考模式的能力。
+	Models *models.Module
 }
 
 // Engine 管理一个本地项目的 Agent Runner。
@@ -22,6 +26,8 @@ type Engine struct {
 	workspaceID string
 	// runner 是已组装的 Agent 运行能力；它负责执行和取消一次 Run。
 	runner runner.ManagedRunner
+	// models 是已加载的模型目录；它负责把产品选择转换成框架 RunOption。
+	models *models.Module
 	// runningMu 保护下面两份随运行变化的状态，避免并发 Run 相互干扰。
 	runningMu sync.Mutex
 	// runningSession 记录每个会话当前对应的请求身份，用于限制一个会话只运行一个 Run。
@@ -32,12 +38,13 @@ type Engine struct {
 
 // New 使用已经创建好的长期依赖组装 Engine。
 func New(dependencies Dependencies) (*Engine, error) {
-	if strings.TrimSpace(dependencies.WorkspaceID) == "" || dependencies.Runner == nil {
+	if strings.TrimSpace(dependencies.WorkspaceID) == "" || dependencies.Runner == nil || dependencies.Models == nil {
 		return nil, errors.New("engine dependencies are incomplete")
 	}
 	return &Engine{
 		workspaceID:    dependencies.WorkspaceID,
 		runner:         dependencies.Runner,
+		models:         dependencies.Models,
 		runningSession: make(map[string]string),
 		userCanceled:   make(map[string]struct{}),
 	}, nil

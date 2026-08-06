@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"edith/studio/internal/models"
+
 	"trpc.group/trpc-go/trpc-agent-go/agent"
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
@@ -63,15 +65,9 @@ func TestRunStreamsFrameworkEventsWithoutAnIntermediateChannel(t *testing.T) {
 	close(sourceEventCh)
 
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
-	engine, err := New(Dependencies{
-		WorkspaceID: "workspace:test",
-		Runner:      runner,
-	})
-	if err != nil {
-		t.Fatalf("new engine: %v", err)
-	}
+	engine := newTestEngine(t, runner)
 	var events []StreamEvent
-	err = engine.Run(context.Background(), RunInput{RequestID: "request-1", SessionID: "session-1", Message: "hello"}, func(streamEvent StreamEvent) error {
+	err := engine.Run(context.Background(), RunInput{RequestID: "request-1", SessionID: "session-1", Message: "hello"}, func(streamEvent StreamEvent) error {
 		events = append(events, streamEvent)
 		return nil
 	})
@@ -101,13 +97,7 @@ func TestRunStreamsFrameworkEventsWithoutAnIntermediateChannel(t *testing.T) {
 func TestCancelDelegatesToManagedRunner(t *testing.T) {
 	sourceEventCh := make(chan *event.Event)
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
-	engine, err := New(Dependencies{
-		WorkspaceID: "workspace:test",
-		Runner:      runner,
-	})
-	if err != nil {
-		t.Fatalf("new engine: %v", err)
-	}
+	engine := newTestEngine(t, runner)
 	if !engine.Cancel("request-1") || runner.canceledRequest != "request-1" {
 		t.Fatalf("cancel did not delegate: %q", runner.canceledRequest)
 	}
@@ -116,13 +106,7 @@ func TestCancelDelegatesToManagedRunner(t *testing.T) {
 func TestRunReportsUserCancellationAtCompletion(t *testing.T) {
 	sourceEventCh := make(chan *event.Event, 1)
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
-	engine, err := New(Dependencies{
-		WorkspaceID: "workspace:test",
-		Runner:      runner,
-	})
-	if err != nil {
-		t.Fatalf("new engine: %v", err)
-	}
+	engine := newTestEngine(t, runner)
 
 	if !engine.Cancel("request-1") {
 		t.Fatal("cancel returned false")
@@ -131,7 +115,7 @@ func TestRunReportsUserCancellationAtCompletion(t *testing.T) {
 	close(sourceEventCh)
 
 	var streamEvents []StreamEvent
-	err = engine.Run(context.Background(), RunInput{RequestID: "request-1", SessionID: "session-1", Message: "hello"}, func(streamEvent StreamEvent) error {
+	err := engine.Run(context.Background(), RunInput{RequestID: "request-1", SessionID: "session-1", Message: "hello"}, func(streamEvent StreamEvent) error {
 		streamEvents = append(streamEvents, streamEvent)
 		return nil
 	})
@@ -153,12 +137,9 @@ func TestRunHandlesCompleteResponseAndDeduplicatesTools(t *testing.T) {
 	close(sourceEventCh)
 
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
-	engine, err := New(Dependencies{WorkspaceID: "workspace:test", Runner: runner})
-	if err != nil {
-		t.Fatalf("new engine: %v", err)
-	}
+	engine := newTestEngine(t, runner)
 	var streamEvents []StreamEvent
-	err = engine.Run(context.Background(), RunInput{RequestID: "request-1", SessionID: "session-1", Message: "hello"}, func(streamEvent StreamEvent) error {
+	err := engine.Run(context.Background(), RunInput{RequestID: "request-1", SessionID: "session-1", Message: "hello"}, func(streamEvent StreamEvent) error {
 		streamEvents = append(streamEvents, streamEvent)
 		return nil
 	})
@@ -186,10 +167,7 @@ func TestRunRejectsASecondRunInTheSameSession(t *testing.T) {
 	sourceEventCh := make(chan *event.Event, 1)
 	runStartedCh := make(chan struct{})
 	runner := &recordingRunner{sourceEventCh: sourceEventCh, runStartedCh: runStartedCh}
-	engine, err := New(Dependencies{WorkspaceID: "workspace:test", Runner: runner})
-	if err != nil {
-		t.Fatalf("new engine: %v", err)
-	}
+	engine := newTestEngine(t, runner)
 
 	firstRunDoneCh := make(chan error, 1)
 	go func() {
@@ -201,7 +179,7 @@ func TestRunRejectsASecondRunInTheSameSession(t *testing.T) {
 	}()
 	<-runStartedCh
 
-	err = engine.Run(
+	err := engine.Run(
 		context.Background(),
 		RunInput{RequestID: "request-2", SessionID: "session-1", Message: "second"},
 		func(StreamEvent) error { return nil },
@@ -224,12 +202,9 @@ func TestRunKeepsConsumingAfterTheBrowserDisconnects(t *testing.T) {
 	close(sourceEventCh)
 
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
-	engine, err := New(Dependencies{WorkspaceID: "workspace:test", Runner: runner})
-	if err != nil {
-		t.Fatalf("new engine: %v", err)
-	}
+	engine := newTestEngine(t, runner)
 	sendCalls := 0
-	err = engine.Run(
+	err := engine.Run(
 		context.Background(),
 		RunInput{RequestID: "request-1", SessionID: "session-1", Message: "hello"},
 		func(StreamEvent) error {
@@ -258,12 +233,9 @@ func TestRunReturnsTheFrameworkErrorMessage(t *testing.T) {
 	close(sourceEventCh)
 
 	runner := &recordingRunner{sourceEventCh: sourceEventCh}
-	engine, err := New(Dependencies{WorkspaceID: "workspace:test", Runner: runner})
-	if err != nil {
-		t.Fatalf("new engine: %v", err)
-	}
+	engine := newTestEngine(t, runner)
 	var streamEvents []StreamEvent
-	err = engine.Run(
+	err := engine.Run(
 		context.Background(),
 		RunInput{RequestID: "request-1", SessionID: "session-1", Message: "hello"},
 		func(streamEvent StreamEvent) error {
@@ -284,6 +256,36 @@ func TestRunReturnsTheFrameworkErrorMessage(t *testing.T) {
 
 func responseEvent(response model.Response) *event.Event {
 	return event.NewResponseEvent("invocation", "edith", &response)
+}
+
+func newTestEngine(t *testing.T, managedRunner runner.ManagedRunner) *Engine {
+	t.Helper()
+	modelModule, err := models.Build(models.Config{
+		Default: "deepseek-test",
+		Providers: map[string]models.ProviderConfig{
+			"deepseek": {APIKey: "test", BaseURL: "https://api.deepseek.com", Variant: "deepseek"},
+		},
+		Models: map[string]models.ModelConfig{
+			"deepseek-test": {
+				Provider:      "deepseek",
+				Name:          "deepseek-test",
+				ContextWindow: 1_000_000,
+				Thinking:      models.ThinkingConfig{Default: "high", Modes: []string{"off", "high"}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("build test models: %v", err)
+	}
+	engine, err := New(Dependencies{
+		WorkspaceID: "workspace:test",
+		Runner:      managedRunner,
+		Models:      modelModule,
+	})
+	if err != nil {
+		t.Fatalf("new engine: %v", err)
+	}
+	return engine
 }
 
 var _ runner.ManagedRunner = (*recordingRunner)(nil)

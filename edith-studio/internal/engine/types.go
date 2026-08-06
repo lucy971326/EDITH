@@ -12,9 +12,11 @@ var (
 
 // RunInput 是每次 Agent Run 都会变化的输入。
 type RunInput struct {
-	RequestID string `json:"requestId"`
-	SessionID string `json:"sessionId"`
-	Message   string `json:"message"`
+	RequestID    string `json:"requestId"`
+	SessionID    string `json:"sessionId"`
+	Message      string `json:"message"`
+	ModelID      string `json:"modelId,omitempty"`
+	ThinkingMode string `json:"thinkingMode,omitempty"`
 }
 
 // StreamEvent 是 Web 前端读取的稳定 SSE 事件。

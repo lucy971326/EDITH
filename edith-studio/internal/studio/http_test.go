@@ -8,8 +8,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"edith/studio/internal/models"
 	"edith/studio/internal/project"
 	"edith/studio/internal/workspace"
 )
@@ -68,6 +70,42 @@ func TestFileHandlers(t *testing.T) {
 			t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 		}
 	})
+}
+
+func TestModelHandlerReturnsBackendCatalog(t *testing.T) {
+	modelModule, err := models.Build(models.Config{
+		Default: "deepseek-pro",
+		Providers: map[string]models.ProviderConfig{
+			"deepseek": {APIKey: "secret", BaseURL: "https://api.deepseek.com", Variant: "deepseek"},
+		},
+		Models: map[string]models.ModelConfig{
+			"deepseek-pro": {
+				Provider:      "deepseek",
+				Name:          "deepseek-v4-pro",
+				ContextWindow: 1_000_000,
+				Thinking:      models.ThinkingConfig{Default: "max", Modes: []string{"off", "high", "max"}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("build models: %v", err)
+	}
+
+	handler := newHandler(context.Background(), &workspace.Workspace{Models: modelModule})
+	response := serveRequest(handler, http.MethodGet, "/api/models", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var catalog models.Catalog
+	if err := json.NewDecoder(response.Body).Decode(&catalog); err != nil {
+		t.Fatal(err)
+	}
+	if catalog.DefaultModelID != "deepseek-pro" || len(catalog.Models) != 1 || catalog.Models[0].ContextWindow != 1_000_000 {
+		t.Fatalf("catalog = %#v", catalog)
+	}
+	if strings.Contains(response.Body.String(), "secret") {
+		t.Fatalf("response leaked API key: %s", response.Body.String())
+	}
 }
 
 func serveRequest(handler http.Handler, method, endpoint, path string) *httptest.ResponseRecorder {

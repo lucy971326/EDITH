@@ -1,36 +1,53 @@
 # EDITH Studio TODO
 
-> 只记录已经达成共识的方向；做前再写极简实现计划。
+> 只记录已经达成共识的方向；开始实现前先写极简计划。
 
-## 当前优先级：内核骨架
+## 已完成
 
-- [x] 按 [架构设计](architecture/架构设计.md) 重构为 `main → studio → engine`。
-- [x] `main` 只负责启动应用；Engine 内核自行组装 Model、Tools、SessionService 与 Runner。
-- [x] 删除工具审批半成品；不保留空包、空接口或预留 channel。
-- [x] 收紧流式主路径：`RunInput → frameworkEventCh → StreamEvent → SSE`。
-- [x] Event 翻译不新增 channel、goroutine、缓存或事件桥；所有 channel 名称以 `Ch` 结尾。
+- [x] 按架构文档组织 `studio → workspace → engine`。
+- [x] `Workspace` 管理一个启动目录及其产品能力；`Engine` 只负责 Agent Run。
+- [x] 保持唯一流式主路径：`Runner → frameworkEventCh → Engine 现场处理 → StreamEvent → SSE`。
+- [x] 删除工具审批半成品；不保留空包、空接口、额外事件 channel 或事件桥。
+- [x] 按启动目录生成 `WorkspaceID`，不同项目目录的 Session 互相隔离。
+- [x] 使用框架 `SessionService` 保存、查询和删除会话。
+- [x] 项目文件树按目录展开读取，文件按点击读取；路径限制在 `ProjectRoot` 内。
+- [x] `models.Module` 负责读取 `~/.edith/models.yaml`，并在启动时创建全部模型实例。
+- [x] 模型配置分离 Provider 连接信息与 Model 能力信息。
+- [x] 模型声明 `context_window`、`vision`、`thinking` 能力。
+- [x] 使用框架 Provider / Variant 处理厂商协议差异。
+- [x] 后端通过 `/api/models` 暴露不含密钥的模型目录。
+- [x] Web 根据后端模型目录选择模型和思考模式；单次 Run 可以切换已注册模型。
+- [x] 完成 Go 测试、竞态测试、静态检查和 Web 类型检查。
 
-## 当前优先级：模型能力层
+## 当前优先级：会话上下文管理
 
-- [ ] 定义 `models` 的配置结构与校验；模型配置是能力的唯一事实，不维护内置热门模型预设。
-- [ ] 分离 Provider 连接信息与 Model 能力信息。
-- [ ] 每个可用模型至少声明：`provider`、`name`、`context_window`、`max_output_tokens`、输入模态、`tool_calling`、推理控制能力。
-- [ ] 根据配置创建启动期静态模型实例，并通过框架 `WithModels` 预注册。
-- [ ] 用框架 Provider / Variant 适配厂商协议；EDITH 不手写 DeepSeek、Qwen、GLM、Kimi、MiniMax 等厂商的思考字段。
-- [ ] 模型选择只使用配置中明确声明为可用的模型；Coding Agent 默认模型必须支持工具调用。
+- [ ] 完整确认框架的 Context Threshold、Token Tailoring、Context Compaction 和摘要 API。
+- [ ] 定义会话上下文策略：触发比例、最小 token 阈值、摘要模型和摘要提示词。
+- [ ] 将模型的 `ContextWindow` 交给框架，接入自动压缩流程。
+- [ ] 验证压缩时系统提示、最新用户输入、工具调用和工具结果的配对关系不被破坏。
+- [ ] 确认摘要保存位置、失败行为和取消行为，不让一次压缩失败破坏整个 Session。
+- [ ] 由后端提供当前上下文事实；Web 只展示后端返回的使用量和压缩状态。
 
-## 上下文与会话
+## 上下文完成后的产品能力
 
-- [ ] 按项目隔离会话：`userID = workspace:<规范化 ProjectRoot 的稳定哈希>`。
-- [ ] 使用 `SessionService` 的 `ListSessions`、`GetSession`、`DeleteSession` 实现会话侧栏与历史，不直接查询 SQLite。
-- [ ] 接入 `WithContextThreshold`：模型提供 Context Window，会话策略提供触发比例、最小 token 阈值、摘要模型与摘要提示词。
-- [ ] 开启并校验 Token Tailoring、Context Compaction 与会话摘要的配合，重点保护系统提示、最新用户输入和工具调用配对。
-- [ ] 第一版采用单一、保守的全局 Token 估算策略；不伪造“每模型精确 tokenizer”配置。
+- [ ] 文件附件：定义上传、保存、会话引用、重传和清理边界。
+- [ ] 图片输入：只有 `vision: true` 的模型允许上传图片。
+- [ ] 多模态消息：将附件转换为框架支持的消息内容块，不把无限大的 Base64 直接写入 Session。
+- [ ] MCP：支持用户级与项目级配置，明确启动、关闭和状态展示边界。
+- [ ] Skills：支持用户级与项目级发现，并明确优先级和覆盖规则。
+- [ ] 工具权限：重新设计为 Run 的暂停 / 恢复能力，不再通过 Callback 和事件桥临时拼接。
 
-## 依赖模型能力层的后续功能
+## Web 后续完善
 
-- [ ] 前端模型选择器：只展示当前配置已声明的模型与能力。
-- [ ] 推理控制 UI：按模型声明显示 thinking 开关或 reasoning effort 选项。
-- [ ] 图片附件：仅对支持图片输入的模型显示上传；单独设计附件保存、会话引用、重传与清理，不把 Base64 图片无限写入 SQLite Session。
-- [ ] MCP 项目级配置与生命周期。
-- [ ] 重新设计工具审批：它是 Run 的暂停 / 恢复能力，不再通过 Callback + 事件桥临时拼接。
+- [ ] 会话新建、切换、历史加载和删除的完整交互。
+- [ ] 模型能力驱动的选择器：按模型声明显示思考模式、视觉能力和上下文窗口。
+- [ ] 编辑器文件标签、只读代码查看和 Diff 展示。
+- [ ] 工具状态卡片、思考内容、附件和错误状态的统一展示。
+- [ ] 模型配置页面：通过后端修改用户级 YAML，修改后明确提示重启生效。
+
+## 暂不做
+
+- [ ] 多用户权限与审计。
+- [ ] 项目级模型配置覆盖。
+- [ ] 会话历史导出与云同步。
+- [ ] 生产环境打包、自动更新和远程部署。

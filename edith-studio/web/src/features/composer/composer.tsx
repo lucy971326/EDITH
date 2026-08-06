@@ -1,8 +1,97 @@
 import { FormEvent } from "react";
+import type { ModelCatalog } from "../../api/models";
 import { Icon } from "../../ui/icon";
 
-type ComposerProps = { input: string; isRunning: boolean; isStopping: boolean; onInput: (value: string) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onStop: () => void };
+type ComposerProps = {
+  input: string;
+  isRunning: boolean;
+  isStopping: boolean;
+  modelCatalog: ModelCatalog | null;
+  modelID: string;
+  thinkingMode: string;
+  onInput: (value: string) => void;
+  onModelChange: (modelID: string) => void;
+  onThinkingModeChange: (thinkingMode: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onStop: () => void;
+};
 
-export function Composer({ input, isRunning, isStopping, onInput, onSubmit, onStop }: ComposerProps) {
-  return <form className="composer" onSubmit={onSubmit}><div className="composer-box"><textarea value={input} onChange={(event) => onInput(event.target.value)} disabled={isRunning} placeholder="输入消息，使用 / 查看指令与 Skills…" /><div className="composer-toolbar"><div className="toolbar-group"><button className="icon-button" disabled title="文件与图片上传即将支持"><Icon name="attachment" /></button><span className="soon-label">上传即将支持</span><button className="control-pill" type="button" title="权限设置即将支持"><Icon name="shield" /><b>normal</b><Icon name="chevron" /></button></div><div className="toolbar-group"><button className="control-pill" type="button" title="模型选择即将支持"><Icon name="spark" /><b>默认模型</b><Icon name="chevron" /></button><span className="control-pill" title="上下文统计即将支持">Context 即将支持</span>{isRunning ? <button className="stop-button" disabled={isStopping} onClick={onStop} type="button">{isStopping ? "停止中" : "停止"}</button> : <button className="send-button" disabled={!input.trim()} type="submit" title="发送"><Icon name="send" /></button>}</div></div></div></form>;
+function formatContextWindow(tokens: number) {
+  if (tokens >= 1_000_000) {
+    return `${tokens / 1_000_000}M`;
+  }
+  return `${Math.round(tokens / 1_000)}K`;
+}
+
+export function Composer({
+  input,
+  isRunning,
+  isStopping,
+  modelCatalog,
+  modelID,
+  thinkingMode,
+  onInput,
+  onModelChange,
+  onThinkingModeChange,
+  onSubmit,
+  onStop,
+}: ComposerProps) {
+  const selectedModel = modelCatalog?.models.find((model) => model.id === modelID);
+  const thinkingModes = selectedModel?.thinking.modes ?? [];
+  const canSubmit = Boolean(input.trim() && modelCatalog && modelID && thinkingMode);
+
+  return (
+    <form className="composer" onSubmit={onSubmit}>
+      <div className="composer-box">
+        <textarea
+          value={input}
+          onChange={(event) => onInput(event.target.value)}
+          disabled={isRunning}
+          placeholder="输入消息，使用 / 查看指令与 Skills…"
+        />
+        <div className="composer-toolbar">
+          <div className="toolbar-group">
+            <button className="icon-button" disabled title="文件与图片上传即将支持">
+              <Icon name="attachment" />
+            </button>
+            <span className="soon-label">上传即将支持</span>
+            <span className="control-pill" title="权限设置即将支持">
+              <Icon name="shield" />
+              <b>normal</b>
+              <Icon name="chevron" />
+            </span>
+          </div>
+          <div className="toolbar-group">
+            <label className="control-select" title="选择模型">
+              <Icon name="spark" />
+              <select value={modelID} onChange={(event) => onModelChange(event.target.value)} disabled={isRunning || !modelCatalog}>
+                {modelCatalog?.models.map((model) => (
+                  <option key={model.id} value={model.id}>{model.id}</option>
+                ))}
+              </select>
+              <Icon name="chevron" />
+            </label>
+            <label className="control-select" title="选择思考模式">
+              <select value={thinkingMode} onChange={(event) => onThinkingModeChange(event.target.value)} disabled={isRunning || !selectedModel}>
+                {thinkingModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+              </select>
+              <Icon name="chevron" />
+            </label>
+            <span className="control-pill" title="模型上下文窗口">
+              Context {selectedModel ? formatContextWindow(selectedModel.contextWindow) : "加载中"}
+            </span>
+            {isRunning ? (
+              <button className="stop-button" disabled={isStopping} onClick={onStop} type="button">
+                {isStopping ? "停止中" : "停止"}
+              </button>
+            ) : (
+              <button className="send-button" disabled={!canSubmit} type="submit" title="发送">
+                <Icon name="send" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </form>
+  );
 }

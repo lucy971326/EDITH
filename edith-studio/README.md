@@ -13,17 +13,28 @@ providers:
   deepseek:
     api_key: your-api-key
     base_url: https://api.deepseek.com
+    variant: deepseek
 
 models:
   deepseek-flash:
     provider: deepseek
     name: deepseek-v4-flash
+    context_window: 1000000
+    vision: false
+    thinking:
+      default: high
+      modes: [disabled, low, high, max]
   deepseek-pro:
     provider: deepseek
     name: deepseek-v4-pro
+    context_window: 1000000
+    vision: false
+    thinking:
+      default: max
+      modes: [disabled, low, high, max]
 ```
 
-模型配置只从用户目录读取，不支持项目级覆盖。所有允许字段以 [models/types.go](internal/models/types.go) 为准；未知字段会使启动失败。
+模型配置只从用户目录读取，不支持项目级覆盖。模型配置在启动时读取并创建实例；运行期间可以切换已注册模型，修改配置后重启 Studio 生效。所有允许字段以 [models/types.go](internal/models/types.go) 为准；未知字段会使启动失败。
 
 ## 本地运行
 

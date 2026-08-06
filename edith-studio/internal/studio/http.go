@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"edith/studio/internal/engine"
+	"edith/studio/internal/models"
 	"edith/studio/internal/project"
 	"edith/studio/internal/session"
 	"edith/studio/internal/workspace"
@@ -29,12 +30,23 @@ func newHandler(appCtx context.Context, workspaceRuntime *workspace.Workspace) h
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/runs", runHandler(appCtx, workspaceRuntime))
 	mux.HandleFunc("POST /api/runs/{requestID}/cancel", cancelHandler(workspaceRuntime))
+	mux.HandleFunc("GET /api/models", listModelsHandler(workspaceRuntime.Models))
 	mux.HandleFunc("GET /api/files", listFilesHandler(workspaceRuntime.Project))
 	mux.HandleFunc("GET /api/files/content", readFileHandler(workspaceRuntime.Project))
 	mux.HandleFunc("GET /api/sessions", listSessionsHandler(workspaceRuntime.Sessions, workspaceRuntime.WorkspaceID))
 	mux.HandleFunc("GET /api/sessions/{sessionID}", getSessionHandler(workspaceRuntime.Sessions, workspaceRuntime.WorkspaceID))
 	mux.HandleFunc("DELETE /api/sessions/{sessionID}", deleteSessionHandler(workspaceRuntime.Sessions, workspaceRuntime.WorkspaceID))
 	return allowLocalWeb(mux)
+}
+
+func listModelsHandler(modelModule *models.Module) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, _ *http.Request) {
+		if modelModule == nil {
+			writeJSONError(responseWriter, http.StatusInternalServerError, "models_unavailable", "model catalog is unavailable")
+			return
+		}
+		writeJSON(responseWriter, http.StatusOK, modelModule.Catalog())
+	}
 }
 
 func listSessionsHandler(sessionModule *session.Module, workspaceID string) http.HandlerFunc {
@@ -151,6 +163,10 @@ func runHandler(appCtx context.Context, workspaceRuntime *workspace.Workspace) h
 		err = workspaceRuntime.Engine.Run(appCtx, input, send)
 		if errors.Is(err, engine.ErrSessionBusy) && !streamStarted {
 			writeJSONError(responseWriter, http.StatusConflict, "session_busy", "this session already has an active run")
+			return
+		}
+		if (errors.Is(err, models.ErrUnknownModel) || errors.Is(err, models.ErrUnsupportedThinkingMode)) && !streamStarted {
+			writeJSONError(responseWriter, http.StatusBadRequest, "invalid_model_selection", err.Error())
 			return
 		}
 		if err != nil && !streamStarted {

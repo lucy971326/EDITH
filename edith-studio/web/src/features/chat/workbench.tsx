@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { cancelRun, startRun } from "../../api/agent";
 import { deleteSession, getSession, listSessions } from "../../api/sessions";
+import { getModels, type ModelCatalog } from "../../api/models";
 import { readSSEFrames, type AssistantBlock, type StreamEvent } from "../../lib/stream";
 import { Composer } from "../composer/composer";
 import { FilesPanel } from "../files/files-panel";
@@ -63,6 +64,9 @@ export function Workbench() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [requestID, setRequestID] = useState<string | null>(null);
+  const [modelCatalog, setModelCatalog] = useState<ModelCatalog | null>(null);
+  const [modelID, setModelID] = useState("");
+  const [thinkingMode, setThinkingMode] = useState("");
   const [error, setError] = useState("");
   const [isStopping, setIsStopping] = useState(false);
   const isRunning = requestID !== null;
@@ -81,6 +85,23 @@ export function Workbench() {
       .then(setSessions)
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "无法读取会话列表"));
   }, []);
+
+  useEffect(() => {
+    void getModels()
+      .then((catalog) => {
+        setModelCatalog(catalog);
+        setModelID(catalog.defaultModelId);
+        const defaultModel = catalog.models.find((model) => model.id === catalog.defaultModelId);
+        setThinkingMode(defaultModel?.thinking.defaultMode ?? "");
+      })
+      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "无法读取模型目录"));
+  }, []);
+
+  function selectModel(nextModelID: string) {
+    setModelID(nextModelID);
+    const nextModel = modelCatalog?.models.find((model) => model.id === nextModelID);
+    setThinkingMode(nextModel?.thinking.defaultMode ?? "");
+  }
 
   function newSession() {
     if (isRunning) return;
@@ -126,7 +147,7 @@ export function Workbench() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = input.trim();
-    if (!message || isRunning) {
+    if (!message || isRunning || !modelCatalog || !modelID || !thinkingMode) {
       return;
     }
     const nextRequestID = newID();
@@ -140,7 +161,13 @@ export function Workbench() {
     setError("");
     setRequestID(nextRequestID);
     try {
-      const response = await startRun({ requestId: nextRequestID, sessionId: sessionID, message });
+      const response = await startRun({
+        requestId: nextRequestID,
+        sessionId: sessionID,
+        message,
+        modelId: modelID,
+        thinkingMode,
+      });
       if (!response.ok || !response.body) {
         const result = await response.json().catch(() => null) as { message?: string } | null;
         throw new Error(result?.message ?? "无法启动 Agent 请求");
@@ -198,7 +225,12 @@ export function Workbench() {
           input={input}
           isRunning={isRunning}
           isStopping={isStopping}
+          modelCatalog={modelCatalog}
+          modelID={modelID}
+          thinkingMode={thinkingMode}
           onInput={setInput}
+          onModelChange={selectModel}
+          onThinkingModeChange={setThinkingMode}
           onStop={stop}
           onSubmit={submit}
         />

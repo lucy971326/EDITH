@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"edith/studio/internal/models"
+
 	"trpc.group/trpc-go/trpc-agent-go/agent"
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
@@ -24,6 +26,10 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 	if err := ValidateInput(input); err != nil {
 		return err
 	}
+	runOptions, err := e.modelRunOptions(input)
+	if err != nil {
+		return err
+	}
 	if err := e.reserveSession(input); err != nil {
 		return err
 	}
@@ -31,14 +37,17 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 	defer e.clearUserCanceled(input.RequestID)
 
 	// Runner 使用应用级 ctx；浏览器断开不会取消正在执行的任务。
+	runOptions = append(runOptions,
+		agent.WithRequestID(input.RequestID),
+		agent.WithStream(true),
+		agent.WithMaxRunDuration(maxRunDuration),
+	)
 	frameworkEventCh, err := e.runner.Run(
 		ctx,
 		e.workspaceID,
 		input.SessionID,
 		model.NewUserMessage(input.Message),
-		agent.WithRequestID(input.RequestID),
-		agent.WithStream(true),
-		agent.WithMaxRunDuration(maxRunDuration),
+		runOptions...,
 	)
 	if err != nil {
 		return fmt.Errorf("start agent run: %w", err)
@@ -190,6 +199,17 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 		sendEvent(StreamEvent{Type: "run.completed"})
 	}
 	return nil
+}
+
+func (e *Engine) modelRunOptions(input RunInput) ([]agent.RunOption, error) {
+	options, err := e.models.RunOptions(models.Selection{
+		ModelID:      input.ModelID,
+		ThinkingMode: input.ThinkingMode,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("resolve model selection: %w", err)
+	}
+	return options, nil
 }
 
 func eventErrorMessage(frameworkEvent *event.Event) string {

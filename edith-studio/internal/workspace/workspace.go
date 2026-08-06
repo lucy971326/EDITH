@@ -45,8 +45,8 @@ type Workspace struct {
 	Project *project.Module
 	// Sessions 是框架 SessionService 的长期所有者。
 	Sessions *session.Module
-	// Models 是启动期创建的默认模型和全部模型实例。
-	Models models.Registry
+	// Models 是启动期创建的模型实例目录和公开能力描述。
+	Models *models.Module
 
 	// toolSets 是 Workspace 创建并关闭的默认 Coding 工具资源，不作为产品接口暴露。
 	toolSets []tool.ToolSet
@@ -59,7 +59,7 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 		return nil, fmt.Errorf("create project module: %w", err)
 	}
 	projectRoot := projectModule.ProjectRoot()
-	modelRegistry, err := models.Open()
+	modelModule, err := models.Load()
 	if err != nil {
 		return nil, fmt.Errorf("load models: %w", err)
 	}
@@ -74,8 +74,8 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 	}
 	agentRuntime := llmagent.New(
 		agentName,
-		llmagent.WithModel(modelRegistry.Default),
-		llmagent.WithModels(modelRegistry.All),
+		llmagent.WithModel(modelModule.DefaultModel()),
+		llmagent.WithModels(modelModule.AgentModels()),
 		llmagent.WithGlobalInstruction(systemPrompt),
 		llmagent.WithToolSets(toolSets),
 	)
@@ -90,10 +90,12 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 		return nil, errors.New("framework runner does not support cancellation")
 	}
 	currentWorkspaceID := workspaceID(projectRoot)
-	engineRuntime, err := engine.New(engine.Dependencies{
-		WorkspaceID: currentWorkspaceID,
-		Runner:      managedRunner,
-	})
+	engineRuntime, err := engine.New(
+		engine.Dependencies{
+			WorkspaceID: currentWorkspaceID,
+			Runner:      managedRunner,
+			Models:      modelModule,
+		})
 	if err != nil {
 		_ = managedRunner.Close()
 		closeToolSets(toolSets)
@@ -106,7 +108,7 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 		Engine:      engineRuntime,
 		Project:     projectModule,
 		Sessions:    sessionModule,
-		Models:      modelRegistry,
+		Models:      modelModule,
 		toolSets:    toolSets,
 	}, nil
 }
