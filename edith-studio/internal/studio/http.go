@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 
+	"edith/studio/internal/commands"
 	"edith/studio/internal/engine"
 	"edith/studio/internal/models"
 	"edith/studio/internal/project"
@@ -30,6 +31,8 @@ func newHandler(appCtx context.Context, workspaceRuntime *workspace.Workspace) h
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/runs", runHandler(appCtx, workspaceRuntime))
 	mux.HandleFunc("POST /api/runs/{requestID}/cancel", cancelHandler(workspaceRuntime))
+	mux.HandleFunc("GET /api/commands", listCommandsHandler(workspaceRuntime.Commands))
+	mux.HandleFunc("POST /api/commands", commandHandler(workspaceRuntime))
 	mux.HandleFunc("GET /api/models", listModelsHandler(workspaceRuntime.Models))
 	mux.HandleFunc("GET /api/files", listFilesHandler(workspaceRuntime.Project))
 	mux.HandleFunc("GET /api/files/content", readFileHandler(workspaceRuntime.Project))
@@ -47,6 +50,67 @@ func listModelsHandler(modelModule *models.Module) http.HandlerFunc {
 		}
 		writeJSON(responseWriter, http.StatusOK, modelModule.Catalog())
 	}
+}
+
+func listCommandsHandler(commandModule *commands.Module) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, _ *http.Request) {
+		if commandModule == nil {
+			writeJSONError(responseWriter, http.StatusInternalServerError, "commands_unavailable", "command catalog is unavailable")
+			return
+		}
+		writeJSON(responseWriter, http.StatusOK, struct {
+			Commands []commands.Definition `json:"commands"`
+		}{Commands: commandModule.List()})
+	}
+}
+
+func commandHandler(workspaceRuntime *workspace.Workspace) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, request *http.Request) {
+		input, err := decodeCommandInput(responseWriter, request)
+		if err != nil {
+			writeJSONError(responseWriter, http.StatusBadRequest, "invalid_command", err.Error())
+			return
+		}
+		if workspaceRuntime.Commands == nil {
+			writeJSONError(responseWriter, http.StatusInternalServerError, "commands_unavailable", "command execution is unavailable")
+			return
+		}
+		if err := workspaceRuntime.Commands.Execute(request.Context(), input); err != nil {
+			writeCommandError(responseWriter, err)
+			return
+		}
+		writeJSON(responseWriter, http.StatusOK, commands.Result{
+			Command: commandName(input.Command),
+			Status:  "completed",
+		})
+	}
+}
+
+func writeCommandError(responseWriter http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, commands.ErrInvalidCommand), errors.Is(err, engine.ErrInvalidCompactInput):
+		writeJSONError(responseWriter, http.StatusBadRequest, "invalid_command", err.Error())
+	case errors.Is(err, commands.ErrUnknownCommand):
+		writeJSONError(responseWriter, http.StatusBadRequest, "unknown_command", err.Error())
+	case errors.Is(err, engine.ErrSessionBusy):
+		writeJSONError(responseWriter, http.StatusConflict, "session_busy", "this session already has an active run")
+	case errors.Is(err, models.ErrUnknownModel), errors.Is(err, models.ErrUnsupportedThinkingMode):
+		writeJSONError(responseWriter, http.StatusBadRequest, "invalid_model_selection", err.Error())
+	case errors.Is(err, session.ErrInvalidSessionID):
+		writeJSONError(responseWriter, http.StatusBadRequest, "invalid_session_id", "sessionId is invalid")
+	case errors.Is(err, session.ErrSessionNotFound):
+		writeJSONError(responseWriter, http.StatusNotFound, "session_not_found", "the requested session does not exist")
+	default:
+		writeJSONError(responseWriter, http.StatusInternalServerError, "command_failed", "unable to execute command")
+	}
+}
+
+func commandName(raw string) string {
+	fields := strings.Fields(strings.TrimSpace(raw))
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.TrimPrefix(strings.ToLower(fields[0]), "/")
 }
 
 func listSessionsHandler(sessionModule *session.Module, workspaceID string) http.HandlerFunc {
@@ -246,6 +310,20 @@ func decodeRunInput(responseWriter http.ResponseWriter, request *http.Request) (
 	}
 	if err := ensureSingleJSONValue(decoder); err != nil {
 		return engine.RunInput{}, errors.New("request body must contain one JSON value")
+	}
+	return input, nil
+}
+
+func decodeCommandInput(responseWriter http.ResponseWriter, request *http.Request) (commands.Input, error) {
+	request.Body = http.MaxBytesReader(responseWriter, request.Body, maxRequestBodyBytes)
+	decoder := json.NewDecoder(request.Body)
+	decoder.DisallowUnknownFields()
+	var input commands.Input
+	if err := decoder.Decode(&input); err != nil {
+		return commands.Input{}, errors.New("request body must be valid JSON")
+	}
+	if err := ensureSingleJSONValue(decoder); err != nil {
+		return commands.Input{}, errors.New("request body must contain one JSON value")
 	}
 	return input, nil
 }

@@ -2,6 +2,7 @@
 package workspace
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -10,13 +11,16 @@ import (
 	"runtime"
 	"strings"
 
+	"edith/studio/internal/commands"
 	"edith/studio/internal/engine"
 	"edith/studio/internal/models"
 	"edith/studio/internal/project"
+	"edith/studio/internal/promptlog"
 	"edith/studio/internal/session"
 	"edith/studio/internal/tools"
 
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
+	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
 )
@@ -41,6 +45,8 @@ type Workspace struct {
 	WorkspaceID string
 	// Engine 是执行与取消 Agent Run 的内核能力。
 	Engine *engine.Engine
+	// Commands 是产品层 Slash Command 的目录和执行能力。
+	Commands *commands.Module
 	// Project 是读取当前项目文件树和文件内容的能力。
 	Project *project.Module
 	// Sessions 是框架 SessionService 的长期所有者。
@@ -67,7 +73,13 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create tool sets: %w", err)
 	}
-	sessionModule, err := session.Create()
+	sessionModule, err := session.Create(func(ctx context.Context) (model.Model, error) {
+		selection, ok := models.SelectionFromContext(ctx)
+		if !ok {
+			return nil, errors.New("summary model selection is missing")
+		}
+		return modelModule.SummaryModel(selection)
+	})
 	if err != nil {
 		closeToolSets(toolSets)
 		return nil, fmt.Errorf("create session module: %w", err)
@@ -78,11 +90,24 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 		llmagent.WithModels(modelModule.AgentModels()),
 		llmagent.WithGlobalInstruction(systemPrompt),
 		llmagent.WithToolSets(toolSets),
+		llmagent.WithAddSessionSummary(true),
+		// 父 Agent 只读取自己的 FilterKey 及其子视图，不读取整个 Session 的其他视图。
+		llmagent.WithMessageBranchFilterMode(llmagent.BranchFilterModePrefix),
+		llmagent.WithSessionSummaryInjectionMode(llmagent.SessionSummaryInjectionUser),
+		llmagent.WithSyncSummaryIntraRun(true),
+		llmagent.WithEnableContextCompaction(true),
 	)
+	promptLogPlugin, err := promptlog.New()
+	if err != nil {
+		closeToolSets(toolSets)
+		_ = sessionModule.Close()
+		return nil, fmt.Errorf("create prompt log plugin: %w", err)
+	}
 	managedRunner, ok := runner.NewRunner(
 		appName,
 		agentRuntime,
 		runner.WithSessionService(sessionModule.Service()),
+		runner.WithPlugins(promptLogPlugin),
 	).(runner.ManagedRunner)
 	if !ok {
 		closeToolSets(toolSets)
@@ -93,8 +118,10 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 	engineRuntime, err := engine.New(
 		engine.Dependencies{
 			WorkspaceID: currentWorkspaceID,
+			FilterKey:   appName,
 			Runner:      managedRunner,
 			Models:      modelModule,
+			Sessions:    sessionModule.Service(),
 		})
 	if err != nil {
 		_ = managedRunner.Close()
@@ -102,10 +129,18 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 		_ = sessionModule.Close()
 		return nil, fmt.Errorf("create engine: %w", err)
 	}
+	commandModule, err := commands.New(commands.Dependencies{Engine: engineRuntime})
+	if err != nil {
+		_ = engineRuntime.Close()
+		closeToolSets(toolSets)
+		_ = sessionModule.Close()
+		return nil, fmt.Errorf("create commands module: %w", err)
+	}
 	return &Workspace{
 		ProjectRoot: projectRoot,
 		WorkspaceID: currentWorkspaceID,
 		Engine:      engineRuntime,
+		Commands:    commandModule,
 		Project:     projectModule,
 		Sessions:    sessionModule,
 		Models:      modelModule,

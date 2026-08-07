@@ -114,21 +114,9 @@ func (m *Module) Catalog() Catalog {
 
 // RunOptions 把一次产品级模型选择转换为框架 RunOptions。
 func (m *Module) RunOptions(selection Selection) ([]agent.RunOption, error) {
-	modelID := strings.TrimSpace(selection.ModelID)
-	if modelID == "" {
-		modelID = m.defaultID
-	}
-	entry, ok := m.entries[modelID]
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrUnknownModel, modelID)
-	}
-
-	thinkingMode := strings.TrimSpace(selection.ThinkingMode)
-	if thinkingMode == "" {
-		thinkingMode = entry.profile.Thinking.DefaultMode
-	}
-	if !contains(entry.profile.Thinking.Modes, thinkingMode) {
-		return nil, fmt.Errorf("%w: model %q does not support %q", ErrUnsupportedThinkingMode, modelID, thinkingMode)
+	modelID, entry, thinkingMode, err := m.resolveSelection(selection)
+	if err != nil {
+		return nil, err
 	}
 
 	options := []agent.RunOption{
@@ -140,6 +128,26 @@ func (m *Module) RunOptions(selection Selection) ([]agent.RunOption, error) {
 		options = append(options, agent.WithModelRequestExtraFields(fields))
 	}
 	return options, nil
+}
+
+func (m *Module) resolveSelection(selection Selection) (string, modelEntry, string, error) {
+	modelID := strings.TrimSpace(selection.ModelID)
+	if modelID == "" {
+		modelID = m.defaultID
+	}
+	entry, ok := m.entries[modelID]
+	if !ok {
+		return "", modelEntry{}, "", fmt.Errorf("%w: %s", ErrUnknownModel, modelID)
+	}
+
+	thinkingMode := strings.TrimSpace(selection.ThinkingMode)
+	if thinkingMode == "" {
+		thinkingMode = entry.profile.Thinking.DefaultMode
+	}
+	if !contains(entry.profile.Thinking.Modes, thinkingMode) {
+		return "", modelEntry{}, "", fmt.Errorf("%w: model %q does not support %q", ErrUnsupportedThinkingMode, modelID, thinkingMode)
+	}
+	return modelID, entry, thinkingMode, nil
 }
 
 func providerVariant(providerID string, config ProviderConfig) (openai.Variant, error) {

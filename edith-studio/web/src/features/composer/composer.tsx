@@ -1,15 +1,19 @@
 import { FormEvent } from "react";
+import type { CommandDefinition } from "../../api/commands";
 import type { ModelCatalog } from "../../api/models";
 import { Icon } from "../../ui/icon";
 
 type ComposerProps = {
   input: string;
   isRunning: boolean;
+  isBusy: boolean;
   isStopping: boolean;
+  commands: CommandDefinition[];
   modelCatalog: ModelCatalog | null;
   modelID: string;
   thinkingMode: string;
   onInput: (value: string) => void;
+  onCommandSelect: (syntax: string) => void;
   onModelChange: (modelID: string) => void;
   onThinkingModeChange: (thinkingMode: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -26,11 +30,14 @@ function formatContextWindow(tokens: number) {
 export function Composer({
   input,
   isRunning,
+  isBusy,
   isStopping,
+  commands,
   modelCatalog,
   modelID,
   thinkingMode,
   onInput,
+  onCommandSelect,
   onModelChange,
   onThinkingModeChange,
   onSubmit,
@@ -38,7 +45,8 @@ export function Composer({
 }: ComposerProps) {
   const selectedModel = modelCatalog?.models.find((model) => model.id === modelID);
   const thinkingModes = selectedModel?.thinking.modes ?? [];
-  const canSubmit = Boolean(input.trim() && modelCatalog && modelID && thinkingMode);
+  const canSubmit = Boolean(input.trim() && modelCatalog && modelID && thinkingMode && !isBusy);
+  const commandSuggestions = input.trimStart().startsWith("/") && !isBusy ? commands : [];
 
   return (
     <form className="composer" onSubmit={onSubmit}>
@@ -46,9 +54,19 @@ export function Composer({
         <textarea
           value={input}
           onChange={(event) => onInput(event.target.value)}
-          disabled={isRunning}
+          disabled={isBusy}
           placeholder="输入消息，使用 / 查看指令与 Skills…"
         />
+        {commandSuggestions.length > 0 && (
+          <div className="command-suggestions">
+            {commandSuggestions.map((command) => (
+              <button key={command.name} type="button" onClick={() => onCommandSelect(command.syntax)}>
+                <b>{command.syntax}</b>
+                <span>{command.description}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="composer-toolbar">
           <div className="toolbar-group">
             <button className="icon-button" disabled title="文件与图片上传即将支持">
@@ -64,7 +82,7 @@ export function Composer({
           <div className="toolbar-group">
             <label className="control-select" title="选择模型">
               <Icon name="spark" />
-              <select value={modelID} onChange={(event) => onModelChange(event.target.value)} disabled={isRunning || !modelCatalog}>
+              <select value={modelID} onChange={(event) => onModelChange(event.target.value)} disabled={isBusy || !modelCatalog}>
                 {modelCatalog?.models.map((model) => (
                   <option key={model.id} value={model.id}>{model.id}</option>
                 ))}
@@ -72,7 +90,7 @@ export function Composer({
               <Icon name="chevron" />
             </label>
             <label className="control-select" title="选择思考模式">
-              <select value={thinkingMode} onChange={(event) => onThinkingModeChange(event.target.value)} disabled={isRunning || !selectedModel}>
+              <select value={thinkingMode} onChange={(event) => onThinkingModeChange(event.target.value)} disabled={isBusy || !selectedModel}>
                 {thinkingModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
               </select>
               <Icon name="chevron" />

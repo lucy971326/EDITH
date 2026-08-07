@@ -8,6 +8,8 @@ var (
 	ErrInvalidInput = errors.New("invalid run input")
 	// ErrSessionBusy 表示同一 Session 已有任务正在运行。
 	ErrSessionBusy = errors.New("session already has an active run")
+	// ErrInvalidCompactInput 表示手动压缩缺少 Session 身份。
+	ErrInvalidCompactInput = errors.New("invalid compact input")
 )
 
 // RunInput 是每次 Agent Run 都会变化的输入。
@@ -17,6 +19,14 @@ type RunInput struct {
 	Message      string `json:"message"`
 	ModelID      string `json:"modelId,omitempty"`
 	ThinkingMode string `json:"thinkingMode,omitempty"`
+}
+
+// CompactInput 是一次手动会话压缩的输入。
+// 模型选择由 Web 随当前 Composer 状态传入，不在 Session 中另存一份。
+type CompactInput struct {
+	SessionID    string
+	ModelID      string
+	ThinkingMode string
 }
 
 // StreamEvent 是 Web 前端读取的稳定 SSE 事件。

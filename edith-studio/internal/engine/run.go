@@ -30,7 +30,7 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 	if err != nil {
 		return err
 	}
-	if err := e.reserveSession(input); err != nil {
+	if err := e.reserveSession(input.SessionID, input.RequestID); err != nil {
 		return err
 	}
 	defer e.releaseSession(input.SessionID)
@@ -39,11 +39,15 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 	// Runner 使用应用级 ctx；浏览器断开不会取消正在执行的任务。
 	runOptions = append(runOptions,
 		agent.WithRequestID(input.RequestID),
+		agent.WithEventFilterKey(e.filterKey),
 		agent.WithStream(true),
 		agent.WithMaxRunDuration(maxRunDuration),
 	)
 	frameworkEventCh, err := e.runner.Run(
-		ctx,
+		models.WithSelection(ctx, models.Selection{
+			ModelID:      input.ModelID,
+			ThinkingMode: input.ThinkingMode,
+		}),
 		e.workspaceID,
 		input.SessionID,
 		model.NewUserMessage(input.Message),

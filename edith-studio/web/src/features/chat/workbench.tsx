@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { executeCommand, listCommands, type CommandDefinition } from "../../api/commands";
 import { cancelRun, startRun } from "../../api/agent";
 import { deleteSession, getSession, listSessions } from "../../api/sessions";
 import { getModels, type ModelCatalog } from "../../api/models";
@@ -64,12 +65,16 @@ export function Workbench() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [requestID, setRequestID] = useState<string | null>(null);
+  const [isCommandRunning, setIsCommandRunning] = useState(false);
+  const [commands, setCommands] = useState<CommandDefinition[]>([]);
   const [modelCatalog, setModelCatalog] = useState<ModelCatalog | null>(null);
   const [modelID, setModelID] = useState("");
   const [thinkingMode, setThinkingMode] = useState("");
   const [error, setError] = useState("");
+  const [commandStatus, setCommandStatus] = useState("");
   const [isStopping, setIsStopping] = useState(false);
   const isRunning = requestID !== null;
+  const isBusy = isRunning || isCommandRunning;
   const currentSession = sessions.find((session) => session.id === sessionID);
 
   async function refreshSessions() {
@@ -104,14 +109,14 @@ export function Workbench() {
   }
 
   function newSession() {
-    if (isRunning) return;
+    if (isBusy) return;
     setSessionID(newID());
     setMessages([]);
     setError("");
   }
 
   async function selectSession(nextSessionID: string) {
-    if (isRunning || nextSessionID === sessionID) return;
+    if (isBusy || nextSessionID === sessionID) return;
     try {
       const history = await getSession(nextSessionID);
       setSessionID(nextSessionID);
@@ -123,7 +128,7 @@ export function Workbench() {
   }
 
   async function removeSession(targetSessionID: string) {
-    if (isRunning || !window.confirm("删除这条会话？此操作无法恢复。")) return;
+    if (isBusy || !window.confirm("删除这条会话？此操作无法恢复。")) return;
     try {
       await deleteSession(targetSessionID);
       if (targetSessionID === sessionID) newSession();
@@ -132,6 +137,12 @@ export function Workbench() {
       setError(cause instanceof Error ? cause.message : "无法删除会话");
     }
   }
+
+  useEffect(() => {
+    void listCommands()
+      .then(setCommands)
+      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "无法读取命令目录"));
+  }, []);
 
   function applyStreamEvent(assistantID: string, streamEvent: StreamEvent) {
     if (streamEvent.type === "run.error") {
@@ -147,9 +158,36 @@ export function Workbench() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = input.trim();
-    if (!message || isRunning || !modelCatalog || !modelID || !thinkingMode) {
+    if (!message || isBusy || !modelCatalog || !modelID || !thinkingMode) {
       return;
     }
+
+    if (message.startsWith("/")) {
+      setInput("");
+      setError("");
+      setCommandStatus("");
+      setIsCommandRunning(true);
+      try {
+        const response = await executeCommand({
+          sessionId: sessionID,
+          command: message,
+          modelId: modelID,
+          thinkingMode,
+        });
+        if (!response.ok) {
+          const result = await response.json().catch(() => null) as { message?: string } | null;
+          throw new Error(result?.message ?? "命令执行失败");
+        }
+        setCommandStatus("当前会话上下文已压缩");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "命令执行失败");
+      } finally {
+        setIsCommandRunning(false);
+        void refreshSessions();
+      }
+      return;
+    }
+
     const nextRequestID = newID();
     const assistantID = newID();
     setMessages((current) => [
@@ -159,6 +197,7 @@ export function Workbench() {
     ]);
     setInput("");
     setError("");
+    setCommandStatus("");
     setRequestID(nextRequestID);
     try {
       const response = await startRun({
@@ -194,6 +233,12 @@ export function Workbench() {
     }
   }
 
+  function selectCommand(syntax: string) {
+    setInput(syntax);
+    setCommandStatus("");
+    setError("");
+  }
+
   async function stop() {
     if (!requestID || isStopping) {
       return;
@@ -220,15 +265,19 @@ export function Workbench() {
         <section className="messages">
           <ChatTimeline isRunning={isRunning} messages={messages} />
         </section>
+        {commandStatus && <p className="command-status">{commandStatus}</p>}
         {error && <p className="error">{error}</p>}
         <Composer
           input={input}
           isRunning={isRunning}
+          isBusy={isBusy}
           isStopping={isStopping}
+          commands={commands}
           modelCatalog={modelCatalog}
           modelID={modelID}
           thinkingMode={thinkingMode}
           onInput={setInput}
+          onCommandSelect={selectCommand}
           onModelChange={selectModel}
           onThinkingModeChange={setThinkingMode}
           onStop={stop}

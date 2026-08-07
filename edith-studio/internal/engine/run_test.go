@@ -11,6 +11,8 @@ import (
 	"trpc.group/trpc-go/trpc-agent-go/event"
 	"trpc.group/trpc-go/trpc-agent-go/model"
 	"trpc.group/trpc-go/trpc-agent-go/runner"
+	frameworksession "trpc.group/trpc-go/trpc-agent-go/session"
+	"trpc.group/trpc-go/trpc-agent-go/session/noop"
 )
 
 type recordingRunner struct {
@@ -88,6 +90,9 @@ func TestRunStreamsFrameworkEventsWithoutAnIntermediateChannel(t *testing.T) {
 	}
 	if runner.runOptions.Stream == nil || !*runner.runOptions.Stream {
 		t.Fatalf("run stream option = %#v, want true", runner.runOptions.Stream)
+	}
+	if runner.runOptions.EventFilterKey != "edith-studio" {
+		t.Fatalf("run event filter key = %q, want edith-studio", runner.runOptions.EventFilterKey)
 	}
 	if events[3].ToolName != "read_file" || events[4].ToolResult != "file contents" {
 		t.Fatalf("tool events = %#v %#v", events[3], events[4])
@@ -259,6 +264,10 @@ func responseEvent(response model.Response) *event.Event {
 }
 
 func newTestEngine(t *testing.T, managedRunner runner.ManagedRunner) *Engine {
+	return newTestEngineWithSessionService(t, managedRunner, noop.NewService())
+}
+
+func newTestEngineWithSessionService(t *testing.T, managedRunner runner.ManagedRunner, sessionService frameworksession.Service) *Engine {
 	t.Helper()
 	modelModule, err := models.Build(models.Config{
 		Default: "deepseek-test",
@@ -279,8 +288,10 @@ func newTestEngine(t *testing.T, managedRunner runner.ManagedRunner) *Engine {
 	}
 	engine, err := New(Dependencies{
 		WorkspaceID: "workspace:test",
+		FilterKey:   "edith-studio",
 		Runner:      managedRunner,
 		Models:      modelModule,
+		Sessions:    sessionService,
 	})
 	if err != nil {
 		t.Fatalf("new engine: %v", err)

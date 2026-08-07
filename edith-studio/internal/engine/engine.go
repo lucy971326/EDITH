@@ -8,26 +8,35 @@ import (
 	"edith/studio/internal/models"
 
 	"trpc.group/trpc-go/trpc-agent-go/runner"
+	frameworksession "trpc.group/trpc-go/trpc-agent-go/session"
 )
 
 // Dependencies 是 Engine 持有的长期依赖。
 type Dependencies struct {
 	// WorkspaceID 是当前项目的 Session 隔离身份。
 	WorkspaceID string
+	// FilterKey 是父 Agent 写入和读取会话事件的稳定视图身份。
+	FilterKey string
 	// Runner 是 Workspace 已组装好的 Agent 运行能力。
 	Runner runner.ManagedRunner
 	// Models 是本次 Run 选择模型和思考模式的能力。
 	Models *models.Module
+	// Sessions 是 Engine 读取和压缩会话的框架能力。
+	Sessions frameworksession.Service
 }
 
 // Engine 管理一个本地项目的 Agent Runner。
 type Engine struct {
 	// workspaceID 是当前项目的稳定身份；它隔离不同项目的会话。
 	workspaceID string
+	// filterKey 是父 Agent 的事件视图身份；子 Agent 可以在它下面建立子视图。
+	filterKey string
 	// runner 是已组装的 Agent 运行能力；它负责执行和取消一次 Run。
 	runner runner.ManagedRunner
 	// models 是已加载的模型目录；它负责把产品选择转换成框架 RunOption。
 	models *models.Module
+	// sessions 是长期会话服务；它保存对话并持久化摘要。
+	sessions frameworksession.Service
 	// runningMu 保护下面两份随运行变化的状态，避免并发 Run 相互干扰。
 	runningMu sync.Mutex
 	// runningSession 记录每个会话当前对应的请求身份，用于限制一个会话只运行一个 Run。
@@ -38,13 +47,17 @@ type Engine struct {
 
 // New 使用已经创建好的长期依赖组装 Engine。
 func New(dependencies Dependencies) (*Engine, error) {
-	if strings.TrimSpace(dependencies.WorkspaceID) == "" || dependencies.Runner == nil || dependencies.Models == nil {
+	if strings.TrimSpace(dependencies.WorkspaceID) == "" ||
+		strings.TrimSpace(dependencies.FilterKey) == "" ||
+		dependencies.Runner == nil || dependencies.Models == nil || dependencies.Sessions == nil {
 		return nil, errors.New("engine dependencies are incomplete")
 	}
 	return &Engine{
 		workspaceID:    dependencies.WorkspaceID,
+		filterKey:      dependencies.FilterKey,
 		runner:         dependencies.Runner,
 		models:         dependencies.Models,
+		sessions:       dependencies.Sessions,
 		runningSession: make(map[string]string),
 		userCanceled:   make(map[string]struct{}),
 	}, nil
@@ -79,13 +92,13 @@ func (e *Engine) Close() error {
 	return e.runner.Close()
 }
 
-func (e *Engine) reserveSession(input RunInput) error {
+func (e *Engine) reserveSession(sessionID, operationID string) error {
 	e.runningMu.Lock()
 	defer e.runningMu.Unlock()
-	if _, exists := e.runningSession[input.SessionID]; exists {
+	if _, exists := e.runningSession[sessionID]; exists {
 		return ErrSessionBusy
 	}
-	e.runningSession[input.SessionID] = input.RequestID
+	e.runningSession[sessionID] = operationID
 	return nil
 }
 

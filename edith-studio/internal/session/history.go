@@ -84,6 +84,12 @@ func sessionKey(workspaceID, sessionID string) (frameworksession.Key, error) {
 	return frameworksession.Key{AppName: studioAppName, UserID: workspaceID, SessionID: sessionID}, nil
 }
 
+// SessionKey 返回当前 Workspace 使用的框架 Session 身份。
+// Engine 通过它读取和压缩同一条会话，避免重复定义 AppName。
+func SessionKey(workspaceID, sessionID string) (frameworksession.Key, error) {
+	return sessionKey(workspaceID, sessionID)
+}
+
 func summaryFromSession(storedSession *frameworksession.Session) Summary {
 	return Summary{
 		ID:        storedSession.ID,

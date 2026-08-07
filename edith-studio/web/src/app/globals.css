@@ -66,6 +66,7 @@ button:disabled { cursor: not-allowed; }
 .tool-status { color: var(--muted); font-size: 12px; font-weight: 400; }
 .empty-chat { display: grid; min-height: 230px; place-items: center; color: var(--muted); text-align: center; }
 .error { max-width: 760px; margin: 0 auto 14px; border-radius: 9px; background: #fff1f2; color: #b4233f; padding: 10px 12px; font-size: 13px; }
+.command-status { max-width: 760px; margin: 0 auto 14px; border-radius: 9px; background: #edf9f2; color: #20744c; padding: 10px 12px; font-size: 13px; }
 
 .composer { border-top: 1px solid var(--line); padding: 14px 24px 16px; }
 .composer-box { border: 1px solid #d9e0ea; border-radius: 12px; background: white; box-shadow: 0 3px 14px rgba(27, 42, 66, .06); }
@@ -84,6 +85,10 @@ button:disabled { cursor: not-allowed; }
 .control-select select { max-width: 150px; border: 0; outline: 0; background: transparent; color: #303b4d; font: inherit; cursor: pointer; }
 .control-select select:disabled { cursor: not-allowed; }
 .soon-label { color: #9aa5b5; font-size: 11px; }
+.command-suggestions { display: grid; gap: 4px; border-top: 1px solid var(--line); padding: 7px 9px; }
+.command-suggestions button { display: flex; align-items: baseline; gap: 10px; border: 0; border-radius: 7px; background: transparent; color: #354157; padding: 7px 8px; text-align: left; }
+.command-suggestions button:hover { background: var(--blue-soft); }
+.command-suggestions span { color: var(--muted); font-size: 12px; }
 
 .inspector { display: flex; min-width: 0; flex-direction: column; border-left: 1px solid var(--line); }
 .inspector-header { display: flex; align-items: center; justify-content: space-between; padding: 0 14px; }

@@ -4,4 +4,6 @@ Studio 创建并持有一个 Workspace，提供本地 HTTP 入口：`POST /api/r
 
 浏览器直接连接 `http://127.0.0.1:8765`；Studio 只对本机 Web 开发地址放行 CORS，不经过 Next.js 代理。
 
+命令相关路由为 `GET /api/commands` 和 `POST /api/commands`。前者返回 Workspace 命令目录，后者执行 `/compact` 并返回普通 JSON；它不进入 SSE 事件链路。
+
 Studio 不读取框架 Event 字段，也不直接持有模型、工具或 SessionService。

@@ -2,15 +2,22 @@
 package session
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
+	"trpc.group/trpc-go/trpc-agent-go/model"
 	frameworksession "trpc.group/trpc-go/trpc-agent-go/session"
 	"trpc.group/trpc-go/trpc-agent-go/session/sqlite"
+	"trpc.group/trpc-go/trpc-agent-go/session/summary"
 )
+
+// SummaryModelResolver 根据一次请求的 context 返回本次摘要所用的模型。
+type SummaryModelResolver func(context.Context) (model.Model, error)
 
 // Module 是本地 SQLite SessionService 的长期所有者。
 type Module struct {
@@ -18,8 +25,11 @@ type Module struct {
 	service frameworksession.Service
 }
 
-// Create 创建用户目录中的 SQLite 会话 Module。
-func Create() (*Module, error) {
+// Create 创建用户目录中的 SQLite 会话 Module，并接入动态摘要器。
+func Create(resolveSummaryModel SummaryModelResolver) (*Module, error) {
+	if resolveSummaryModel == nil {
+		return nil, errors.New("summary model resolver is required")
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("find user home directory: %w", err)
@@ -33,7 +43,17 @@ func Create() (*Module, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open session database: %w", err)
 	}
-	service, err := sqlite.NewService(database)
+	dynamicSummarizer := summary.NewDynamicSummarizer(func(ctx context.Context, _ *frameworksession.Session) (summary.SessionSummarizer, error) {
+		summaryModel, err := resolveSummaryModel(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if summaryModel == nil {
+			return nil, errors.New("summary model resolver returned nil")
+		}
+		return summary.NewSummarizer(summaryModel, summary.WithContextThreshold()), nil
+	})
+	service, err := sqlite.NewService(database, sqlite.WithSummarizer(dynamicSummarizer))
 	if err != nil {
 		_ = database.Close()
 		return nil, fmt.Errorf("create session service: %w", err)
