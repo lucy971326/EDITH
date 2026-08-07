@@ -12,6 +12,7 @@ type ComposerProps = {
   modelCatalog: ModelCatalog | null;
   modelID: string;
   thinkingMode: string;
+  contextTokens: number | null;
   onInput: (value: string) => void;
   onCommandSelect: (syntax: string) => void;
   onModelChange: (modelID: string) => void;
@@ -27,6 +28,16 @@ function formatContextWindow(tokens: number) {
   return `${Math.round(tokens / 1_000)}K`;
 }
 
+function formatTokenCount(tokens: number) {
+  if (tokens >= 1_000_000) {
+    return `${(tokens / 1_000_000).toFixed(1)}M`;
+  }
+  if (tokens >= 1_000) {
+    return `${Math.round(tokens / 1_000)}K`;
+  }
+  return `${tokens}`;
+}
+
 export function Composer({
   input,
   isRunning,
@@ -36,6 +47,7 @@ export function Composer({
   modelCatalog,
   modelID,
   thinkingMode,
+  contextTokens,
   onInput,
   onCommandSelect,
   onModelChange,
@@ -96,7 +108,16 @@ export function Composer({
               <Icon name="chevron" />
             </label>
             <span className="control-pill" title="模型上下文窗口">
-              Context {selectedModel ? formatContextWindow(selectedModel.contextWindow) : "加载中"}
+              Context{" "}
+              {contextTokens === null ? (
+                selectedModel ? formatContextWindow(selectedModel.contextWindow) : "加载中"
+              ) : contextTokens === 0 ? (
+                <>暂无用量 / {selectedModel ? formatContextWindow(selectedModel.contextWindow) : "未知"}</>
+              ) : (
+                <>
+                  {formatTokenCount(contextTokens)} / {selectedModel ? formatContextWindow(selectedModel.contextWindow) : "未知"}
+                </>
+              )}
             </span>
             {isRunning ? (
               <button className="stop-button" disabled={isStopping} onClick={onStop} type="button">

@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { executeCommand, listCommands, type CommandDefinition } from "../../api/commands";
 import { cancelRun, startRun } from "../../api/agent";
-import { deleteSession, getSession, listSessions } from "../../api/sessions";
+import { deleteSession, getSession, getSessionContext, listSessions } from "../../api/sessions";
 import { getModels, type ModelCatalog } from "../../api/models";
 import { readSSEFrames, type AssistantBlock, type StreamEvent } from "../../lib/stream";
+import { Icon } from "../../ui/icon";
 import { Composer } from "../composer/composer";
 import { FilesPanel } from "../files/files-panel";
 import { RuntimeStatus } from "../runtime/runtime-status";
@@ -13,6 +14,58 @@ import { SessionSidebar } from "../sessions/session-sidebar";
 import type { SessionSummary } from "../sessions/types";
 import { ChatTimeline } from "./chat-timeline";
 import type { AssistantMessage, ChatMessage } from "./types";
+
+const SIDEBAR_MIN = 160;
+const SIDEBAR_MAX = 420;
+const INSPECTOR_MIN = 360;
+const INSPECTOR_MAX = 900;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+type PanelResizerProps = {
+  collapsed: boolean;
+  side: "left" | "right";
+  onResize: (delta: number) => void;
+};
+
+function PanelResizer({ collapsed, onResize }: PanelResizerProps) {
+  const lastX = useRef<number | null>(null);
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (collapsed) return;
+    event.preventDefault();
+    lastX.current = event.clientX;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (lastX.current === null) return;
+    const delta = event.clientX - lastX.current;
+    lastX.current = event.clientX;
+    onResize(delta);
+  }
+
+  function handlePointerEnd(event: React.PointerEvent<HTMLDivElement>) {
+    lastX.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  return (
+    <div
+      aria-hidden="true"
+      className="panel-resizer"
+      onPointerCancel={handlePointerEnd}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      role="separator"
+    />
+  );
+}
 
 function newID() {
   return crypto.randomUUID();
@@ -70,9 +123,14 @@ export function Workbench() {
   const [modelCatalog, setModelCatalog] = useState<ModelCatalog | null>(null);
   const [modelID, setModelID] = useState("");
   const [thinkingMode, setThinkingMode] = useState("");
+  const [contextTokens, setContextTokens] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [commandStatus, setCommandStatus] = useState("");
   const [isStopping, setIsStopping] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [inspectorWidth, setInspectorWidth] = useState(570);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const isRunning = requestID !== null;
   const isBusy = isRunning || isCommandRunning;
   const currentSession = sessions.find((session) => session.id === sessionID);
@@ -82,6 +140,15 @@ export function Workbench() {
       setSessions(await listSessions());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "无法读取会话列表");
+    }
+  }
+
+  async function refreshContext(nextSessionID: string) {
+    try {
+      const usage = await getSessionContext(nextSessionID);
+      setContextTokens(usage.promptTokens);
+    } catch {
+      // 用量读取失败不打断当前会话；保留上一次的展示状态。
     }
   }
 
@@ -112,6 +179,7 @@ export function Workbench() {
     if (isBusy) return;
     setSessionID(newID());
     setMessages([]);
+    setContextTokens(null);
     setError("");
   }
 
@@ -121,6 +189,7 @@ export function Workbench() {
       const history = await getSession(nextSessionID);
       setSessionID(nextSessionID);
       setMessages(history.messages);
+      void refreshContext(nextSessionID);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "无法读取会话历史");
@@ -179,6 +248,7 @@ export function Workbench() {
           throw new Error(result?.message ?? "命令执行失败");
         }
         setCommandStatus("当前会话上下文已压缩");
+        void refreshContext(sessionID);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "命令执行失败");
       } finally {
@@ -229,6 +299,7 @@ export function Workbench() {
     } finally {
       setRequestID(null);
       setIsStopping(false);
+      void refreshContext(sessionID);
       void refreshSessions();
     }
   }
@@ -256,11 +327,38 @@ export function Workbench() {
 
   return (
     <main className="workbench">
-      <SessionSidebar sessions={sessions} sessionID={sessionID} isRunning={isRunning} onNew={newSession} onSelect={selectSession} onDelete={removeSession} />
+      <div className="pane" style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}>
+        <SessionSidebar sessions={sessions} sessionID={sessionID} isRunning={isRunning} onNew={newSession} onSelect={selectSession} onDelete={removeSession} />
+      </div>
+      <PanelResizer
+        collapsed={sidebarCollapsed}
+        side="left"
+        onResize={(delta) => setSidebarWidth((width) => clamp(width + delta, SIDEBAR_MIN, SIDEBAR_MAX))}
+      />
       <section className="chat-area">
         <header className="chat-header">
-          <span className="chat-title">{currentSession?.title ?? "当前临时会话"}</span>
-          <RuntimeStatus isRunning={isRunning} requestID={requestID} />
+          <div className="chat-header-side">
+            <button
+              aria-label={sidebarCollapsed ? "展开会话列表" : "折叠会话列表"}
+              className="panel-toggle"
+              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+              type="button"
+            >
+              <Icon name="chevron" className={sidebarCollapsed ? "icon-rotate-right" : "icon-rotate-left"} />
+            </button>
+            <span className="chat-title">{currentSession?.title ?? "当前临时会话"}</span>
+          </div>
+          <div className="chat-header-side">
+            <RuntimeStatus isRunning={isRunning} requestID={requestID} />
+            <button
+              aria-label={inspectorCollapsed ? "展开文件与代码" : "折叠文件与代码"}
+              className="panel-toggle"
+              onClick={() => setInspectorCollapsed((collapsed) => !collapsed)}
+              type="button"
+            >
+              <Icon name="chevron" className={inspectorCollapsed ? "icon-rotate-left" : "icon-rotate-right"} />
+            </button>
+          </div>
         </header>
         <section className="messages">
           <ChatTimeline isRunning={isRunning} messages={messages} />
@@ -276,6 +374,7 @@ export function Workbench() {
           modelCatalog={modelCatalog}
           modelID={modelID}
           thinkingMode={thinkingMode}
+          contextTokens={contextTokens}
           onInput={setInput}
           onCommandSelect={selectCommand}
           onModelChange={selectModel}
@@ -284,7 +383,14 @@ export function Workbench() {
           onSubmit={submit}
         />
       </section>
-      <FilesPanel />
+      <PanelResizer
+        collapsed={inspectorCollapsed}
+        side="right"
+        onResize={(delta) => setInspectorWidth((width) => clamp(width - delta, INSPECTOR_MIN, INSPECTOR_MAX))}
+      />
+      <div className="pane" style={{ width: inspectorCollapsed ? 0 : inspectorWidth }}>
+        <FilesPanel />
+      </div>
     </main>
   );
 }

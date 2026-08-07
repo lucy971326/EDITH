@@ -22,6 +22,12 @@ type History struct {
 	Messages []ChatMessage `json:"messages"`
 }
 
+// ContextUsage 是会话上下文用量的后端事实。
+type ContextUsage struct {
+	// PromptTokens 是最近一次模型请求官方上报的 prompt token 用量；没有官方数据时为 0。
+	PromptTokens int `json:"promptTokens"`
+}
+
 // ChatMessage 是聊天时间线中的一条用户或助手消息。
 type ChatMessage struct {
 	ID      string           `json:"id"`

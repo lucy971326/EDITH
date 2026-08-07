@@ -38,6 +38,7 @@ func newHandler(appCtx context.Context, workspaceRuntime *workspace.Workspace) h
 	mux.HandleFunc("GET /api/files/content", readFileHandler(workspaceRuntime.Project))
 	mux.HandleFunc("GET /api/sessions", listSessionsHandler(workspaceRuntime.Sessions, workspaceRuntime.WorkspaceID))
 	mux.HandleFunc("GET /api/sessions/{sessionID}", getSessionHandler(workspaceRuntime.Sessions, workspaceRuntime.WorkspaceID))
+	mux.HandleFunc("GET /api/sessions/{sessionID}/context", getSessionContextHandler(workspaceRuntime.Sessions, workspaceRuntime.WorkspaceID))
 	mux.HandleFunc("DELETE /api/sessions/{sessionID}", deleteSessionHandler(workspaceRuntime.Sessions, workspaceRuntime.WorkspaceID))
 	return allowLocalWeb(mux)
 }
@@ -154,6 +155,22 @@ func deleteSessionHandler(sessionModule *session.Module, workspaceID string) htt
 			return
 		}
 		responseWriter.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func getSessionContextHandler(sessionModule *session.Module, workspaceID string) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, request *http.Request) {
+		sessionID, err := requestSessionID(request)
+		if err != nil {
+			writeJSONError(responseWriter, http.StatusBadRequest, "invalid_session_id", "sessionId is invalid")
+			return
+		}
+		usage, err := sessionModule.ContextUsage(request.Context(), workspaceID, sessionID)
+		if err != nil {
+			writeSessionError(responseWriter, err)
+			return
+		}
+		writeJSON(responseWriter, http.StatusOK, usage)
 	}
 }
 

@@ -52,21 +52,3 @@ npm run dev
 ```
 
 打开 http://localhost:3000。
-
-## Langfuse 遥测（可选）
-
-EDITH Studio 直接使用 tRPC-Agent-Go 内置的 Langfuse 遥测。把配置写入当前项目目录的 `.env` 后启动后端即可：
-
-```dotenv
-LANGFUSE_PUBLIC_KEY=pk-...
-LANGFUSE_SECRET_KEY=sk-...
-LANGFUSE_HOST=cloud.langfuse.com:443
-```
-
-然后运行：
-
-```powershell
-go run ./cmd/edith
-```
-
-本地自托管 Langfuse 可以使用 `LANGFUSE_HOST=localhost:3000`，并额外设置 `LANGFUSE_INSECURE=true`。系统环境变量优先于 `.env`；未配置这些变量时，Studio 会正常启动，但不会导出遥测数据。

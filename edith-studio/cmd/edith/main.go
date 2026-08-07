@@ -12,8 +12,6 @@ import (
 	"syscall"
 
 	"edith/studio/internal/studio"
-
-	"trpc.group/trpc-go/trpc-agent-go/telemetry/langfuse"
 )
 
 func main() {
@@ -26,39 +24,9 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	cleanLangfuse := startLangfuseTelemetry(ctx)
-	if cleanLangfuse != nil {
-		defer func() {
-			if err := cleanLangfuse(context.Background()); err != nil {
-				log.Printf("关闭 Langfuse telemetry 失败: %v", err)
-			}
-		}()
-	}
 	if err := studio.Start(ctx, projectRoot, "127.0.0.1:8765"); err != nil {
 		log.Fatal(err)
 	}
-}
-
-// startLangfuseTelemetry 在配置完整时接入 Langfuse；未配置时保持本地开发可用。
-func startLangfuseTelemetry(ctx context.Context) func(context.Context) error {
-	publicKey := os.Getenv("LANGFUSE_PUBLIC_KEY")
-	secretKey := os.Getenv("LANGFUSE_SECRET_KEY")
-	host := os.Getenv("LANGFUSE_HOST")
-	configured := publicKey != "" || secretKey != "" || host != ""
-	if !configured {
-		log.Println("Langfuse telemetry 未配置，跳过遥测导出")
-		return nil
-	}
-	if publicKey == "" || secretKey == "" || host == "" {
-		log.Fatal("Langfuse telemetry 配置不完整，需要 LANGFUSE_PUBLIC_KEY、LANGFUSE_SECRET_KEY、LANGFUSE_HOST")
-	}
-
-	clean, err := langfuse.Start(ctx)
-	if err != nil {
-		log.Fatalf("启动 Langfuse telemetry 失败: %v", err)
-	}
-	log.Printf("Langfuse telemetry 已启用，目标: %s", host)
-	return clean
 }
 
 // loadDotEnv 读取项目目录下的 .env；已有系统环境变量优先级更高。
