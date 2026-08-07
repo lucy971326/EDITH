@@ -45,6 +45,10 @@ func loadFile(path string, target map[string]ServerConfig) error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
+	if len(bytes.TrimSpace(contents)) == 0 {
+		// 空文件视为没有配置，不报错。
+		return nil
+	}
 	var config Config
 	decoder := json.NewDecoder(bytes.NewReader(contents))
 	decoder.DisallowUnknownFields()

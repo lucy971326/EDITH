@@ -71,6 +71,19 @@ func TestLoadIgnoresMissingConfigs(t *testing.T) {
 	}
 }
 
+func TestLoadTreatsEmptyFileAsEmptyConfig(t *testing.T) {
+	home := setUserConfigPath(t)
+	// 用户级 mcp.json 存在但是空文件，不应报错。
+	writeFile(t, filepath.Join(home, ".edith", "mcp.json"), "")
+	config, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(config.Servers) != 0 {
+		t.Fatalf("server count = %d, want 0", len(config.Servers))
+	}
+}
+
 func TestLoadRejectsUnknownFields(t *testing.T) {
 	home := setUserConfigPath(t)
 	writeFile(t, filepath.Join(home, ".edith", "mcp.json"), `{
