@@ -5,15 +5,16 @@ import { executeCommand, listCommands, type CommandDefinition } from "../../api/
 import { cancelRun, startRun } from "../../api/agent";
 import { deleteSession, getSession, getSessionContext, listSessions } from "../../api/sessions";
 import { getModels, type ModelCatalog } from "../../api/models";
-import { readSSEFrames, type AssistantBlock, type StreamEvent } from "../../lib/stream";
+import { consumeSSE, type StreamEvent } from "../../lib/stream";
 import { Icon } from "../../ui/icon";
 import { Composer, type PendingImage } from "../composer/composer";
 import { FilesPanel } from "../files/files-panel";
 import { RuntimeStatus } from "../runtime/runtime-status";
 import { SessionSidebar } from "../sessions/session-sidebar";
 import type { SessionSummary } from "../sessions/types";
+import { applyEvent } from "./apply-event";
 import { ChatTimeline } from "./chat-timeline";
-import type { AssistantMessage, ChatMessage } from "./types";
+import type { ChatMessage } from "./types";
 
 const SIDEBAR_MIN = 160;
 const SIDEBAR_MAX = 420;
@@ -71,48 +72,8 @@ function newID() {
   return crypto.randomUUID();
 }
 
-function applyEvent(message: AssistantMessage, streamEvent: StreamEvent): AssistantMessage {
-  if (streamEvent.type === "message.delta" || streamEvent.type === "reasoning.delta") {
-    if (!streamEvent.blockId || !streamEvent.blockType || !streamEvent.delta) {
-      return message;
-    }
-    const current = message.blocks.find((block) => block.id === streamEvent.blockId);
-    if (current?.type === "text" || current?.type === "reasoning") {
-      return {
-        ...message,
-        blocks: message.blocks.map((block) =>
-          block.id === streamEvent.blockId && (block.type === "text" || block.type === "reasoning")
-            ? { ...block, content: block.content + streamEvent.delta }
-            : block,
-        ),
-      };
-    }
-    return {
-      ...message,
-      blocks: [...message.blocks, { id: streamEvent.blockId, type: streamEvent.blockType, content: streamEvent.delta }],
-    };
-  }
-  if (!streamEvent.type.startsWith("tool.") || !streamEvent.toolCallId) {
-    return message;
-  }
-  const current = message.blocks.find(
-    (block): block is Extract<AssistantBlock, { type: "tool" }> => block.id === streamEvent.toolCallId && block.type === "tool",
-  );
-  const next: Extract<AssistantBlock, { type: "tool" }> = {
-    id: streamEvent.toolCallId,
-    type: "tool",
-    name: streamEvent.toolName ?? current?.name ?? "工具",
-    arguments: streamEvent.arguments ?? current?.arguments ?? "",
-    result: streamEvent.toolResult ?? current?.result ?? "",
-    status: streamEvent.toolStatus ?? current?.status ?? "requested",
-  };
-  return {
-    ...message,
-    blocks: current ? message.blocks.map((block) => (block.id === next.id ? next : block)) : [...message.blocks, next],
-  };
-}
-
 export function Workbench() {
+  // ---- 页面级状态：跨面板事实（当前 Session、Run、模型、布局）。组件内交互状态留在对应 feature。----
   const [sessionID, setSessionID] = useState(newID);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -136,6 +97,7 @@ export function Workbench() {
   const isBusy = isRunning || isCommandRunning;
   const currentSession = sessions.find((session) => session.id === sessionID);
 
+  // ---- 会话：列表、历史、上下文用量 ----
   async function refreshSessions() {
     try {
       setSessions(await listSessions());
@@ -170,6 +132,7 @@ export function Workbench() {
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "无法读取模型目录"));
   }, []);
 
+  // ---- 模型与图片 ----
   function selectModel(nextModelID: string) {
     setModelID(nextModelID);
     const nextModel = modelCatalog?.models.find((model) => model.id === nextModelID);
@@ -241,6 +204,7 @@ export function Workbench() {
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "无法读取命令目录"));
   }, []);
 
+  // ---- Run：SSE 事件归并、提交与停止 ----
   function applyStreamEvent(assistantID: string, streamEvent: StreamEvent) {
     if (streamEvent.type === "run.error") {
       setError(streamEvent.error?.message ?? "Agent 请求失败");
@@ -308,23 +272,11 @@ export function Workbench() {
         thinkingMode,
         images,
       });
-      if (!response.ok || !response.body) {
+      if (!response.ok) {
         const result = await response.json().catch(() => null) as { message?: string } | null;
         throw new Error(result?.message ?? "无法启动 Agent 请求");
       }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-        buffer += decoder.decode(value, { stream: true });
-        const frames = readSSEFrames(buffer);
-        buffer = frames.rest;
-        frames.events.forEach((streamEvent) => applyStreamEvent(assistantID, streamEvent));
-      }
+      await consumeSSE(response, (streamEvent) => applyStreamEvent(assistantID, streamEvent));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Agent 请求失败");
     } finally {

@@ -1,4 +1,4 @@
-const agentAPI = "http://127.0.0.1:8765";
+import { apiRequest } from "./client";
 
 export type RunImage = { name: string; dataUrl: string };
 
@@ -11,8 +11,9 @@ export type RunRequest = {
   images?: RunImage[];
 };
 
+// startRun 返回原始 Response；调用方通过 SSE 读取流式回复。
 export async function startRun(request: RunRequest) {
-  return fetch(`${agentAPI}/api/runs`, {
+  return apiRequest("/api/runs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
@@ -20,5 +21,5 @@ export async function startRun(request: RunRequest) {
 }
 
 export async function cancelRun(requestID: string) {
-  return fetch(`${agentAPI}/api/runs/${requestID}/cancel`, { method: "POST" });
+  return apiRequest(`/api/runs/${requestID}/cancel`, { method: "POST" });
 }

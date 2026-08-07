@@ -73,6 +73,23 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create tool sets: %w", err)
 	}
+
+	// 从创建第一个长期资源起注册清理：失败时按依赖反向关闭已经创建的部分。
+	// 之后新增模块只需在 Close 中补一行，不需要逐条修改失败分支。
+	workspaceRuntime := &Workspace{
+		ProjectRoot: projectRoot,
+		WorkspaceID: workspaceID(projectRoot),
+		Project:     projectModule,
+		Models:      modelModule,
+		toolSets:    toolSets,
+	}
+	success := false
+	defer func() {
+		if !success {
+			_ = workspaceRuntime.Close()
+		}
+	}()
+
 	sessionModule, err := session.Create(func(ctx context.Context) (model.Model, error) {
 		selection, ok := models.SelectionFromContext(ctx)
 		if !ok {
@@ -81,9 +98,10 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 		return modelModule.SummaryModel(selection)
 	})
 	if err != nil {
-		closeToolSets(toolSets)
 		return nil, fmt.Errorf("create session module: %w", err)
 	}
+	workspaceRuntime.Sessions = sessionModule
+
 	agentRuntime := llmagent.New(
 		agentName,
 		llmagent.WithModel(modelModule.DefaultModel()),
@@ -99,8 +117,6 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 	)
 	promptLogPlugin, err := promptlog.New()
 	if err != nil {
-		closeToolSets(toolSets)
-		_ = sessionModule.Close()
 		return nil, fmt.Errorf("create prompt log plugin: %w", err)
 	}
 	managedRunner, ok := runner.NewRunner(
@@ -110,42 +126,28 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 		runner.WithPlugins(promptLogPlugin),
 	).(runner.ManagedRunner)
 	if !ok {
-		closeToolSets(toolSets)
-		_ = sessionModule.Close()
 		return nil, errors.New("framework runner does not support cancellation")
 	}
-	currentWorkspaceID := workspaceID(projectRoot)
-	engineRuntime, err := engine.New(
+	workspaceRuntime.Engine, err = engine.New(
 		engine.Dependencies{
-			WorkspaceID: currentWorkspaceID,
+			WorkspaceID: workspaceRuntime.WorkspaceID,
 			FilterKey:   appName,
 			Runner:      managedRunner,
 			Models:      modelModule,
 			Sessions:    sessionModule.Service(),
 		})
 	if err != nil {
+		// Engine 未创建成功时 runner 还没有被 Workspace.Close 接管，需要单独关闭。
 		_ = managedRunner.Close()
-		closeToolSets(toolSets)
-		_ = sessionModule.Close()
 		return nil, fmt.Errorf("create engine: %w", err)
 	}
-	commandModule, err := commands.New(commands.Dependencies{Engine: engineRuntime})
+	commandModule, err := commands.New(commands.Dependencies{Engine: workspaceRuntime.Engine})
 	if err != nil {
-		_ = engineRuntime.Close()
-		closeToolSets(toolSets)
-		_ = sessionModule.Close()
 		return nil, fmt.Errorf("create commands module: %w", err)
 	}
-	return &Workspace{
-		ProjectRoot: projectRoot,
-		WorkspaceID: currentWorkspaceID,
-		Engine:      engineRuntime,
-		Commands:    commandModule,
-		Project:     projectModule,
-		Sessions:    sessionModule,
-		Models:      modelModule,
-		toolSets:    toolSets,
-	}, nil
+	workspaceRuntime.Commands = commandModule
+	success = true
+	return workspaceRuntime, nil
 }
 
 // Close 按反向依赖顺序关闭 Workspace 创建的长期资源。
@@ -170,10 +172,4 @@ func workspaceID(projectRoot string) string {
 	}
 	hash := sha256.Sum256([]byte(canonicalPath))
 	return "workspace:" + hex.EncodeToString(hash[:])
-}
-
-func closeToolSets(toolSets []tool.ToolSet) {
-	for _, toolSet := range toolSets {
-		_ = toolSet.Close()
-	}
 }

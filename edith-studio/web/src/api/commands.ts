@@ -1,4 +1,4 @@
-const agentAPI = "http://127.0.0.1:8765";
+import { apiJSON, apiRequest } from "./client";
 
 export type CommandDefinition = {
   name: string;
@@ -14,16 +14,13 @@ export type CommandInput = {
 };
 
 export async function listCommands(): Promise<CommandDefinition[]> {
-  const response = await fetch(`${agentAPI}/api/commands`);
-  if (!response.ok) {
-    throw new Error("无法读取命令目录");
-  }
-  const body = await response.json() as { commands?: CommandDefinition[] };
-  return body.commands ?? [];
+  const result = await apiJSON<{ commands?: CommandDefinition[] }>("/api/commands");
+  return result.commands ?? [];
 }
 
+// executeCommand 返回原始 Response；调用方根据 ok 和 message 判断成功或失败。
 export function executeCommand(input: CommandInput) {
-  return fetch(`${agentAPI}/api/commands`, {
+  return apiRequest("/api/commands", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
