@@ -14,6 +14,7 @@ import (
 
 	"edith/studio/internal/commands"
 	"edith/studio/internal/engine"
+	"edith/studio/internal/mcp"
 	"edith/studio/internal/models"
 	"edith/studio/internal/project"
 	"edith/studio/internal/session"
@@ -34,6 +35,7 @@ func newHandler(appCtx context.Context, workspaceRuntime *workspace.Workspace) h
 	mux.HandleFunc("POST /api/runs/{requestID}/cancel", cancelHandler(workspaceRuntime))
 	mux.HandleFunc("GET /api/commands", listCommandsHandler(workspaceRuntime.Commands))
 	mux.HandleFunc("POST /api/commands", commandHandler(workspaceRuntime))
+	mux.HandleFunc("GET /api/mcp", listMCPHandler(workspaceRuntime.MCP))
 	mux.HandleFunc("GET /api/models", listModelsHandler(workspaceRuntime.Models))
 	mux.HandleFunc("GET /api/files", listFilesHandler(workspaceRuntime.Project))
 	mux.HandleFunc("GET /api/files/content", readFileHandler(workspaceRuntime.Project))
@@ -51,6 +53,18 @@ func listModelsHandler(modelModule *models.Module) http.HandlerFunc {
 			return
 		}
 		writeJSON(responseWriter, http.StatusOK, modelModule.Catalog())
+	}
+}
+
+func listMCPHandler(mcpModule *mcp.Module) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, _ *http.Request) {
+		if mcpModule == nil {
+			writeJSONError(responseWriter, http.StatusInternalServerError, "mcp_unavailable", "MCP module is unavailable")
+			return
+		}
+		writeJSON(responseWriter, http.StatusOK, struct {
+			Servers []mcp.ServerStatus `json:"servers"`
+		}{Servers: mcpModule.Status()})
 	}
 }
 

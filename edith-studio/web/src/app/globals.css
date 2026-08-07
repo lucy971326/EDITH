@@ -44,6 +44,14 @@ button:disabled { cursor: not-allowed; }
 .sidebar-footer { margin-top: auto; border-top: 1px solid var(--line); padding: 12px; }
 .user-card { display: flex; align-items: center; gap: 9px; border-top: 1px solid var(--line); margin-top: 10px; padding: 13px 9px 2px; }
 .avatar { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 50%; background: #7256c8; color: white; font-size: 12px; font-weight: 700; }
+.mcp-section { padding: 0 12px 4px; }
+.mcp-section .section-label { margin: 10px 8px 8px; }
+.mcp-item { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 7px 8px; }
+.mcp-item:hover { background: var(--blue-soft); }
+.mcp-item.error .status-dot { background: #d0304f; }
+.mcp-name { overflow: hidden; min-width: 0; flex: 1; color: #354157; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.mcp-tools { color: var(--muted); font-size: 11px; }
+.empty-mcp { color: var(--muted); font-size: 12px; padding: 6px 8px; }
 
 .chat-area { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; background: var(--panel); }
 .panel-resizer { position: relative; flex: 0 0 6px; cursor: col-resize; touch-action: none; user-select: none; background: transparent; }

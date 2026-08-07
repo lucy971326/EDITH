@@ -5,6 +5,7 @@ import { executeCommand, listCommands, type CommandDefinition } from "../../api/
 import { cancelRun, startRun } from "../../api/agent";
 import { deleteSession, getSession, getSessionContext, listSessions } from "../../api/sessions";
 import { getModels, type ModelCatalog } from "../../api/models";
+import { getMcpStatus, type McpServerStatus } from "../../api/mcp";
 import { consumeSSE, type StreamEvent } from "../../lib/stream";
 import { Icon } from "../../ui/icon";
 import { Composer, type PendingImage } from "../composer/composer";
@@ -81,6 +82,7 @@ export function Workbench() {
   const [requestID, setRequestID] = useState<string | null>(null);
   const [isCommandRunning, setIsCommandRunning] = useState(false);
   const [commands, setCommands] = useState<CommandDefinition[]>([]);
+  const [mcpServers, setMcpServers] = useState<McpServerStatus[]>([]);
   const [modelCatalog, setModelCatalog] = useState<ModelCatalog | null>(null);
   const [modelID, setModelID] = useState("");
   const [thinkingMode, setThinkingMode] = useState("");
@@ -204,6 +206,12 @@ export function Workbench() {
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "无法读取命令目录"));
   }, []);
 
+  useEffect(() => {
+    void getMcpStatus()
+      .then((result) => setMcpServers(result.servers))
+      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "无法读取 MCP 状态"));
+  }, []);
+
   // ---- Run：SSE 事件归并、提交与停止 ----
   function applyStreamEvent(assistantID: string, streamEvent: StreamEvent) {
     if (streamEvent.type === "run.error") {
@@ -311,7 +319,7 @@ export function Workbench() {
   return (
     <main className="workbench">
       <div className="pane" style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}>
-        <SessionSidebar sessions={sessions} sessionID={sessionID} isRunning={isRunning} onNew={newSession} onSelect={selectSession} onDelete={removeSession} />
+        <SessionSidebar sessions={sessions} sessionID={sessionID} isRunning={isRunning} mcps={mcpServers} onNew={newSession} onSelect={selectSession} onDelete={removeSession} />
       </div>
       <PanelResizer
         collapsed={sidebarCollapsed}

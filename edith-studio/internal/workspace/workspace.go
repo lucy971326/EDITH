@@ -13,6 +13,7 @@ import (
 
 	"edith/studio/internal/commands"
 	"edith/studio/internal/engine"
+	"edith/studio/internal/mcp"
 	"edith/studio/internal/models"
 	"edith/studio/internal/project"
 	"edith/studio/internal/promptlog"
@@ -53,6 +54,8 @@ type Workspace struct {
 	Sessions *session.Module
 	// Models 是启动期创建的模型实例目录和公开能力描述。
 	Models *models.Module
+	// MCP 是 MCP server 连接与状态的产品能力。
+	MCP *mcp.Module
 
 	// toolSets 是 Workspace 创建并关闭的默认 Coding 工具资源，不作为产品接口暴露。
 	toolSets []tool.ToolSet
@@ -90,6 +93,12 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 		}
 	}()
 
+	mcpModule, err := mcp.New(mcp.Dependencies{ProjectRoot: projectRoot})
+	if err != nil {
+		return nil, fmt.Errorf("create mcp module: %w", err)
+	}
+	workspaceRuntime.MCP = mcpModule
+
 	sessionModule, err := session.Create(func(ctx context.Context) (model.Model, error) {
 		selection, ok := models.SelectionFromContext(ctx)
 		if !ok {
@@ -102,12 +111,16 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 	}
 	workspaceRuntime.Sessions = sessionModule
 
+	// MCP ToolSet 由 mcp.Module 创建和关闭，只在这里汇入 Agent，不放进 workspace.toolSets。
+	agentToolSets := make([]tool.ToolSet, 0, len(toolSets)+len(mcpModule.ToolSets()))
+	agentToolSets = append(agentToolSets, toolSets...)
+	agentToolSets = append(agentToolSets, mcpModule.ToolSets()...)
 	agentRuntime := llmagent.New(
 		agentName,
 		llmagent.WithModel(modelModule.DefaultModel()),
 		llmagent.WithModels(modelModule.AgentModels()),
 		llmagent.WithGlobalInstruction(systemPrompt),
-		llmagent.WithToolSets(toolSets),
+		llmagent.WithToolSets(agentToolSets),
 		llmagent.WithAddSessionSummary(true),
 		// 父 Agent 只读取自己的 FilterKey 及其子视图，不读取整个 Session 的其他视图。
 		llmagent.WithMessageBranchFilterMode(llmagent.BranchFilterModePrefix),
@@ -161,6 +174,9 @@ func (w *Workspace) Close() error {
 	}
 	if w.Sessions != nil {
 		closeErrors = append(closeErrors, w.Sessions.Close())
+	}
+	if w.MCP != nil {
+		closeErrors = append(closeErrors, w.MCP.Close())
 	}
 	return errors.Join(closeErrors...)
 }

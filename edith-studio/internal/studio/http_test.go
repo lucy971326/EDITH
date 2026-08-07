@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"edith/studio/internal/mcp"
 	"edith/studio/internal/models"
 	"edith/studio/internal/project"
 	"edith/studio/internal/workspace"
@@ -105,6 +106,41 @@ func TestModelHandlerReturnsBackendCatalog(t *testing.T) {
 	}
 	if strings.Contains(response.Body.String(), "secret") {
 		t.Fatalf("response leaked API key: %s", response.Body.String())
+	}
+}
+
+func TestMCPHandlerReturnsServerStatuses(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	// 用户级配置一个连不上的 server：验证失败不致命且状态透传到 HTTP。
+	edithDir := filepath.Join(home, ".edith")
+	if err := os.MkdirAll(edithDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(edithDir, "mcp.json"), []byte(`{
+	  "servers": {"broken": {"transport": "stdio", "command": "no-such-edith-command", "timeout": "1s"}}
+	}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mcpModule, err := mcp.New(mcp.Dependencies{ProjectRoot: t.TempDir()})
+	if err != nil {
+		t.Fatalf("new mcp: %v", err)
+	}
+
+	handler := newHandler(context.Background(), &workspace.Workspace{MCP: mcpModule})
+	response := serveRequest(handler, http.MethodGet, "/api/mcp", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Servers []mcp.ServerStatus `json:"servers"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Servers) != 1 || body.Servers[0].Name != "broken" || body.Servers[0].Status != "error" {
+		t.Fatalf("servers = %#v", body.Servers)
 	}
 }
 

@@ -1,10 +1,12 @@
 import { Icon } from "../../ui/icon";
+import type { McpServerStatus } from "../../api/mcp";
 import type { SessionSummary } from "./types";
 
 type Props = {
   sessions: SessionSummary[];
   sessionID: string;
   isRunning: boolean;
+  mcps: McpServerStatus[];
   onNew: () => void;
   onSelect: (sessionID: string) => void;
   onDelete: (sessionID: string) => void;
@@ -16,7 +18,7 @@ function displayTime(value: string) {
   return date.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function SessionSidebar({ sessions, sessionID, isRunning, onNew, onSelect, onDelete }: Props) {
+export function SessionSidebar({ sessions, sessionID, isRunning, mcps, onNew, onSelect, onDelete }: Props) {
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -45,7 +47,20 @@ export function SessionSidebar({ sessions, sessionID, isRunning, onNew, onSelect
         {sessions.length === 0 && <p className="empty-sessions">当前目录还没有已保存的会话。</p>}
       </div>
       <div className="sidebar-footer">
-        <button className="nav-button" type="button"><Icon name="grid" />扩展 <span className="soon-label">即将支持</span></button>
+        <div className="mcp-section">
+          <div className="section-label"><span>扩展 · MCP</span><span>{mcps.length}</span></div>
+          {mcps.length === 0 ? (
+            <p className="empty-mcp">暂无 MCP server</p>
+          ) : (
+            mcps.map((server) => (
+              <div className={`mcp-item ${server.status}`} key={server.name} title={server.error}>
+                <i className="status-dot" />
+                <span className="mcp-name">{server.name}</span>
+                <span className="mcp-tools">{server.toolCount} 工具</span>
+              </div>
+            ))
+          )}
+        </div>
         <button className="nav-button" type="button"><Icon name="settings" />设置 <span className="soon-label">即将支持</span></button>
         <div className="user-card">
           <div className="avatar">E</div>
