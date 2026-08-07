@@ -51,7 +51,10 @@ func Create(resolveSummaryModel SummaryModelResolver) (*Module, error) {
 		if summaryModel == nil {
 			return nil, errors.New("summary model resolver returned nil")
 		}
-		return summary.NewSummarizer(summaryModel, summary.WithContextThreshold()), nil
+		return summary.NewSummarizer(
+			summaryModel,
+			summary.WithContextThreshold(summary.WithContextThresholdRatio(0.8)),
+		), nil
 	})
 	service, err := sqlite.NewService(database, sqlite.WithSummarizer(dynamicSummarizer))
 	if err != nil {
