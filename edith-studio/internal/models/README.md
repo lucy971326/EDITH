@@ -21,6 +21,7 @@ models.Module
 - `Catalog`：返回不含 API Key 的模型 Profile。
 - `RunOptions`：校验模型和思考模式，并生成框架 `RunOption`。
 - `SummaryModel`：复用已注册模型实例，提供本次摘要所需的模型能力。
+- `SupportsVision`：按模型声明判断是否允许图片输入。
 
 ## 配置边界
 

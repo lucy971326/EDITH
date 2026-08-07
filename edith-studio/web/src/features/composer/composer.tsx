@@ -1,7 +1,9 @@
-import { FormEvent } from "react";
+import { FormEvent, useRef } from "react";
 import type { CommandDefinition } from "../../api/commands";
 import type { ModelCatalog } from "../../api/models";
 import { Icon } from "../../ui/icon";
+
+export type PendingImage = { id: string; name: string; dataUrl: string };
 
 type ComposerProps = {
   input: string;
@@ -13,7 +15,10 @@ type ComposerProps = {
   modelID: string;
   thinkingMode: string;
   contextTokens: number | null;
+  images: PendingImage[];
   onInput: (value: string) => void;
+  onAddImages: (files: File[]) => void;
+  onRemoveImage: (id: string) => void;
   onCommandSelect: (syntax: string) => void;
   onModelChange: (modelID: string) => void;
   onThinkingModeChange: (thinkingMode: string) => void;
@@ -48,17 +53,22 @@ export function Composer({
   modelID,
   thinkingMode,
   contextTokens,
+  images,
   onInput,
+  onAddImages,
+  onRemoveImage,
   onCommandSelect,
   onModelChange,
   onThinkingModeChange,
   onSubmit,
   onStop,
 }: ComposerProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const selectedModel = modelCatalog?.models.find((model) => model.id === modelID);
   const thinkingModes = selectedModel?.thinking.modes ?? [];
   const canSubmit = Boolean(input.trim() && modelCatalog && modelID && thinkingMode && !isBusy);
   const commandSuggestions = input.trimStart().startsWith("/") && !isBusy ? commands : [];
+  const canUploadImages = Boolean(selectedModel?.vision);
 
   return (
     <form className="composer" onSubmit={onSubmit}>
@@ -79,12 +89,43 @@ export function Composer({
             ))}
           </div>
         )}
+        {images.length > 0 && (
+          <div className="composer-images">
+            {images.map((image) => (
+              <div className="composer-image" key={image.id}>
+                <img src={image.dataUrl} alt={image.name} />
+                <button aria-label={`移除 ${image.name}`} className="image-remove" onClick={() => onRemoveImage(image.id)} type="button">
+                  <Icon name="close" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="composer-toolbar">
           <div className="toolbar-group">
-            <button className="icon-button" disabled title="文件与图片上传即将支持">
-              <Icon name="attachment" />
+            <input
+              ref={fileInputRef}
+              className="hidden-input"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                if (files.length > 0) {
+                  onAddImages(files);
+                }
+                event.target.value = "";
+              }}
+            />
+            <button
+              className="icon-button"
+              disabled={isBusy || !canUploadImages}
+              onClick={() => fileInputRef.current?.click()}
+              title={canUploadImages ? "上传图片" : "当前模型不支持图片"}
+              type="button"
+            >
+              <Icon name="image" />
             </button>
-            <span className="soon-label">上传即将支持</span>
             <span className="control-pill" title="权限设置即将支持">
               <Icon name="shield" />
               <b>normal</b>

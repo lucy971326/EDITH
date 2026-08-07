@@ -14,4 +14,7 @@ CreateSessionSummary(...)   将会话压缩结果保存到 session_summaries
 
 `workspaceID` 显式传入并作为框架 `UserID`；不同项目目录的历史不会互相可见。Web 和 Studio 不直接查询 SQLite 或读取框架 Event。
 
+`Get` 还原历史时会把用户消息中的图片内容块转换为 `ChatMessage.Images`
+（data URL），前端无需再次请求文件。
+
 创建时接入框架 `DynamicSummarizer`：每次 Run 或 `/compact` 都从请求 context 读取当前模型选择，再生成摘要器；SessionService 本身只创建一次。

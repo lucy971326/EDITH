@@ -10,15 +10,26 @@ var (
 	ErrSessionBusy = errors.New("session already has an active run")
 	// ErrInvalidCompactInput 表示手动压缩缺少 Session 身份。
 	ErrInvalidCompactInput = errors.New("invalid compact input")
+	// ErrModelNotVision 表示当前模型不支持图片输入。
+	ErrModelNotVision = errors.New("model does not support images")
+	// ErrInvalidImage 表示图片输入不合法。
+	ErrInvalidImage = errors.New("invalid image input")
 )
 
 // RunInput 是每次 Agent Run 都会变化的输入。
 type RunInput struct {
-	RequestID    string `json:"requestId"`
-	SessionID    string `json:"sessionId"`
-	Message      string `json:"message"`
-	ModelID      string `json:"modelId,omitempty"`
-	ThinkingMode string `json:"thinkingMode,omitempty"`
+	RequestID    string       `json:"requestId"`
+	SessionID    string       `json:"sessionId"`
+	Message      string       `json:"message"`
+	ModelID      string       `json:"modelId,omitempty"`
+	ThinkingMode string       `json:"thinkingMode,omitempty"`
+	Images       []ImageInput `json:"images,omitempty"`
+}
+
+// ImageInput 是随用户消息发送的一张图片；DataURL 是完整 data:image/...;base64,...。
+type ImageInput struct {
+	Name    string `json:"name"`
+	DataURL string `json:"dataUrl"`
 }
 
 // CompactInput 是一次手动会话压缩的输入。

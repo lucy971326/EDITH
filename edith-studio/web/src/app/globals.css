@@ -98,6 +98,14 @@ button:disabled { cursor: not-allowed; }
 .command-suggestions button { display: flex; align-items: baseline; gap: 10px; border: 0; border-radius: 7px; background: transparent; color: #354157; padding: 7px 8px; text-align: left; }
 .command-suggestions button:hover { background: var(--blue-soft); }
 .command-suggestions span { color: var(--muted); font-size: 12px; }
+.hidden-input { display: none; }
+.composer-images { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px 0; }
+.composer-image { position: relative; }
+.composer-image img { display: block; width: 72px; height: 72px; border: 1px solid var(--line); border-radius: 8px; object-fit: cover; }
+.image-remove { position: absolute; top: -6px; right: -6px; display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: #ffffff; color: #5a6a80; }
+.image-remove:hover { color: #b4233f; }
+.message-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.message-image { display: block; max-width: 240px; max-height: 180px; border-radius: 8px; object-fit: cover; }
 
 .inspector { display: flex; min-width: 0; flex-direction: column; border-left: 1px solid var(--line); }
 .inspector-header { display: flex; align-items: center; justify-content: space-between; padding: 0 14px; }

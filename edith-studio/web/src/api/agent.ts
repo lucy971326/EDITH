@@ -1,11 +1,14 @@
 const agentAPI = "http://127.0.0.1:8765";
 
+export type RunImage = { name: string; dataUrl: string };
+
 export type RunRequest = {
   requestId: string;
   sessionId: string;
   message: string;
   modelId: string;
   thinkingMode: string;
+  images?: RunImage[];
 };
 
 export async function startRun(request: RunRequest) {

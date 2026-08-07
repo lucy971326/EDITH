@@ -33,7 +33,14 @@ type ChatMessage struct {
 	ID      string           `json:"id"`
 	Role    string           `json:"role"`
 	Content string           `json:"content,omitempty"`
+	Images  []ChatImage      `json:"images,omitempty"`
 	Blocks  []AssistantBlock `json:"blocks,omitempty"`
+}
+
+// ChatImage 是聊天时间线中的一张图片附件。
+type ChatImage struct {
+	DataURL string `json:"dataUrl"`
+	Name    string `json:"name,omitempty"`
 }
 
 // AssistantBlock 是助手消息中的思考、文本、工具或错误内容块。

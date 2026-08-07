@@ -94,6 +94,16 @@ func (m *Module) DefaultModel() model.Model {
 	return m.models[m.defaultID]
 }
 
+// SupportsVision 返回指定模型是否声明了视觉输入能力；空 ID 使用默认模型。
+func (m *Module) SupportsVision(modelID string) bool {
+	modelID = strings.TrimSpace(modelID)
+	if modelID == "" {
+		modelID = m.defaultID
+	}
+	entry, ok := m.entries[modelID]
+	return ok && entry.profile.Vision
+}
+
 // Catalog 返回供 Studio 和 Web 使用的公开模型目录。
 func (m *Module) Catalog() Catalog {
 	modelIDs := make([]string, 0, len(m.entries))

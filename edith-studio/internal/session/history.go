@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -138,13 +139,14 @@ func messagesFromEvents(events []event.Event) []ChatMessage {
 		if frameworkEvent.IsUserMessage() {
 			appendAssistant()
 			for choiceIndex, choice := range frameworkEvent.Response.Choices {
-				if strings.TrimSpace(choice.Message.Content) == "" {
+				if strings.TrimSpace(choice.Message.Content) == "" && len(imageDataURLs(choice.Message)) == 0 {
 					continue
 				}
 				messages = append(messages, ChatMessage{
 					ID:      messageID(frameworkEvent.ID, choiceIndex),
 					Role:    "user",
 					Content: choice.Message.Content,
+					Images:  imageDataURLs(choice.Message),
 				})
 			}
 			continue
@@ -166,6 +168,24 @@ func messagesFromEvents(events []event.Event) []ChatMessage {
 	}
 	appendAssistant()
 	return messages
+}
+
+// imageDataURLs 把用户消息中的图片内容块还原为前端可显示的 data URL。
+func imageDataURLs(message model.Message) []ChatImage {
+	images := make([]ChatImage, 0)
+	for _, part := range message.ContentParts {
+		if part.Type != model.ContentTypeImage || part.Image == nil || len(part.Image.Data) == 0 {
+			continue
+		}
+		format := part.Image.Format
+		if format == "" {
+			format = "png"
+		}
+		images = append(images, ChatImage{
+			DataURL: "data:image/" + format + ";base64," + base64.StdEncoding.EncodeToString(part.Image.Data),
+		})
+	}
+	return images
 }
 
 func appendAssistantChoice(assistant *ChatMessage, frameworkEvent event.Event, choice model.Choice, choiceIndex int) {

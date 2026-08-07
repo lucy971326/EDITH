@@ -7,7 +7,7 @@ import { deleteSession, getSession, getSessionContext, listSessions } from "../.
 import { getModels, type ModelCatalog } from "../../api/models";
 import { readSSEFrames, type AssistantBlock, type StreamEvent } from "../../lib/stream";
 import { Icon } from "../../ui/icon";
-import { Composer } from "../composer/composer";
+import { Composer, type PendingImage } from "../composer/composer";
 import { FilesPanel } from "../files/files-panel";
 import { RuntimeStatus } from "../runtime/runtime-status";
 import { SessionSidebar } from "../sessions/session-sidebar";
@@ -124,6 +124,7 @@ export function Workbench() {
   const [modelID, setModelID] = useState("");
   const [thinkingMode, setThinkingMode] = useState("");
   const [contextTokens, setContextTokens] = useState<number | null>(null);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [error, setError] = useState("");
   const [commandStatus, setCommandStatus] = useState("");
   const [isStopping, setIsStopping] = useState(false);
@@ -173,6 +174,33 @@ export function Workbench() {
     setModelID(nextModelID);
     const nextModel = modelCatalog?.models.find((model) => model.id === nextModelID);
     setThinkingMode(nextModel?.thinking.defaultMode ?? "");
+    if (!nextModel?.vision && pendingImages.length > 0) {
+      setPendingImages([]);
+      setError("当前模型不支持图片，已移除图片");
+    }
+  }
+
+  function addImages(files: File[]) {
+    const remaining = 5 - pendingImages.length;
+    if (remaining <= 0) {
+      setError("最多上传 5 张图片");
+      return;
+    }
+    const oversized = files.find((file) => file.size > 10 * 1024 * 1024);
+    if (oversized) {
+      setError(`图片 ${oversized.name} 超过 10MB，已跳过`);
+    }
+    for (const file of files.filter((file) => file.size <= 10 * 1024 * 1024).slice(0, remaining)) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPendingImages((current) => [...current, { id: newID(), name: file.name, dataUrl: String(reader.result) }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function removeImage(id: string) {
+    setPendingImages((current) => current.filter((image) => image.id !== id));
   }
 
   function newSession() {
@@ -260,12 +288,14 @@ export function Workbench() {
 
     const nextRequestID = newID();
     const assistantID = newID();
+    const images = pendingImages.map(({ name, dataUrl }) => ({ name, dataUrl }));
     setMessages((current) => [
       ...current,
-      { id: newID(), role: "user", content: message },
+      { id: newID(), role: "user", content: message, images },
       { id: assistantID, role: "assistant", blocks: [] },
     ]);
     setInput("");
+    setPendingImages([]);
     setError("");
     setCommandStatus("");
     setRequestID(nextRequestID);
@@ -276,6 +306,7 @@ export function Workbench() {
         message,
         modelId: modelID,
         thinkingMode,
+        images,
       });
       if (!response.ok || !response.body) {
         const result = await response.json().catch(() => null) as { message?: string } | null;
@@ -375,7 +406,10 @@ export function Workbench() {
           modelID={modelID}
           thinkingMode={thinkingMode}
           contextTokens={contextTokens}
+          images={pendingImages}
           onInput={setInput}
+          onAddImages={addImages}
+          onRemoveImage={removeImage}
           onCommandSelect={selectCommand}
           onModelChange={selectModel}
           onThinkingModeChange={setThinkingMode}

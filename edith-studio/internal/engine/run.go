@@ -11,7 +11,6 @@ import (
 
 	"trpc.group/trpc-go/trpc-agent-go/agent"
 	"trpc.group/trpc-go/trpc-agent-go/event"
-	"trpc.group/trpc-go/trpc-agent-go/model"
 )
 
 const maxRunDuration = 60 * time.Minute
@@ -26,9 +25,15 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 	if err := ValidateInput(input); err != nil {
 		return err
 	}
+	if err := validateImages(input.Images); err != nil {
+		return err
+	}
 	runOptions, err := e.modelRunOptions(input)
 	if err != nil {
 		return err
+	}
+	if len(input.Images) > 0 && !e.models.SupportsVision(input.ModelID) {
+		return ErrModelNotVision
 	}
 	if err := e.reserveSession(input.SessionID, input.RequestID); err != nil {
 		return err
@@ -43,6 +48,10 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 		agent.WithStream(true),
 		agent.WithMaxRunDuration(maxRunDuration),
 	)
+	userMessage, err := buildUserMessage(input)
+	if err != nil {
+		return err
+	}
 	frameworkEventCh, err := e.runner.Run(
 		models.WithSelection(ctx, models.Selection{
 			ModelID:      input.ModelID,
@@ -50,7 +59,7 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 		}),
 		e.workspaceID,
 		input.SessionID,
-		model.NewUserMessage(input.Message),
+		userMessage,
 		runOptions...,
 	)
 	if err != nil {

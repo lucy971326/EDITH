@@ -2,6 +2,10 @@
 
 Studio 创建并持有一个 Workspace，提供本地 HTTP 入口：`POST /api/runs` 将 `RunInput` 交给 `Workspace.Engine` 并把 `StreamEvent` 写成 SSE；`POST /api/runs/{requestID}/cancel` 请求停止；`GET /api/files` 与 `GET /api/files/content` 调用 `Workspace.Project`；`GET/DELETE /api/sessions` 调用 `Workspace.Sessions`。
 
+`POST /api/runs` 的 `RunInput` 可携带 `images`（data URL）；图片校验与模型
+视觉能力检查由 Engine 完成，Studio 只负责错误映射（`invalid_image`、
+`model_not_vision`）。
+
 浏览器直接连接 `http://127.0.0.1:8765`；Studio 只对本机 Web 开发地址放行 CORS，不经过 Next.js 代理。
 
 命令相关路由为 `GET /api/commands` 和 `POST /api/commands`。前者返回 Workspace 命令目录，后者执行 `/compact` 并返回普通 JSON；它不进入 SSE 事件链路。

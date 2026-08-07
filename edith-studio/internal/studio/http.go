@@ -20,7 +20,8 @@ import (
 	"edith/studio/internal/workspace"
 )
 
-const maxRequestBodyBytes = 1 << 20
+// maxRequestBodyBytes 需要容纳最多 5 张图片的 base64 与 JSON 开销。
+const maxRequestBodyBytes = 80 << 20
 
 type apiError struct {
 	Code    string `json:"code"`
@@ -248,6 +249,14 @@ func runHandler(appCtx context.Context, workspaceRuntime *workspace.Workspace) h
 		}
 		if (errors.Is(err, models.ErrUnknownModel) || errors.Is(err, models.ErrUnsupportedThinkingMode)) && !streamStarted {
 			writeJSONError(responseWriter, http.StatusBadRequest, "invalid_model_selection", err.Error())
+			return
+		}
+		if errors.Is(err, engine.ErrInvalidImage) && !streamStarted {
+			writeJSONError(responseWriter, http.StatusBadRequest, "invalid_image", err.Error())
+			return
+		}
+		if errors.Is(err, engine.ErrModelNotVision) && !streamStarted {
+			writeJSONError(responseWriter, http.StatusBadRequest, "model_not_vision", err.Error())
 			return
 		}
 		if err != nil && !streamStarted {
