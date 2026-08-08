@@ -119,8 +119,20 @@ func sessionTitle(events []event.Event) string {
 }
 
 func messagesFromEvents(events []event.Event) []ChatMessage {
+	// 预扫描：收集所有触发过子事件（AgentTool 调用）的父工具调用 ID。
+	// 这些调用在还原时表现为 agent 块；其余工具仍还原为普通工具块。
+	agentCallIDs := make(map[string]bool)
+	for _, frameworkEvent := range events {
+		if frameworkEvent.ParentMetadata != nil && frameworkEvent.ParentMetadata.TriggerID != "" {
+			agentCallIDs[frameworkEvent.ParentMetadata.TriggerID] = true
+		}
+	}
+
 	messages := make([]ChatMessage, 0)
 	var assistant *ChatMessage
+	// currentAgentIndex 是当前打开的 agent 块在 assistant.Blocks 中的下标；-1 表示不在子 Agent 内。
+	// 用下标而非指针，避免 slice 扩容后指针失效。
+	currentAgentIndex := -1
 
 	appendAssistant := func() {
 		if assistant == nil {
@@ -137,6 +149,8 @@ func messagesFromEvents(events []event.Event) []ChatMessage {
 			continue
 		}
 		if frameworkEvent.IsUserMessage() {
+			// 用户消息结束当前子 Agent 上下文。
+			currentAgentIndex = -1
 			appendAssistant()
 			for choiceIndex, choice := range frameworkEvent.Response.Choices {
 				if strings.TrimSpace(choice.Message.Content) == "" && len(imageDataURLs(choice.Message)) == 0 {
@@ -155,8 +169,48 @@ func messagesFromEvents(events []event.Event) []ChatMessage {
 		if assistant == nil {
 			assistant = &ChatMessage{ID: frameworkEvent.ID, Role: "assistant"}
 		}
+
+		// 子事件（ParentMetadata 非 nil）：内容归入当前 agent 块的 Blocks。
+		if frameworkEvent.ParentMetadata != nil {
+			if currentAgentIndex >= 0 {
+				agentBlock := &assistant.Blocks[currentAgentIndex]
+				for choiceIndex, choice := range frameworkEvent.Response.Choices {
+					appendChoiceBlocks(&agentBlock.Blocks, frameworkEvent, choice, choiceIndex, agentCallIDs)
+				}
+			}
+			continue
+		}
+
 		for choiceIndex, choice := range frameworkEvent.Response.Choices {
-			appendAssistantChoice(assistant, frameworkEvent, choice, choiceIndex)
+			message := choice.Message
+			// 父收到 agent 工具结果：关闭 agent 块并填 result。
+			if message.ToolID != "" && currentAgentIndex >= 0 && message.ToolID == assistant.Blocks[currentAgentIndex].ID {
+				agentBlock := &assistant.Blocks[currentAgentIndex]
+				agentBlock.Result = message.Content
+				if frameworkEvent.IsError() {
+					agentBlock.Status = "failed"
+				} else {
+					agentBlock.Status = "completed"
+				}
+				currentAgentIndex = -1
+				continue
+			}
+			// 先追加父的思考/文本/普通工具，再打开 agent 块：
+			// 保证父思考块出现在 agent 卡之前，与实时流式顺序一致。
+			appendChoiceBlocks(&assistant.Blocks, frameworkEvent, choice, choiceIndex, agentCallIDs)
+			// 父发起的 AgentTool 调用：打开 agent 块（appendChoiceBlocks 已跳过这些调用）。
+			for _, toolCall := range message.ToolCalls {
+				if agentCallIDs[toolCall.ID] {
+					assistant.Blocks = append(assistant.Blocks, AssistantBlock{
+						ID:        toolCall.ID,
+						Type:      "agent",
+						Name:      toolCall.Function.Name,
+						Arguments: string(toolCall.Function.Arguments),
+						Status:    "running",
+					})
+					currentAgentIndex = len(assistant.Blocks) - 1
+				}
+			}
 		}
 		if frameworkEvent.IsError() && frameworkEvent.Response.Error != nil {
 			assistant.Blocks = append(assistant.Blocks, AssistantBlock{
@@ -188,42 +242,49 @@ func imageDataURLs(message model.Message) []ChatImage {
 	return images
 }
 
-func appendAssistantChoice(assistant *ChatMessage, frameworkEvent event.Event, choice model.Choice, choiceIndex int) {
+// appendChoiceBlocks 把一条 choice 的思考/文本/工具调用/工具结果追加到任意 blocks 切片。
+// agentCallIDs 标记的 AgentTool 调用由调用方单独打开 agent 块，这里跳过，避免重复。
+func appendChoiceBlocks(blocks *[]AssistantBlock, frameworkEvent event.Event, choice model.Choice, choiceIndex int, agentCallIDs map[string]bool) {
 	message := choice.Message
 	if message.ReasoningContent != "" {
-		assistant.Blocks = append(assistant.Blocks, AssistantBlock{
+		*blocks = append(*blocks, AssistantBlock{
 			ID:      messageID(frameworkEvent.ID, choiceIndex),
 			Type:    "reasoning",
 			Content: message.ReasoningContent,
 		})
 	}
 	if message.Content != "" && message.ToolID == "" {
-		assistant.Blocks = append(assistant.Blocks, AssistantBlock{
-			ID:      messageID(frameworkEvent.ID, choiceIndex+len(assistant.Blocks)),
+		*blocks = append(*blocks, AssistantBlock{
+			ID:      messageID(frameworkEvent.ID, choiceIndex+len(*blocks)),
 			Type:    "text",
 			Content: message.Content,
 		})
 	}
 	for toolIndex, toolCall := range message.ToolCalls {
-		assistant.Blocks = append(assistant.Blocks, AssistantBlock{
+		if agentCallIDs[toolCall.ID] {
+			continue
+		}
+		block := AssistantBlock{
 			ID:        toolCall.ID,
 			Type:      "tool",
 			Name:      toolCall.Function.Name,
 			Arguments: string(toolCall.Function.Arguments),
 			Status:    "requested",
-		})
-		if toolCall.ID == "" {
-			assistant.Blocks[len(assistant.Blocks)-1].ID = messageID(frameworkEvent.ID, choiceIndex+toolIndex)
 		}
+		if toolCall.ID == "" {
+			block.ID = messageID(frameworkEvent.ID, choiceIndex+toolIndex)
+		}
+		*blocks = append(*blocks, block)
 	}
 	if message.ToolID != "" {
-		appendToolResult(assistant, message, frameworkEvent.IsError())
+		appendToolResultTo(blocks, message, frameworkEvent.IsError())
 	}
 }
 
-func appendToolResult(assistant *ChatMessage, message model.Message, failed bool) {
-	for index := range assistant.Blocks {
-		block := &assistant.Blocks[index]
+// appendToolResultTo 把工具结果回填到 blocks 中匹配的 tool 块；找不到时追加新块。
+func appendToolResultTo(blocks *[]AssistantBlock, message model.Message, failed bool) {
+	for index := range *blocks {
+		block := &(*blocks)[index]
 		if block.Type != "tool" || block.ID != message.ToolID {
 			continue
 		}
@@ -237,7 +298,7 @@ func appendToolResult(assistant *ChatMessage, message model.Message, failed bool
 	if failed {
 		status = "failed"
 	}
-	assistant.Blocks = append(assistant.Blocks, AssistantBlock{
+	*blocks = append(*blocks, AssistantBlock{
 		ID:     message.ToolID,
 		Type:   "tool",
 		Name:   message.ToolName,

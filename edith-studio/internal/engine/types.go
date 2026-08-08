@@ -42,16 +42,21 @@ type CompactInput struct {
 
 // StreamEvent 是 Web 前端读取的稳定 SSE 事件。
 type StreamEvent struct {
-	Type       string       `json:"type"`
-	BlockID    string       `json:"blockId,omitempty"`
-	BlockType  string       `json:"blockType,omitempty"`
-	Delta      string       `json:"delta,omitempty"`
-	ToolCallID string       `json:"toolCallId,omitempty"`
-	ToolName   string       `json:"toolName,omitempty"`
-	Arguments  string       `json:"arguments,omitempty"`
-	ToolStatus string       `json:"toolStatus,omitempty"`
-	ToolResult string       `json:"toolResult,omitempty"`
-	Error      *StreamError `json:"error,omitempty"`
+	Type string `json:"type"`
+	// Author 是事件作者：空 = 父 Agent，非空 = 子 Agent 名（如 explorer）。前端按它归组到 Agent Card。
+	Author string `json:"author,omitempty"`
+	// ParentToolCallID 是子事件触发的父 AgentTool 调用的 toolCallId；父事件为空。
+	// 前端用它把子事件精确关联到对应 Agent 卡（避免并行调用串卡）。
+	ParentToolCallID string       `json:"parentToolCallId,omitempty"`
+	BlockID          string       `json:"blockId,omitempty"`
+	BlockType        string       `json:"blockType,omitempty"`
+	Delta            string       `json:"delta,omitempty"`
+	ToolCallID       string       `json:"toolCallId,omitempty"`
+	ToolName         string       `json:"toolName,omitempty"`
+	Arguments        string       `json:"arguments,omitempty"`
+	ToolStatus       string       `json:"toolStatus,omitempty"`
+	ToolResult       string       `json:"toolResult,omitempty"`
+	Error            *StreamError `json:"error,omitempty"`
 }
 
 // StreamError 是直接展示给用户的运行错误。

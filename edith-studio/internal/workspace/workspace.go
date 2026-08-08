@@ -129,12 +129,18 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 	agentToolSets := make([]tool.ToolSet, 0, len(toolSets)+len(mcpModule.ToolSets()))
 	agentToolSets = append(agentToolSets, toolSets...)
 	agentToolSets = append(agentToolSets, mcpModule.ToolSets()...)
+
+	// 内置只读探索子 Agent（框架 builtin.NewExplorer），经 AgentTool 挂到父 Agent。
+	// 子事件以 Author=explorer、FilterKey=explorer-<uuid>（isolated，无父前缀）透传进父事件流。
+	explorerTool := tools.NewAgentTool()
+
 	agentRuntime := llmagent.New(
 		agentName,
 		llmagent.WithModel(modelModule.DefaultModel()),
 		llmagent.WithModels(modelModule.AgentModels()),
 		llmagent.WithGlobalInstruction(systemPrompt),
 		llmagent.WithToolSets(agentToolSets),
+		llmagent.WithTools([]tool.Tool{explorerTool}),
 		// Skills：只启用框架的知识注入层（概览 + skill_load 等工具 + 按需物化），
 		// 执行层（skill_run/skill_exec/workspace_exec）由 SkillToolProfileKnowledgeOnly 关闭；
 		// 技能脚本由 Agent 通过既有 bash 工具直接执行。

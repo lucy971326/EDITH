@@ -1,4 +1,5 @@
 import {
+  Bot,
   ChevronDown,
   File,
   Folder,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 
 type IconName =
+  | "agent"
   | "attachment"
   | "chevron"
   | "close"
@@ -37,6 +39,7 @@ type IconName =
 type IconProps = { name: IconName; className?: string };
 
 const icons: Record<IconName, LucideIcon> = {
+  agent: Bot,
   attachment: Paperclip,
   chevron: ChevronDown,
   close: X,

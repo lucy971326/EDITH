@@ -81,6 +81,9 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 	var nextBlockNumber int
 	var sawPartialReasoning bool
 	var sawPartialText bool
+	// currentAuthor 记录上一个事件的作者；author 切换时重置块状态，
+	// 防止子 Agent 的流式文本续用父 Agent 的 block ID。
+	var currentAuthor string
 	toolNames := make(map[string]string)
 	startedTools := make(map[string]bool)
 	failed := false
@@ -106,6 +109,21 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 		if frameworkEvent.Response == nil {
 			continue
 		}
+		// 子 Agent 事件由 ParentMetadata 标记（框架契约：顶层事件为 nil）；
+		// author 切换时重置内容块，防止子文本续用父的 block ID。
+		author := ""
+		parentToolCallID := ""
+		if frameworkEvent.ParentMetadata != nil {
+			author = frameworkEvent.Author
+			parentToolCallID = frameworkEvent.ParentMetadata.TriggerID
+		}
+		if author != currentAuthor {
+			currentAuthor = author
+			lastBlockType = ""
+			lastBlockID = ""
+			sawPartialReasoning = false
+			sawPartialText = false
+		}
 		for _, choice := range frameworkEvent.Response.Choices {
 			// 流式文本与思考共用一个顺序编号，切换类型就开始新块。
 			if choice.Delta.ReasoningContent != "" {
@@ -115,7 +133,7 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 					lastBlockID = fmt.Sprintf("block-%d", nextBlockNumber)
 				}
 				sawPartialReasoning = true
-				sendEvent(StreamEvent{Type: "reasoning.delta", BlockID: lastBlockID, BlockType: "reasoning", Delta: choice.Delta.ReasoningContent})
+				sendEvent(StreamEvent{Type: "reasoning.delta", Author: author, ParentToolCallID: parentToolCallID, BlockID: lastBlockID, BlockType: "reasoning", Delta: choice.Delta.ReasoningContent})
 			}
 			if choice.Delta.Content != "" {
 				if lastBlockType != "text" {
@@ -124,17 +142,19 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 					lastBlockID = fmt.Sprintf("block-%d", nextBlockNumber)
 				}
 				sawPartialText = true
-				sendEvent(StreamEvent{Type: "message.delta", BlockID: lastBlockID, BlockType: "text", Delta: choice.Delta.Content})
+				sendEvent(StreamEvent{Type: "message.delta", Author: author, ParentToolCallID: parentToolCallID, BlockID: lastBlockID, BlockType: "text", Delta: choice.Delta.Content})
 			}
 			if choice.Message.ToolID != "" {
 				toolCallID := choice.Message.ToolID
 				if !startedTools[toolCallID] {
 					startedTools[toolCallID] = true
 					sendEvent(StreamEvent{
-						Type:       "tool.started",
-						ToolCallID: toolCallID,
-						ToolName:   toolName(choice.Message.ToolName, toolNames[toolCallID]),
-						ToolStatus: "running",
+						Type:             "tool.started",
+						Author:           author,
+						ParentToolCallID: parentToolCallID,
+						ToolCallID:       toolCallID,
+						ToolName:         toolName(choice.Message.ToolName, toolNames[toolCallID]),
+						ToolStatus:       "running",
 					})
 				}
 				status := "completed"
@@ -142,11 +162,13 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 					status = "failed"
 				}
 				sendEvent(StreamEvent{
-					Type:       "tool.finished",
-					ToolCallID: toolCallID,
-					ToolName:   toolName(choice.Message.ToolName, toolNames[toolCallID]),
-					ToolResult: choice.Message.Content,
-					ToolStatus: status,
+					Type:             "tool.finished",
+					Author:           author,
+					ParentToolCallID: parentToolCallID,
+					ToolCallID:       toolCallID,
+					ToolName:         toolName(choice.Message.ToolName, toolNames[toolCallID]),
+					ToolResult:       choice.Message.Content,
+					ToolStatus:       status,
 				})
 				lastBlockType = ""
 				lastBlockID = ""
@@ -164,11 +186,13 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 				startedTools[toolCall.ID] = true
 				toolNames[toolCall.ID] = toolCall.Function.Name
 				sendEvent(StreamEvent{
-					Type:       "tool.started",
-					ToolCallID: toolCall.ID,
-					ToolName:   toolCall.Function.Name,
-					Arguments:  string(toolCall.Function.Arguments),
-					ToolStatus: "running",
+					Type:             "tool.started",
+					Author:           author,
+					ParentToolCallID: parentToolCallID,
+					ToolCallID:       toolCall.ID,
+					ToolName:         toolCall.Function.Name,
+					Arguments:        string(toolCall.Function.Arguments),
+					ToolStatus:       "running",
 				})
 				lastBlockType = ""
 				lastBlockID = ""
@@ -181,7 +205,7 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 					lastBlockType = "reasoning"
 					lastBlockID = fmt.Sprintf("block-%d", nextBlockNumber)
 				}
-				sendEvent(StreamEvent{Type: "reasoning.delta", BlockID: lastBlockID, BlockType: "reasoning", Delta: choice.Message.ReasoningContent})
+				sendEvent(StreamEvent{Type: "reasoning.delta", Author: author, ParentToolCallID: parentToolCallID, BlockID: lastBlockID, BlockType: "reasoning", Delta: choice.Message.ReasoningContent})
 			}
 			if len(choice.Message.ToolCalls) == 0 && choice.Message.Content != "" && !sawPartialText {
 				if lastBlockType != "text" {
@@ -189,7 +213,7 @@ func (e *Engine) Run(ctx context.Context, input RunInput, send func(StreamEvent)
 					lastBlockType = "text"
 					lastBlockID = fmt.Sprintf("block-%d", nextBlockNumber)
 				}
-				sendEvent(StreamEvent{Type: "message.delta", BlockID: lastBlockID, BlockType: "text", Delta: choice.Message.Content})
+				sendEvent(StreamEvent{Type: "message.delta", Author: author, ParentToolCallID: parentToolCallID, BlockID: lastBlockID, BlockType: "text", Delta: choice.Message.Content})
 			}
 		}
 		if !frameworkEvent.Response.IsPartial {

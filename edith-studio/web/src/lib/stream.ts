@@ -1,7 +1,11 @@
 export type ToolStatus = "requested" | "running" | "completed" | "failed";
 
+export type AgentStatus = "running" | "completed" | "failed";
+
 export type StreamEvent = {
   type: string;
+  author?: string; // 空 = 父 Agent；非空 = 子 Agent 名（如 explorer）
+  parentToolCallId?: string; // 子事件触发的父 AgentTool 调用 toolCallId
   blockId?: string;
   blockType?: "reasoning" | "text";
   delta?: string;
@@ -17,7 +21,16 @@ export type AssistantBlock =
   | { id: string; type: "reasoning"; content: string }
   | { id: string; type: "text"; content: string }
   | { id: string; type: "error"; content: string }
-  | { id: string; type: "tool"; name: string; arguments: string; result: string; status: ToolStatus };
+  | { id: string; type: "tool"; name: string; arguments: string; result: string; status: ToolStatus }
+  | {
+      id: string;
+      type: "agent";
+      name: string;
+      arguments: string; // 父调用参数 JSON（含 request），渲染时解析为任务
+      status: AgentStatus;
+      result?: string;
+      blocks: AssistantBlock[]; // 子 Agent 的执行过程（思考/子工具/文本）
+    };
 
 // readSSEFrames 从缓冲字符串中切出完整 SSE 帧并解析为 StreamEvent；未结束的尾部留在 rest。
 export function readSSEFrames(buffer: string): { events: StreamEvent[]; rest: string } {

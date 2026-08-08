@@ -43,13 +43,15 @@ type ChatImage struct {
 	Name    string `json:"name,omitempty"`
 }
 
-// AssistantBlock 是助手消息中的思考、文本、工具或错误内容块。
+// AssistantBlock 是助手消息中的思考、文本、工具、错误或子 Agent 内容块。
 type AssistantBlock struct {
-	ID        string `json:"id"`
-	Type      string `json:"type"`
-	Content   string `json:"content,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Arguments string `json:"arguments,omitempty"`
-	Result    string `json:"result,omitempty"`
-	Status    string `json:"status,omitempty"`
+	ID        string           `json:"id"`
+	Type      string           `json:"type"`
+	Content   string           `json:"content,omitempty"`
+	Name      string           `json:"name,omitempty"`
+	Arguments string           `json:"arguments,omitempty"`
+	Result    string           `json:"result,omitempty"`
+	Status    string           `json:"status,omitempty"`
+	// Blocks 在 Type="agent" 时保存子 Agent 的执行过程块（思考/子工具/文本）。
+	Blocks []AssistantBlock   `json:"blocks,omitempty"`
 }

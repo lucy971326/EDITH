@@ -86,7 +86,7 @@ button:disabled { cursor: not-allowed; }
 .user-message { margin-left: auto; width: fit-content; max-width: 82%; border-radius: 13px 13px 3px; background: #167dd0; color: white; padding: 11px 14px; white-space: pre-wrap; }
 .assistant-message { display: grid; gap: 10px; }
 .assistant-text { margin: 0; color: #344054; line-height: 1.75; white-space: pre-wrap; }
-.reasoning, .tool-card, .empty-chat, .placeholder-card { border: 1px solid var(--line); border-radius: 11px; }
+.reasoning, .tool-card, .agent-card, .empty-chat, .placeholder-card { border: 1px solid var(--line); border-radius: 11px; }
 .reasoning { border-color: #f1dfae; background: #fffaf0; padding: 11px 13px; color: #795821; }
 .reasoning summary, .tool-card summary { cursor: pointer; font-weight: 700; }
 .reasoning p { margin: 8px 0 0; line-height: 1.65; white-space: pre-wrap; }
@@ -94,6 +94,10 @@ button:disabled { cursor: not-allowed; }
 .tool-card summary { display: flex; justify-content: space-between; padding: 11px 13px; color: #344054; }
 .tool-card pre { overflow-x: auto; margin: 0; border-top: 1px solid var(--line); padding: 12px; background: #f5f7fa; color: #607086; font-size: 12px; white-space: pre-wrap; }
 .tool-status { color: var(--muted); font-size: 12px; font-weight: 400; }
+.agent-card { overflow: hidden; background: #f8f7ff; border-color: #ddd6fe; }
+.agent-card summary { display: flex; justify-content: space-between; padding: 11px 13px; color: #3d2e6e; font-weight: 700; cursor: pointer; }
+.agent-task { margin: 0; padding: 0 13px 10px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.agent-blocks { border-top: 1px solid #e5e1fa; padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 .empty-chat { display: grid; min-height: 230px; place-items: center; color: var(--muted); text-align: center; }
 .error { max-width: 760px; margin: 0 auto 14px; border-radius: 9px; background: #fff1f2; color: #b4233f; padding: 10px 12px; font-size: 13px; }
 .command-status { max-width: 760px; margin: 0 auto 14px; border-radius: 9px; background: #edf9f2; color: #20744c; padding: 10px 12px; font-size: 13px; }

@@ -1,9 +1,24 @@
-import type { AssistantBlock, ToolStatus } from "../../lib/stream";
+import type { AgentStatus, AssistantBlock, ToolStatus } from "../../lib/stream";
 import type { ChatMessage } from "./types";
 import { Icon } from "../../ui/icon";
 
 function toolStatus(status: ToolStatus) {
   return { requested: "准备执行", running: "执行中", completed: "完成", failed: "失败" }[status];
+}
+
+function agentStatus(status: AgentStatus) {
+  return { running: "运行中", completed: "已完成", failed: "失败" }[status];
+}
+
+// agentTask 从父调用参数 JSON 解析委派任务（request 字段）。
+function agentTask(argumentsText?: string): string {
+  if (!argumentsText) return "";
+  try {
+    const parsed = JSON.parse(argumentsText) as { request?: string };
+    return parsed.request ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function BlockView({ block }: { block: AssistantBlock }) {
@@ -12,6 +27,21 @@ function BlockView({ block }: { block: AssistantBlock }) {
     return <details className="reasoning" open><summary>思考过程</summary><p>{block.content}</p></details>;
   }
   if (block.type === "error") return <p className="error">{block.content}</p>;
+  if (block.type === "agent") {
+    const task = agentTask(block.arguments);
+    return (
+      <details className="agent-card" open={block.status === "running"}>
+        <summary>
+          <span><Icon name="agent" /> {block.name}</span>
+          <span className="tool-status">{agentStatus(block.status)}</span>
+        </summary>
+        {task && <p className="agent-task">任务：{task}</p>}
+        <div className="agent-blocks">
+          {block.blocks.map((child) => <BlockView key={child.id} block={child} />)}
+        </div>
+      </details>
+    );
+  }
   return <details className="tool-card" open={block.status === "running"}><summary><span><Icon name="tool" /> {block.name}</span><span className="tool-status">{toolStatus(block.status)}</span></summary>{block.arguments && <pre>{block.arguments}</pre>}{block.result && <pre>{block.result}</pre>}</details>;
 }
 
