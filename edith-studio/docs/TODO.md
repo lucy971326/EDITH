@@ -54,6 +54,13 @@
 - [x] 系统/用户/项目三级 skills 目录发现；运行时同名覆盖（项目 > 用户 > 系统），展示层累积。
 - [x] `GET /api/skills` 返回三级列表；侧栏 Skills 弹层（上下键 + ENTER 技能名进输入框，LLM 自主 `skill_load`）。
 - [x] LoadMode session（跨轮保留）+ 正文物化到 tool result（不用 system）。详细决策见 `docs/product/Skills系统设计指南.md`。
+- [x] 系统级内置技能：`//go:embed` 进二进制，每次启动 `SeedSystemSkills` 全量物化到 `~/.edith/.system-skills/`（含 skill-creator，已适配 EDITH 路径）。
+- [x] 内置 skill-creator：删 openai.yaml 生成逻辑、`quick_validate` 去 PyYAML 依赖、脚本强制 LF 行尾。
+
+### 本机工具层（方案 c）
+
+- [x] claudecode 本地化到 `internal/claudecode`：`normalizePath` 放开 base_dir（文件工具全盘访问，可读写 `~/.edith` 技能目录），bash 平台分派（Windows 指 Git Bash，避开 WSL 启动器）。
+- [x] 启动自动创建用户/项目级技能目录；Glob 不存在目录文案不误导；测试隔离修复。详细计划见 `docs/product/工具集改造计划.md`。
 
 ## 当前优先级
 
