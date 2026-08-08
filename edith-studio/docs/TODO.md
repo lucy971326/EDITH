@@ -62,6 +62,14 @@
 - [x] claudecode 本地化到 `internal/claudecode`：`normalizePath` 放开 base_dir（文件工具全盘访问，可读写 `~/.edith` 技能目录），bash 平台分派（Windows 指 Git Bash，避开 WSL 启动器）。
 - [x] 启动自动创建用户/项目级技能目录；Glob 不存在目录文案不误导；测试隔离修复。详细计划见 `docs/product/工具集改造计划.md`。
 
+### 子 Agent（首版）
+
+- [x] 执行机制选 AgentTool（同步委派）而非 transfer/team/taskrun；子 Agent = 框架内置 `builtin.NewExplorer`，不建独立 `subagents.Module`。
+- [x] 装配在 `tools.NewAgentTool()`（`WithStreamInner` + `WithPinModel`），workspace 一行挂父 Agent。
+- [x] 子事件判据统一 `ParentMetadata != nil`；StreamEvent 加 `author` + `parentToolCallId`。
+- [x] 前端 Agent Card：tool 卡首条子事件升级为 agent 卡，子事件归 blocks；历史按预扫描 `agentCallIDs` 还原嵌套 agent 块，两条路径顺序一致。
+- [x] 实测修复：历史还原块顺序与实时一致（先父思考后 agent 卡）；`WithPinModel` 消除模型降级 WARN。详细计划见 `docs/product/多Agent系统开发计划书.md`。
+
 ## 当前优先级
 
 1. 文件编辑展示层（Agent 侧 write/edit 工具已在「本机工具层」就绪，剩下是前端展示与联动）。
@@ -69,7 +77,7 @@
    - [ ] Diff 展示：编辑器内可视化 Agent 改动的前后差异。
    - [ ] Agent 修改后的刷新策略：文件树、打开的标签、编辑器内容自动同步。
 2. 工具权限：重新设计为 Run 的暂停 / 恢复能力，不再用 Callback + 事件桥拼接。
-3. 子 Agent、分支、运行状态和更多 Web 产品能力。
+3. 分支、运行状态和更多 Web 产品能力（子 Agent 单层已落地）。
 
 ## 暂不做
 
