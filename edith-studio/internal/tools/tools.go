@@ -4,8 +4,8 @@ package tools
 import (
 	"fmt"
 
+	"edith/studio/internal/claudecode"
 	"trpc.group/trpc-go/trpc-agent-go/tool"
-	"trpc.group/trpc-go/trpc-agent-go/tool/claudecode"
 )
 
 // NewToolSets 为当前项目创建 Claude Code 兼容工具集。

@@ -14,6 +14,7 @@ import (
 	"edith/studio/internal/mcp"
 	"edith/studio/internal/models"
 	"edith/studio/internal/project"
+	"edith/studio/internal/skills"
 	"edith/studio/internal/workspace"
 )
 
@@ -141,6 +142,61 @@ func TestMCPHandlerReturnsServerStatuses(t *testing.T) {
 	}
 	if len(body.Servers) != 1 || body.Servers[0].Name != "broken" || body.Servers[0].Status != "error" {
 		t.Fatalf("servers = %#v", body.Servers)
+	}
+}
+
+func TestSkillsHandlerReturnsEntries(t *testing.T) {
+	projectRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(projectRoot, ".edith", "skills", "proj-skill"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(projectRoot, ".edith", "skills", "proj-skill", "SKILL.md"),
+		[]byte("---\nname: proj-skill\ndescription: project skill\n---\n\nbody\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	userRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(userRoot, "user-skill"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(userRoot, "user-skill", "SKILL.md"),
+		[]byte("---\nname: user-skill\ndescription: user skill\n---\n\nbody\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	skillsModule, err := skills.New(skills.Dependencies{
+		ProjectRoot:     projectRoot,
+		UserSkillsDir:   userRoot,
+		SystemSkillsDir: filepath.Join(t.TempDir(), "nope"),
+	})
+	if err != nil {
+		t.Fatalf("new skills: %v", err)
+	}
+
+	handler := newHandler(context.Background(), &workspace.Workspace{Skills: skillsModule})
+	response := serveRequest(handler, http.MethodGet, "/api/skills", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Skills []skills.Entry `json:"skills"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Skills) != 2 {
+		t.Fatalf("skills = %#v", body.Skills)
+	}
+	levels := map[string]bool{}
+	for _, entry := range body.Skills {
+		levels[entry.Name+"@"+entry.Level] = true
+	}
+	if !levels["proj-skill@project"] || !levels["user-skill@user"] {
+		t.Fatalf("skills = %#v", body.Skills)
 	}
 }
 

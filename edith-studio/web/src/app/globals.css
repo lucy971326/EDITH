@@ -52,6 +52,19 @@ button:disabled { cursor: not-allowed; }
 .mcp-name { overflow: hidden; min-width: 0; flex: 1; color: #354157; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .mcp-tools { color: var(--muted); font-size: 11px; }
 .empty-mcp { color: var(--muted); font-size: 12px; padding: 6px 8px; }
+.skills-section { position: relative; padding: 0 12px 4px; }
+.skills-toggle { display: flex; width: 100%; align-items: center; border: 0; border-radius: 8px; background: transparent; }
+.skills-toggle:hover { background: var(--blue-soft); }
+.skills-toggle .section-label { flex: 1; margin: 10px 8px 8px; }
+.skills-toggle .icon { margin-right: 8px; color: var(--muted); }
+.skills-popover { position: absolute; right: 8px; bottom: calc(100% + 6px); left: 8px; z-index: 20; max-height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 6px; box-shadow: 0 8px 28px rgb(23 32 51 / 14%); outline: none; }
+.skills-group-label { padding: 8px 8px 4px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+.skills-item { display: flex; width: 100%; flex-direction: column; align-items: flex-start; gap: 2px; border: 0; border-radius: 8px; background: transparent; padding: 8px 10px; text-align: left; }
+.skills-item:hover, .skills-item.active { background: var(--blue-soft); }
+.skills-item.active b { color: #1558b0; }
+.skills-item b { color: #354157; font-size: 13px; }
+.skills-item span { overflow: hidden; max-width: 100%; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.empty-skills { color: var(--muted); font-size: 12px; padding: 6px 8px; }
 
 .chat-area { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; background: var(--panel); }
 .panel-resizer { position: relative; flex: 0 0 6px; cursor: col-resize; touch-action: none; user-select: none; background: transparent; }

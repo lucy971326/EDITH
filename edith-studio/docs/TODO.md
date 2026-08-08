@@ -46,13 +46,20 @@
 - [x] 支持 stdio / sse / streamable_http 三种传输；stdio 密钥直接写入配置 `env`。
 - [x] 单 server 连接失败不阻塞启动，状态经 `GET /api/mcp` 展示在侧栏扩展区。
 - [x] MCP ToolSet 汇入 Agent，模型侧工具名为 `{server}_{tool}`。
+- [x] 项目级配置目录 `.edith/` 已 gitignore，密钥不入库。
+
+### Skills
+
+- [x] 用框架知识注入层（`WithSkills` + `SkillToolProfileKnowledgeOnly`），执行层不用（技能脚本走既有 bash 工具）。
+- [x] 系统/用户/项目三级 skills 目录发现；运行时同名覆盖（项目 > 用户 > 系统），展示层累积。
+- [x] `GET /api/skills` 返回三级列表；侧栏 Skills 弹层（上下键 + ENTER 技能名进输入框，LLM 自主 `skill_load`）。
+- [x] LoadMode session（跨轮保留）+ 正文物化到 tool result（不用 system）。详细决策见 `docs/product/Skills系统设计指南.md`。
 
 ## 当前优先级
 
-1. Skills：用户级与项目级发现、覆盖优先级、指令和命令提示。
-2. 文件附件、文件编辑、Diff、Agent 修改后的刷新策略。
-3. 工具权限：重新设计为 Run 的暂停 / 恢复能力，不再用 Callback + 事件桥拼接。
-4. 子 Agent、分支、运行状态和更多 Web 产品能力。
+1. 文件附件、文件编辑、Diff、Agent 修改后的刷新策略。
+2. 工具权限：重新设计为 Run 的暂停 / 恢复能力，不再用 Callback + 事件桥拼接。
+3. 子 Agent、分支、运行状态和更多 Web 产品能力。
 
 ## 暂不做
 

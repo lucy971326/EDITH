@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"edith/studio/internal/project"
 	"edith/studio/internal/promptlog"
 	"edith/studio/internal/session"
+	"edith/studio/internal/skills"
 	"edith/studio/internal/tools"
 
 	"trpc.group/trpc-go/trpc-agent-go/agent/llmagent"
@@ -56,6 +58,8 @@ type Workspace struct {
 	Models *models.Module
 	// MCP 是 MCP server 连接与状态的产品能力。
 	MCP *mcp.Module
+	// Skills 是系统/用户/项目三级 Skills 的发现结果与运行时仓库。
+	Skills *skills.Module
 
 	// toolSets 是 Workspace 创建并关闭的默认 Coding 工具资源，不作为产品接口暴露。
 	toolSets []tool.ToolSet
@@ -99,6 +103,16 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 	}
 	workspaceRuntime.MCP = mcpModule
 
+	// 系统级内置技能先物化到 ~/.edith/skills/.system；失败只告警，不阻塞启动。
+	if err := skills.SeedSystemSkills(); err != nil {
+		log.Printf("seed system skills: %v", err)
+	}
+	skillsModule, err := skills.New(skills.Dependencies{ProjectRoot: projectRoot})
+	if err != nil {
+		return nil, fmt.Errorf("create skills module: %w", err)
+	}
+	workspaceRuntime.Skills = skillsModule
+
 	sessionModule, err := session.Create(func(ctx context.Context) (model.Model, error) {
 		selection, ok := models.SelectionFromContext(ctx)
 		if !ok {
@@ -121,6 +135,16 @@ func Create(dependencies Dependencies) (*Workspace, error) {
 		llmagent.WithModels(modelModule.AgentModels()),
 		llmagent.WithGlobalInstruction(systemPrompt),
 		llmagent.WithToolSets(agentToolSets),
+		// Skills：只启用框架的知识注入层（概览 + skill_load 等工具 + 按需物化），
+		// 执行层（skill_run/skill_exec/workspace_exec）由 SkillToolProfileKnowledgeOnly 关闭；
+		// 技能脚本由 Agent 通过既有 bash 工具直接执行。
+		llmagent.WithSkills(skillsModule.Repository()),
+		llmagent.WithSkillToolProfile(llmagent.SkillToolProfileKnowledgeOnly),
+		llmagent.WithSkillsLoadedContentInToolResults(true),
+		llmagent.WithSkillLoadMode(llmagent.SkillLoadModeSession),
+		llmagent.WithSkillsDirectoryHints(true),
+		// 默认指引会教模型用 workspace_exec，Studio 没有，关闭防止误导。
+		llmagent.WithSkillsToolingGuidance(""),
 		llmagent.WithAddSessionSummary(true),
 		// 父 Agent 只读取自己的 FilterKey 及其子视图，不读取整个 Session 的其他视图。
 		llmagent.WithMessageBranchFilterMode(llmagent.BranchFilterModePrefix),

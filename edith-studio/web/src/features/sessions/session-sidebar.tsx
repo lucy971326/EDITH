@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { Icon } from "../../ui/icon";
 import type { McpServerStatus } from "../../api/mcp";
+import type { SkillEntry } from "../../api/skills";
+import { SkillsPopover } from "../skills/skills-popover";
 import type { SessionSummary } from "./types";
 
 type Props = {
@@ -7,9 +10,11 @@ type Props = {
   sessionID: string;
   isRunning: boolean;
   mcps: McpServerStatus[];
+  skills: SkillEntry[];
   onNew: () => void;
   onSelect: (sessionID: string) => void;
   onDelete: (sessionID: string) => void;
+  onSelectSkill: (name: string) => void;
 };
 
 function displayTime(value: string) {
@@ -18,7 +23,9 @@ function displayTime(value: string) {
   return date.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function SessionSidebar({ sessions, sessionID, isRunning, mcps, onNew, onSelect, onDelete }: Props) {
+export function SessionSidebar({ sessions, sessionID, isRunning, mcps, skills, onNew, onSelect, onDelete, onSelectSkill }: Props) {
+  const [skillsOpen, setSkillsOpen] = useState(false);
+
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -59,6 +66,27 @@ export function SessionSidebar({ sessions, sessionID, isRunning, mcps, onNew, on
                 <span className="mcp-tools">{server.toolCount} 工具</span>
               </div>
             ))
+          )}
+        </div>
+        <div className="skills-section">
+          <button
+            aria-expanded={skillsOpen}
+            className="skills-toggle"
+            onClick={() => setSkillsOpen((open) => !open)}
+            type="button"
+          >
+            <span className="section-label"><span>扩展 · Skills</span><span>{skills.length}</span></span>
+            <Icon name="chevron" className={skillsOpen ? "icon-rotate-right" : ""} />
+          </button>
+          {skillsOpen && (
+            <SkillsPopover
+              skills={skills}
+              onClose={() => setSkillsOpen(false)}
+              onSelect={(name) => {
+                onSelectSkill(name);
+                setSkillsOpen(false);
+              }}
+            />
           )}
         </div>
         <button className="nav-button" type="button"><Icon name="settings" />设置 <span className="soon-label">即将支持</span></button>

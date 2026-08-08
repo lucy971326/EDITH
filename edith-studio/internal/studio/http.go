@@ -18,6 +18,7 @@ import (
 	"edith/studio/internal/models"
 	"edith/studio/internal/project"
 	"edith/studio/internal/session"
+	"edith/studio/internal/skills"
 	"edith/studio/internal/workspace"
 )
 
@@ -36,6 +37,7 @@ func newHandler(appCtx context.Context, workspaceRuntime *workspace.Workspace) h
 	mux.HandleFunc("GET /api/commands", listCommandsHandler(workspaceRuntime.Commands))
 	mux.HandleFunc("POST /api/commands", commandHandler(workspaceRuntime))
 	mux.HandleFunc("GET /api/mcp", listMCPHandler(workspaceRuntime.MCP))
+	mux.HandleFunc("GET /api/skills", listSkillsHandler(workspaceRuntime.Skills))
 	mux.HandleFunc("GET /api/models", listModelsHandler(workspaceRuntime.Models))
 	mux.HandleFunc("GET /api/files", listFilesHandler(workspaceRuntime.Project))
 	mux.HandleFunc("GET /api/files/content", readFileHandler(workspaceRuntime.Project))
@@ -65,6 +67,18 @@ func listMCPHandler(mcpModule *mcp.Module) http.HandlerFunc {
 		writeJSON(responseWriter, http.StatusOK, struct {
 			Servers []mcp.ServerStatus `json:"servers"`
 		}{Servers: mcpModule.Status()})
+	}
+}
+
+func listSkillsHandler(skillsModule *skills.Module) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, _ *http.Request) {
+		if skillsModule == nil {
+			writeJSONError(responseWriter, http.StatusInternalServerError, "skills_unavailable", "skills module is unavailable")
+			return
+		}
+		writeJSON(responseWriter, http.StatusOK, struct {
+			Skills []skills.Entry `json:"skills"`
+		}{Skills: skillsModule.List()})
 	}
 }
 
